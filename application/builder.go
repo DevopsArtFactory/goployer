@@ -14,6 +14,7 @@ var (
 type Builder struct {
 	Config Config
 	AwsConfig AWSConfig
+	Frigga Frigga
 }
 
 type Config struct {
@@ -105,11 +106,14 @@ func NewBuilder() Builder {
 	// Parsing Argument
 	config := _argument_parsing()
 	awsConfig := _parsingManifestFile(config.Manifest)
+	frigga := Frigga{}
+	frigga.Prefix = _build_prefix_name(awsConfig.Name, config.Env, config.Region)
 
 	// Get New Builder
 	builder := Builder{
 		Config: config,
 		AwsConfig: awsConfig,
+		Frigga: frigga,
 	}
 
 	return builder

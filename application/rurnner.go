@@ -3,38 +3,22 @@ package application
 import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	Logger "github.com/sirupsen/logrus"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/service/ssm"
 	"os"
 )
 
 type Runner struct {
 	Logger 	*Logger.Logger
 	Builder   Builder
-	AWSClient AWSClient
 	Slacker Slack
-}
-
-type AWSClient struct {
-	Region string
-	EC2Service *ec2.EC2
-	ELBService *elbv2.ELBV2
-	CloudWatchService *cloudwatch.CloudWatch
-	SSMService *ssm.SSM
 }
 
 func NewRunner(builder Builder) Runner {
 	return Runner{
 		Logger:  Logger.New(),
 		Builder: builder,
-		AWSClient: _bootstrap_services(builder.Config.Region, builder.Config.AssumeRole),
 		Slacker: NewSlackClient(),
 	}
 }
@@ -45,7 +29,6 @@ func (r Runner) WarmUp()  {
 	r.Logger.SetLevel(Logger.InfoLevel)
 
 	r.Logger.Info("Warm up before starting deployment")
-
 }
 
 // Run
@@ -62,7 +45,14 @@ func (r Runner) Run()  {
 
 	//Run
 	r.Logger.Info("Beginning deploy for application: "+r.Builder.AwsConfig.Name)
+	deployer := _NewBlueGrean(
+		r.Logger,
+		r.Builder.AwsConfig.ReplacementType,
+		r.Builder.Frigga.Prefix,
+		_bootstrap_services(r.Builder.Config.Region, r.Builder.Config.AssumeRole))
 
+	// Deploy with builder
+	deployer.Deploy(r.Builder)
 }
 
 func _bootstrap_services(region string, assume_role string) AWSClient {
@@ -76,44 +66,12 @@ func _bootstrap_services(region string, assume_role string) AWSClient {
 	//Get all clients
 	client := AWSClient{
 		Region: region,
-		EC2Service: _get_ec2_client_fn(aws_session, region, creds),
-		ELBService: _get_elb_client_fn(aws_session, region, creds),
-		CloudWatchService: _get_cloudwatch_client_fn(aws_session, region, creds),
-		SSMService: _get_ssm_client_fn(aws_session, region, creds),
+		EC2Service: NewEC2Client(aws_session, region, creds),
+		ELBService: NewELBV2Client(aws_session, region, creds),
+		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
+		SSMService: NewSSMClient(aws_session, region, creds),
 	}
 
 	return client
 }
 
-func _get_aws_session() *session.Session {
-	mySession := session.Must(session.NewSession())
-	return mySession
-}
-
-func _get_ec2_client_fn(session *session.Session, region string, creds *credentials.Credentials) *ec2.EC2 {
-	if creds == nil {
-		return ec2.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return ec2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
-
-func _get_elb_client_fn(session *session.Session, region string, creds *credentials.Credentials) *elbv2.ELBV2 {
-	if creds == nil {
-		return elbv2.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return elbv2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
-
-func _get_cloudwatch_client_fn(session *session.Session, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
-	if creds == nil {
-		return cloudwatch.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return cloudwatch.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
-
-func _get_ssm_client_fn(session *session.Session, region string, creds *credentials.Credentials) *ssm.SSM {
-	if creds == nil {
-		return ssm.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return ssm.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
