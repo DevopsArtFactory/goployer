@@ -1,11 +1,22 @@
 package main
 
 import (
-	"./builder"
+	application "./application"
 )
 
 func main()  {
-	builder := builder.New()
+	builder := application.NewBuilder()
 	builder.CheckValidation()
 
+	builder.PrintSummary()
+
+	//if application.Config.Confirm {
+	//
+	//}
+
+	//Prepare Deployment
+	runner := application.NewRunner(builder)
+	runner.WarmUp()
+
+	runner.Run()
 }

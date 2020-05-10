@@ -1,18 +1,6 @@
 ---
 name: hello
-defaults:
-  account: preprod
-  instance_type: t3.medium
-  iam_instance_profile: 'app-hello-profile'
-  replacement_type: BlueGreen
-  capacity:
-    min: 1
-    max: 1
-    desired: 1
-  tags:
-    project: test
-    app: hello
-    repo: hello-deploy
+replacement_type: BlueGreen
 
 autoscaling: &autoscaling_policy
   scale_up:
@@ -46,21 +34,36 @@ alarms: &autoscaling_alarms
     alarm_actions:
       - scale_down
 
+tags:
+  project: test
+  app: hello
+  repo: hello-deploy
+
 environments:
-  dayonep:
+  - stack: dayonep
+    account: prod
     instance_type: t3.large
     ssh_key: dayone-prod-master
+    iam_instance_profile: 'app-hello-profile'
     ansible_tags: all
     extra_vars: ""
+    block_devices:
+      - device_name: /dev/xvda
+        volume_size: 100
+        volume_type: "gp2"
     capacity:
       min: 1
       max: 1
       desired: 1
+    autoscaling:
+      <<: *autoscaling_policy
+    alarms:
+      <<: *autoscaling_alarms
     lifecycle_callbacks:
       pre_terminate_past_clusters:
         - service hello stop
     regions:
-      ap-northeast-2:
+      - region: ap-northeast-2
         vpc: vpc-dayonep_apnortheast2
         security_groups:
           - hello-dayonep_apnortheast2
@@ -68,3 +71,5 @@ environments:
         healthcheck_target_group: hello-dayonepapne2-ext
         target_groups:
           - hello-dayonepapne2-ext
+
+

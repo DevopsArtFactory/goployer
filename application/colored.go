@@ -1,4 +1,4 @@
-package builder
+package application
 
 import (
 	"github.com/fatih/color"
@@ -15,3 +15,4 @@ func Blue(s string) {
 func Yellow(s string) {
 	color.Yellow(s)
 }
+
