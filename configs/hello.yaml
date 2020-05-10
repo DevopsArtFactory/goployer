@@ -1,0 +1,70 @@
+---
+name: hello
+defaults:
+  account: preprod
+  instance_type: t3.medium
+  iam_instance_profile: 'app-hello-profile'
+  replacement_type: BlueGreen
+  capacity:
+    min: 1
+    max: 1
+    desired: 1
+  tags:
+    project: test
+    app: hello
+    repo: hello-deploy
+
+autoscaling: &autoscaling_policy
+  scale_up:
+    adjustment_type: ChangeInCapacity
+    scaling_adjustment: 1
+    cooldown: 60
+  scale_down:
+    adjustment_type: ChangeInCapacity
+    scaling_adjustment: -1
+    cooldown: 180
+
+alarms: &autoscaling_alarms
+  scale_up_on_util:
+    namespace: AWS/EC2
+    metric: CPUUtilization
+    statistic: Average
+    comparison: GreaterThanOrEqualToThreshold
+    threshold: 50
+    period: 120
+    evaluation_periods: 2
+    alarm_actions:
+      - scale_up
+  scale_down_on_util:
+    namespace: AWS/EC2
+    metric: CPUUtilization
+    statistic: Average
+    comparison: LessThanOrEqualToThreshold
+    threshold: 30
+    period: 300
+    evaluation_periods: 3
+    alarm_actions:
+      - scale_down
+
+environments:
+  dayonep:
+    instance_type: t3.large
+    ssh_key: dayone-prod-master
+    ansible_tags: all
+    extra_vars: ""
+    capacity:
+      min: 1
+      max: 1
+      desired: 1
+    lifecycle_callbacks:
+      pre_terminate_past_clusters:
+        - service hello stop
+    regions:
+      ap-northeast-2:
+        vpc: vpc-dayonep_apnortheast2
+        security_groups:
+          - hello-dayonep_apnortheast2
+          - default-dayonep_apnortheast2
+        healthcheck_target_group: hello-dayonepapne2-ext
+        target_groups:
+          - hello-dayonepapne2-ext
