@@ -95,3 +95,13 @@ func isZero(v reflect.Value) bool {
 func IsZero(v interface{}) bool {
 	return isZero(reflect.ValueOf(v))
 }
+
+// IsStringInArray checks if string value is in array or not
+func IsStringInArray(s string, arr []string) bool {
+	for _, as := range arr {
+		if (as == s) {
+			return true
+		}
+	}
+	return false
+}

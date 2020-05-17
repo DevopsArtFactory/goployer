@@ -10,10 +10,6 @@ func main()  {
 
 	builder.PrintSummary()
 
-	//if application.Config.Confirm {
-	//
-	//}
-
 	//Prepare Deployment
 	runner := application.NewRunner(builder)
 	runner.WarmUp()

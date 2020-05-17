@@ -5,16 +5,50 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+     "encoding/base64"
 )
 
 var (
 	NO_MANIFEST_EXISTS="Manifest file does not exist"
 )
 
+type UserdataProvider interface {
+	provide() string
+}
+
+type LocalProvider struct {
+	Path string
+}
+
+type S3Provider struct {
+	Path string
+}
+
+func (l LocalProvider) provide() string {
+	if l.Path == "" {
+		error_logging("Please specify userdata script path")
+	}
+	if ! fileExists(l.Path) {
+		error_logging(fmt.Sprintf("File does not exist in %s", l.Path))
+	}
+
+	userdata, err := ioutil.ReadFile(l.Path)
+	if err != nil {
+		error_logging("Error reading userdata file")
+	}
+
+	return base64.StdEncoding.EncodeToString(userdata)
+}
+
+func (s S3Provider) provide() string  {
+	return ""
+}
+
 type Builder struct {
 	Config Config
 	AwsConfig AWSConfig
 	Frigga Frigga
+	LocalProvider UserdataProvider
 }
 
 type Config struct {
@@ -29,20 +63,27 @@ type Config struct {
 }
 
 type AWSConfig struct {
-	Name string
+	Name 			string
 	ReplacementType string `yaml:"replacement_type"`
-	Environments []Environment
+	Userdata 		Userdata `yaml:"userdata"`
+	Tags 		 	[]string `yaml:"tags"`
+	Environments 	[]Environment
+}
+
+type Userdata struct {
+	Type string `yaml:"type"`
+	Path string `yaml:"path"`
 }
 
 type AutoscalingPolicy struct {
-	ScaleUp ScalePolicy `yaml:"scale_up"`
-	ScaleDown ScalePolicy `yaml:"scale_down"`
+	ScaleUp 	ScalePolicy `yaml:"scale_up"`
+	ScaleDown 	ScalePolicy `yaml:"scale_down"`
 }
 
 type ScalePolicy struct {
-	AdjustmentType string `yaml:"adjustment_type"`
-	ScalingAdjustment int `yaml:"scaling_adjustment"`
-	Cooldown string `yaml:"cooldown"`
+	AdjustmentType 		string `yaml:"adjustment_type"`
+	ScalingAdjustment 	int `yaml:"scaling_adjustment"`
+	Cooldown 			string `yaml:"cooldown"`
 }
 
 type Alarms struct {
@@ -51,35 +92,36 @@ type Alarms struct {
 }
 
 type AlarmConfigs struct {
-	Namespace string
-	Metric string
-	Statistic string
-	Comparison string
-	Threshold int
-	Period int
-	EvaluationPeriods int `yaml:"evaluation_periods"`
-	AlarmActions []string `yaml:"alarm_actions"`
+	Namespace 			string
+	Metric 				string
+	Statistic 			string
+	Comparison 			string
+	Threshold 			int
+	Period 				int
+	EvaluationPeriods 	int `yaml:"evaluation_periods"`
+	AlarmActions 		[]string `yaml:"alarm_actions"`
 }
 
 type Environment struct {
-	Stack string
-	Account string
-	InstanceType string `yaml:"instance_type"`
-	SshKey string `yaml:"ssh_key"`
-	IamInstanceProfile string `yaml:"iam_instance_profile"`
-	AnsibleTags string `yaml:"ansible_tags"`
-	BlockDevices []BlockDevice `yaml:"block_devices"`
-	ExtraVars string `yaml:"extra_vars"`
-	Capacity Capacity `yaml:"capacity"`
-	Autoscaling AutoscalingPolicy
-	Alarms Alarms
-	LifecycleCallbacks LifecycleCallbacks `yaml:"lifecycle_callbacks"`
-	Regions []RegionConfig
+	Stack 				string
+	Account 			string
+	InstanceType 		string `yaml:"instance_type"`
+	SshKey 				string `yaml:"ssh_key"`
+	IamInstanceProfile 	string `yaml:"iam_instance_profile"`
+	AnsibleTags 		string `yaml:"ansible_tags"`
+	EbsOptimized 		bool   `yaml:"ebs_optimized"`
+	BlockDevices 		[]BlockDevice `yaml:"block_devices"`
+	ExtraVars 			string `yaml:"extra_vars"`
+	Capacity 			Capacity `yaml:"capacity"`
+	Autoscaling 		AutoscalingPolicy
+	Alarms 				Alarms
+	LifecycleCallbacks 	LifecycleCallbacks `yaml:"lifecycle_callbacks"`
+	Regions 			[]RegionConfig
 }
 
 type BlockDevice struct {
 	DeviceName string `yaml:"device_name"`
-	VolumeSize string `yaml:"volume_size"`
+	VolumeSize int64 `yaml:"volume_size"`
 	VolumeType string `yaml:"volume_type"`
 }
 
@@ -88,18 +130,21 @@ type LifecycleCallbacks struct {
 }
 
 type RegionConfig struct {
-	Region string `yaml:"region"`
-	VPC string `yaml:"vpc"`
-	SecurityGroups []string `yaml:"security_groups"`
-	HealthcheckLB string `yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup string `yaml:"healthcheck_target_group"`
-	TargetGroups []string `yaml:"target_groups"`
+	Region 					string `yaml:"region"`
+	UsePublicSubnets		bool `yaml:"use_public_subnets"`
+	VPC 					string `yaml:"vpc"`
+	SecurityGroups 			[]string `yaml:"security_groups"`
+	HealthcheckLB 			string `yaml:"healthcheck_load_balancer"`
+	HealthcheckTargetGroup 	string `yaml:"healthcheck_target_group"`
+	TargetGroups 			[]string `yaml:"target_groups"`
+	LoadBalancers 			[]string `yaml:"loadbalancers"`
+	AvailabilityZones 		[]string `yaml:"availability_zones"`
 }
 
 type Capacity struct {
-	Min int `yaml:"min"`
-	Max int `yaml:"max"`
-	Desired int `yaml:"desired"`
+	Min 	int64 `yaml:"min"`
+	Max 	int64 `yaml:"max"`
+	Desired int64 `yaml:"desired"`
 }
 
 func NewBuilder() Builder {
@@ -109,11 +154,15 @@ func NewBuilder() Builder {
 	frigga := Frigga{}
 	frigga.Prefix = _build_prefix_name(awsConfig.Name, config.Env, config.Region)
 
+	//Get LocalFileProvider
+	provider := _set_userdata_provider(awsConfig.Userdata)
+
 	// Get New Builder
 	builder := Builder{
 		Config: config,
 		AwsConfig: awsConfig,
 		Frigga: frigga,
+		LocalProvider: provider,
 	}
 
 	return builder
@@ -209,5 +258,28 @@ func _argument_parsing() Config {
 	return config
 }
 
+// Set Userdata provider
+func _set_userdata_provider(userdata Userdata) UserdataProvider {
+	if userdata.Type == "s3" {
+		return S3Provider{Path: userdata.Path}
+	}
 
+	return LocalProvider{
+		Path: userdata.Path,
+	}
+}
+
+func (b Builder) GetTargetEnvironment() (bool, Environment, RegionConfig) {
+	for _, env := range b.AwsConfig.Environments {
+		if env.Stack == b.Config.Stack {
+			for _, region := range env.Regions {
+				if region.Region == b.Config.Region {
+					return true, env, region
+				}
+			}
+		}
+	}
+	// Null Value
+	return false, Environment{}, RegionConfig{}
+}
 

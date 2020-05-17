@@ -1,6 +1,9 @@
 ---
 name: hello
 replacement_type: BlueGreen
+userdata:
+  type: local
+  path: scripts/userdata.sh
 
 autoscaling: &autoscaling_policy
   scale_up:
@@ -34,10 +37,11 @@ alarms: &autoscaling_alarms
     alarm_actions:
       - scale_down
 
+# Tags should be like "key=value"
 tags:
-  project: test
-  app: hello
-  repo: hello-deploy
+  - project=test
+  - app=hello
+  - repo=hello-deploy
 
 environments:
   - stack: dayonep
@@ -47,10 +51,12 @@ environments:
     iam_instance_profile: 'app-hello-profile'
     ansible_tags: all
     extra_vars: ""
+    ebs_optimized: false
     block_devices:
       - device_name: /dev/xvda
         volume_size: 100
         volume_type: "gp2"
+      - device_name: /dev/xvdb
     capacity:
       min: 1
       max: 1
@@ -64,11 +70,27 @@ environments:
         - service hello stop
     regions:
       - region: ap-northeast-2
+        # Whether you want to use public subnet or not
+        # By Default, deployer selects private subnets
+        # If you want to use public subnet, then you should set this value to ture
+        use_public_subnets: false
+        # You can use VPC id(vpc-xxx)
+        # If you specify the name of VPC, then deployer will find the VPC id with it.
+        # In this case, only one VPC should exist
         vpc: vpc-dayonep_apnortheast2
+        # You can use security group id(sg-xxx)
+        # If you specify the name of security group, then deployer will find the security group id with it.
+        # In this case, only one security group should exist
         security_groups:
           - hello-dayonep_apnortheast2
           - default-dayonep_apnortheast2
         healthcheck_target_group: hello-dayonepapne2-ext
+        # If no availability zones specified, then all availability zones are selected by default
+        # If you want all availability zones, then please remove availability_zones key
+#        availability_zones:
+#          - ap-northeast-2a
+#          - ap-northeast-2b
+#          - ap-northeast-2c
         target_groups:
           - hello-dayonepapne2-ext
 
