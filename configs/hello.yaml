@@ -1,6 +1,5 @@
 ---
 name: hello
-replacement_type: BlueGreen
 userdata:
   type: local
   path: scripts/userdata.sh
@@ -43,10 +42,13 @@ tags:
   - app=hello
   - repo=hello-deploy
 
-environments:
+stacks:
   - stack: dayonep
     account: prod
-    instance_type: t3.large
+    env: prod
+    assume_role: ""
+    replacement_type: BlueGreen
+    instance_type: t3.medium
     ssh_key: dayone-prod-master
     iam_instance_profile: 'app-hello-profile'
     ansible_tags: all
@@ -73,7 +75,7 @@ environments:
         # Whether you want to use public subnet or not
         # By Default, deployer selects private subnets
         # If you want to use public subnet, then you should set this value to ture
-        use_public_subnets: false
+        use_public_subnets: true
         # You can use VPC id(vpc-xxx)
         # If you specify the name of VPC, then deployer will find the VPC id with it.
         # In this case, only one VPC should exist

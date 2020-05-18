@@ -2,9 +2,8 @@ package application
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	Logger "github.com/sirupsen/logrus"
+	"time"
 
 	"os"
 )
@@ -43,35 +42,60 @@ func (r Runner) Run()  {
 
 	//Send Beginning Message
 
-	//Run
 	r.Logger.Info("Beginning deploy for application: "+r.Builder.AwsConfig.Name)
+
+	deployers := []DeployManager{}
+	for _, stack := range r.Builder.Stacks.Stacks {
+		// If target stack is passed from command, then
+		// Skip other stacks
+		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
+			Logger.Info("Skipping this stack, stack=%s", stack.Stack)
+			continue
+		}
+
+		deployers = append(deployers, _get_deployer(r.Logger, stack, r.Builder.AwsConfig))
+	}
+
+	// Deploy
+	for _, deployer := range deployers {
+		deployer.Deploy(r.Builder.Config)
+	}
+
+	// healthcheck
+	_do_healthchecking(deployers, r.Builder.Config)
+
+}
+
+func _get_deployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) DeployManager {
 	deployer := _NewBlueGrean(
-		r.Logger,
-		r.Builder.AwsConfig.ReplacementType,
-		r.Builder.Frigga.Prefix,
-		_bootstrap_services(r.Builder.Config.Region, r.Builder.Config.AssumeRole))
+		stack.ReplacementType,
+		logger,
+		awsConfig,
+		stack,
+	)
 
-	// Deploy with builder
-	deployer.Deploy(r.Builder)
+	return deployer
 }
 
-func _bootstrap_services(region string, assume_role string) AWSClient {
-	aws_session := _get_aws_session()
+func _do_healthchecking(deployers []DeployManager, config Config) {
+	healthyStackList := []string{}
+	healthy := false
+	for ! healthy {
+		for _, deployer := range deployers {
+			if IsStringInArray(deployer.GetStackName(), healthyStackList) {
+				continue
+			}
+			ret := deployer.Healthchecking(config)
 
-	var creds *credentials.Credentials
-	if len(assume_role) != 0  {
-		creds = stscreds.NewCredentials(aws_session, assume_role)
+			if ret {
+				healthyStackList = append(healthyStackList, deployer.GetStackName())
+			}
+		}
+
+		if len(healthyStackList) == len(deployers) {
+			healthy = true
+		} else {
+			time.Sleep(POLLING_SLEEP_TIME)
+		}
 	}
-
-	//Get all clients
-	client := AWSClient{
-		Region: region,
-		EC2Service: NewEC2Client(aws_session, region, creds),
-		ELBService: NewELBV2Client(aws_session, region, creds),
-		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
-		SSMService: NewSSMClient(aws_session, region, creds),
-	}
-
-	return client
 }
-

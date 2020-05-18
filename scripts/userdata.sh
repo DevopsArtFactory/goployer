@@ -1,3 +1,5 @@
 #!/bin/bash
 
-echo "This is sample script" > /tmp/userdata
+sudo yum update
+sudo amazon-linux-extras install nginx1.12
+sudo service nginx starts

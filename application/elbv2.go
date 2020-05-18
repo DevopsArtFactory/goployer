@@ -6,12 +6,22 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/elbv2"
+	Logger "github.com/sirupsen/logrus"
 	"os"
 )
 
 type ELBV2Client struct {
 	Client *elbv2.ELBV2
+}
+
+type HealthcheckHost struct {
+	InstanceId 		string
+	LifecycleState 	string
+	TargetStatus	string
+	HealthStatus    string
+	healthy			bool
 }
 
 func NewELBV2Client(session *session.Session, region string, creds *credentials.Credentials) ELBV2Client {
@@ -61,5 +71,55 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 		ret = append(ret, group.TargetGroupArn)
 	}
 
+	return ret
+}
+
+func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) []HealthcheckHost {
+	Logger.Info(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
+
+
+	input := &elbv2.DescribeTargetHealthInput{
+		TargetGroupArn: aws.String(*target_group_arn),
+	}
+
+	result, err := e.Client.DescribeTargetHealth(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case elbv2.ErrCodeInvalidTargetException:
+				fmt.Println(elbv2.ErrCodeInvalidTargetException, aerr.Error())
+			case elbv2.ErrCodeTargetGroupNotFoundException:
+				fmt.Println(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
+			case elbv2.ErrCodeHealthUnavailableException:
+				fmt.Println(elbv2.ErrCodeHealthUnavailableException, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		os.Exit(1)
+	}
+
+	ret := []HealthcheckHost{}
+	for _, instance := range group.Instances {
+		target_state := INITIAL_STATUS
+		for _, hd := range result.TargetHealthDescriptions {
+			if *hd.Target.Id == *instance.InstanceId {
+				target_state = *hd.TargetHealth.State
+				break
+			}
+		}
+
+		ret = append(ret, HealthcheckHost{
+			InstanceId:     *instance.InstanceId,
+			LifecycleState: *instance.LifecycleState,
+			TargetStatus:   target_state,
+			HealthStatus:   *instance.HealthStatus,
+			healthy:        *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy",
+		})
+	}
 	return ret
 }

@@ -6,6 +6,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
      "encoding/base64"
+	"time"
 )
 
 var (
@@ -45,29 +46,39 @@ func (s S3Provider) provide() string  {
 }
 
 type Builder struct {
-	Config Config
-	AwsConfig AWSConfig
-	Frigga Frigga
-	LocalProvider UserdataProvider
+	Config 		Config		// Config from command
+	AwsConfig 	AWSConfig 	// Common Config
+	Stacks 		Stacks 		// Stack Config
 }
 
 type Config struct {
-	Manifest 	string
-	Ami  	 	string
-	Env  	 	string
-	Stack  	 	string
-	AssumeRole 	string
-	Timeout  	int
-	Region   	string
-	Confirm  	bool
+	Manifest 		string
+	Ami  	 		string
+	Env  	 		string
+	Stack  	 		string
+	AssumeRole 		string
+	Timeout  		int64
+	StartTimestamp 	int64
+	Region   		string
+	Confirm  		bool
+}
+
+
+type YamlConfig struct {
+	Name 			string
+	Userdata 		Userdata 	`yaml:"userdata"`
+	Tags 		 	[]string 	`yaml:"tags"`
+	Stacks			[]Stack 	`yaml:"stacks"`
 }
 
 type AWSConfig struct {
 	Name 			string
-	ReplacementType string `yaml:"replacement_type"`
-	Userdata 		Userdata `yaml:"userdata"`
-	Tags 		 	[]string `yaml:"tags"`
-	Environments 	[]Environment
+	Userdata 		Userdata
+	Tags 		 	[]string
+}
+
+type Stacks struct {
+	Stacks 	[]Stack
 }
 
 type Userdata struct {
@@ -102,13 +113,17 @@ type AlarmConfigs struct {
 	AlarmActions 		[]string `yaml:"alarm_actions"`
 }
 
-type Environment struct {
-	Stack 				string
-	Account 			string
+type Stack struct {
+	Stack 				string `yaml:"stack"`
+	Account 			string `yaml:"account"`
+	Env 				string `yaml:"env"`
+	ReplacementType 	string `yaml:"replacement_type"`
 	InstanceType 		string `yaml:"instance_type"`
 	SshKey 				string `yaml:"ssh_key"`
+	Userdata 			Userdata `yaml:"userdata"`
 	IamInstanceProfile 	string `yaml:"iam_instance_profile"`
 	AnsibleTags 		string `yaml:"ansible_tags"`
+	AssumeRole 			string `yaml:"assume_role"`
 	EbsOptimized 		bool   `yaml:"ebs_optimized"`
 	BlockDevices 		[]BlockDevice `yaml:"block_devices"`
 	ExtraVars 			string `yaml:"extra_vars"`
@@ -150,19 +165,13 @@ type Capacity struct {
 func NewBuilder() Builder {
 	// Parsing Argument
 	config := _argument_parsing()
-	awsConfig := _parsingManifestFile(config.Manifest)
-	frigga := Frigga{}
-	frigga.Prefix = _build_prefix_name(awsConfig.Name, config.Env, config.Region)
-
-	//Get LocalFileProvider
-	provider := _set_userdata_provider(awsConfig.Userdata)
+	awsConfig, Stacks := _parsingManifestFile(config.Manifest)
 
 	// Get New Builder
 	builder := Builder{
 		Config: config,
 		AwsConfig: awsConfig,
-		Frigga: frigga,
-		LocalProvider: provider,
+		Stacks: Stacks,
 	}
 
 	return builder
@@ -180,27 +189,27 @@ func (b Builder) CheckValidation()  {
 func (b Builder) PrintSummary() {
 	formatting := `
 ============================================================
-Beginning deploy
+Target Stack Deployment Information
 ============================================================
 name       : %s
-env        : %s
 ami        : %s
 region     : %s
 timeout    : %d
 ============================================================
 Stacks
 ============================================================`
-	summary := fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Ami, b.Config.Region, b.Config.Timeout)
+	summary := fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Ami, b.Config.Region, b.Config.Timeout)
 	fmt.Println(summary)
 
-	for _, environment := range b.AwsConfig.Environments {
-		_print_environment(environment)
+	for _, stack := range b.Stacks.Stacks {
+		_print_environment(stack)
 	}
 }
 
-func _print_environment(environment Environment)  {
+func _print_environment(stack Stack)  {
 	formatting := `[ %s ]
-Account                 : %s
+Environment             : %s
+Environment             : %s
 Instance type           : %s
 SSH key                 : %s
 IAM Instance Profile    : %s
@@ -210,25 +219,33 @@ Capacity                : %+v
 Block_devices           : %+v
 ============================================================
 	`
-	summary := fmt.Sprintf(formatting, environment.Stack, environment.Account, environment.InstanceType, environment.SshKey, environment.IamInstanceProfile, environment.AnsibleTags, environment.ExtraVars, environment.Capacity, environment.BlockDevices)
+	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.InstanceType, stack.SshKey, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity, stack.BlockDevices)
 	fmt.Println(summary)
 }
 
 // Parsing Manifest File
-func  _parsingManifestFile(manifest string) AWSConfig {
-    awsConfig := AWSConfig{}
+func  _parsingManifestFile(manifest string) (AWSConfig, Stacks) {
+    yamlConfig := YamlConfig{}
 	yamlFile, err := ioutil.ReadFile(manifest)
 	if err != nil {
 		fmt.Printf("Error reading YAML file: %s\n", err)
 		error_logging("Please check the yaml file")
 	}
 
-	err = yaml.Unmarshal(yamlFile, &awsConfig)
+	err = yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
 		_fatal_error(err)
 	}
 
-	return awsConfig
+	awsConfig := AWSConfig{
+		Name:     yamlConfig.Name,
+		Userdata: yamlConfig.Userdata,
+		Tags:     yamlConfig.Tags,
+	}
+
+	Stacks := Stacks{Stacks: yamlConfig.Stacks}
+
+	return awsConfig, Stacks
 }
 
 // Parsing Config from command
@@ -238,7 +255,7 @@ func _argument_parsing() Config {
 	env := flag.String("env", "", "The environment that is being deployed into.")
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
 	assume_role := flag.String("assume_role", "", "The Role ARN to assume into")
-	timeout := flag.Int("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
+	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
 	region := flag.String("region", "us-east-2", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
 
@@ -252,6 +269,7 @@ func _argument_parsing() Config {
 		Region: *region,
 		AssumeRole: *assume_role,
 		Timeout: *timeout,
+		StartTimestamp: time.Now().Unix(),
 		Confirm: *confirm,
 	}
 
@@ -259,7 +277,17 @@ func _argument_parsing() Config {
 }
 
 // Set Userdata provider
-func _set_userdata_provider(userdata Userdata) UserdataProvider {
+func _set_userdata_provider(userdata Userdata, default_userdata Userdata) UserdataProvider {
+
+	//Set default if no userdata exists in the stack
+	if userdata.Type == "" {
+		userdata.Type = default_userdata.Type
+	}
+
+	if userdata.Path == "" {
+		userdata.Path = default_userdata.Path
+	}
+
 	if userdata.Type == "s3" {
 		return S3Provider{Path: userdata.Path}
 	}
@@ -269,17 +297,17 @@ func _set_userdata_provider(userdata Userdata) UserdataProvider {
 	}
 }
 
-func (b Builder) GetTargetEnvironment() (bool, Environment, RegionConfig) {
-	for _, env := range b.AwsConfig.Environments {
-		if env.Stack == b.Config.Stack {
-			for _, region := range env.Regions {
-				if region.Region == b.Config.Region {
-					return true, env, region
+func (s Stacks) GetTargetStack(config Config) (bool, Stack, RegionConfig) {
+	for _, stack := range s.Stacks {
+		if stack.Stack == config.Stack {
+			for _, region := range stack.Regions {
+				if region.Region == config.Region {
+					return true, stack, region
 				}
 			}
 		}
 	}
 	// Null Value
-	return false, Environment{}, RegionConfig{}
+	return false, Stack{}, RegionConfig{}
 }
 

@@ -41,7 +41,26 @@ func _get_asg_client_fn(session *session.Session, region string, creds *credenti
 	return autoscaling.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
-func (c EC2Client) GetAllMatchingAutoscalingGroups(prefix string) []*autoscaling.Group {
+func (c EC2Client) GetAllMatchingAutoscalingGroups(name string) *autoscaling.Group {
+
+	asgGroups := []*autoscaling.Group{}
+	asgGroups = _get_autoscaling_groups(c.AsClient, asgGroups, nil)
+
+	ret := []*autoscaling.Group{}
+	for _, asgGroup := range asgGroups {
+		if *asgGroup.AutoScalingGroupName == name {
+			ret = append(ret, asgGroup)
+		}
+	}
+
+	if len(ret) > 0 {
+		return ret[0]
+	}
+
+	return nil
+}
+
+func (c EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) []*autoscaling.Group {
 	asgGroups := []*autoscaling.Group{}
 	asgGroups = _get_autoscaling_groups(c.AsClient, asgGroups, nil)
 
@@ -107,7 +126,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 		return false
 	}
 
-	Logger.Info("Successfully create new launch configurations : %s", name)
+	Logger.Info("Successfully create new launch configurations : ", name)
 
 	return true
 }
@@ -300,7 +319,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_config_name, healthcheck_
 		return false
 	}
 
-	Logger.Info("Successfully create new autoscaling group : %s", name)
+	Logger.Info("Successfully create new autoscaling group : ", name)
 
 	return true
 }

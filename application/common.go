@@ -5,11 +5,14 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"time"
 )
 
 
 var (
 	NO_ERROR_MESSAGE_PASSED="No Error Message exists"
+	INITIAL_STATUS="Not Found"
+	POLLING_SLEEP_TIME=(60 * time.Second)
 )
 
 // Check if file exists

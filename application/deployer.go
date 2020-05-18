@@ -1,15 +1,23 @@
 package application
 
 import (
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
+	"os"
+	"time"
 )
 
+// Deployer per stack
 type Deployer struct {
-	Mode string
-	Prefix string
-	Logger 	*Logger.Logger
-	AWSClient AWSClient
+	Mode 	 		string
+	AsgNames		map[string]string
+	Logger 	 		*Logger.Logger
+	Stack	 		Stack
+	AwsConfig		AWSConfig
+	AWSClients 		[]AWSClient
+	LocalProvider 	UserdataProvider
 }
 
 func _get_current_version(prev_versions []int) int {
@@ -19,92 +27,57 @@ func _get_current_version(prev_versions []int) int {
 	return (prev_versions[len(prev_versions)-1] + 1) % 1000
 }
 
-func (d Deployer) Deploy(builder Builder) {
-	d.Logger.Info("Deploy Mode is " + d.Mode)
-
-	// Get All Autoscaling Groups
-	asgGroups := d.AWSClient.EC2Service.GetAllMatchingAutoscalingGroups(d.Prefix)
-
-	//Get All Previous Autoscaling Groups and versions
-	prev_asgs := []string{}
-	prev_versions := []int{}
-	for _, asgGroup := range asgGroups {
-		prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
-		prev_versions = append(prev_versions, _parse_version(*asgGroup.AutoScalingGroupName))
-	}
-	d.Logger.Info("Previous Versions : ", prev_asgs)
-
-	// Get Current Version
-	cur_version := _get_current_version(prev_versions)
-	d.Logger.Info("Current Version :", cur_version)
-
-	//Get AMI
-	ami := builder.Config.Ami
-
-	// Generate new name for autoscaling group and launch configuration
-	new_asg_name := _generate_asg_name(d.Prefix, cur_version)
-	launch_configuration_name := _generate_lc_name(new_asg_name)
-
-	userdata := (builder.LocalProvider).provide()
-
-	//Environment Check
-	hasStack, targetEnv, regionEnv := builder.GetTargetEnvironment()
-	if ! hasStack {
-		error_logging(fmt.Sprintf("Cannot find the stack information : %s", builder.Config.Stack))
+// Polling for healthcheck
+func (d Deployer) polling(region RegionConfig, asg *autoscaling.Group, client AWSClient) bool {
+	if *asg.AutoScalingGroupName == "" {
+		error_logging(fmt.Sprintf("No autoscaling found for %s", d.AsgNames[region.Region]))
 	}
 
-	securityGroups := d.AWSClient.EC2Service.GetSecurityGroupList(regionEnv.VPC, regionEnv.SecurityGroups)
-	blockDevices := d.AWSClient.EC2Service.MakeBlockDevices(targetEnv.BlockDevices)
-	ebsOptimized := targetEnv.EbsOptimized
+	healthcheck_target_group 	 := region.HealthcheckTargetGroup
+	healthcheck_target_group_arn := (client.ELBService.GetTargetGroupARNs([]string{healthcheck_target_group}))[0]
 
-	ret := d.AWSClient.EC2Service.CreateNewLaunchConfiguration(
-		launch_configuration_name,
-		ami,
-		targetEnv.InstanceType,
-		targetEnv.SshKey,
-		targetEnv.IamInstanceProfile,
-		userdata,
-		ebsOptimized,
-		securityGroups,
-		blockDevices,
-	)
+	threshold := d.Stack.Capacity.Desired
+	targetHosts := client.ELBService.GetHostInTarget(asg, healthcheck_target_group_arn)
 
-	if ! ret {
-		error_logging("Unknown error happened creating new launch configuration.")
+	healthHostCount := int64(0)
+
+	for _, host := range targetHosts {
+		Logger.Info(fmt.Sprintf("%+v", host))
+		if host.healthy {
+			healthHostCount += 1
+		}
 	}
 
-	health_elb := regionEnv.HealthcheckLB
-	loadbalancers := regionEnv.LoadBalancers
-	if ! IsStringInArray(health_elb, loadbalancers) {
-		loadbalancers = append(loadbalancers, health_elb)
+	if healthHostCount >= threshold {
+		// Success
+		Logger.Info(fmt.Sprintf("Healthy Count for %s : %d/%d", d.AsgNames[region.Region], healthHostCount, threshold))
+		return true
 	}
 
-	healthcheck_target_groups := regionEnv.HealthcheckTargetGroup
-	target_groups := regionEnv.TargetGroups
-	if ! IsStringInArray(healthcheck_target_groups, target_groups) {
-		target_groups = append(target_groups, healthcheck_target_groups)
+	Logger.Info(fmt.Sprintf("Healthy count does not meet the requirement(%s) : %d/%d", d.AsgNames[region.Region], healthHostCount, threshold))
+
+	return false
+}
+
+//Check timeout
+func _check_timeout(start int64, timeout int64) bool {
+	now := time.Now().Unix()
+	timeoutSec := timeout * 60
+
+	//Over timeout
+	if (now - start) > timeoutSec {
+		Logger.Error("Timeout has been exceeded : %s minutes", timeout)
+		os.Exit(1)
 	}
 
-	use_public_subnets := regionEnv.UsePublicSubnets
-	healthcheck_type := DEFAULT_HEALTHCHECK_TYPE
-	healthcheck_grace_period := int64(DEFAULT_HEALTHCHECK_GRACE_PERIOD)
-	termination_policies := []*string{}
-	availability_zones := d.AWSClient.EC2Service.GetAvailabilityZones(regionEnv.VPC, regionEnv.AvailabilityZones)
-	target_group_arns := d.AWSClient.ELBService.GetTargetGroupARNs(target_groups)
-	tags  := d.AWSClient.EC2Service.GenerateTags(builder.AwsConfig.Tags, new_asg_name, builder.AwsConfig.Name, builder.Config.Stack)
-	subnets := d.AWSClient.EC2Service.GetSubnets(regionEnv.VPC, use_public_subnets)
+	return false
+}
 
-	d.AWSClient.EC2Service.CreateAutoScalingGroup(
-		new_asg_name,
-		launch_configuration_name,
-		healthcheck_type,
-		healthcheck_grace_period,
-		targetEnv.Capacity,
-		_make_string_array_to_aws_strings(loadbalancers),
-		target_group_arns,
-		termination_policies,
-		_make_string_array_to_aws_strings(availability_zones),
-		tags,
-		subnets,
-	)
+func _select_client_from_list(awsClients []AWSClient, region string) (AWSClient, error) {
+	for _, c := range awsClients {
+		if c.Region == region {
+			return c, nil
+		}
+	}
+	return AWSClient{}, errors.New("No AWS Client is selected")
 }
