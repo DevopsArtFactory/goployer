@@ -1,7 +1,7 @@
 package main
 
 import (
-	application "./application"
+	"github.com/GwonsooLee/deployer/application"
 )
 
 func main()  {
