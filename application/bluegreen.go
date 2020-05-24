@@ -1,7 +1,9 @@
 package application
 
 import (
+	"fmt"
 	Logger "github.com/sirupsen/logrus"
+	"strings"
 )
 
 
@@ -21,6 +23,7 @@ func _NewBlueGrean(mode string, logger *Logger.Logger, awsConfig AWSConfig, stac
 			AwsConfig: awsConfig,
 			AWSClients: awsClients,
 			AsgNames: map[string]string{},
+			PrevAsgs: map[string][]string{},
 			Stack: stack,
 		},
 	}
@@ -62,7 +65,7 @@ func (b BlueGreen) Deploy(config Config) {
 			prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
 			prev_versions = append(prev_versions, _parse_version(*asgGroup.AutoScalingGroupName))
 		}
-		b.Logger.Info("Previous Versions : ", prev_asgs)
+		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
 
 		// Get Current Version
 		cur_version := _get_current_version(prev_versions)
@@ -134,11 +137,14 @@ func (b BlueGreen) Deploy(config Config) {
 		)
 
 		b.AsgNames[region.Region] = new_asg_name
+		b.PrevAsgs[region.Region] = prev_asgs
 	}
 }
 
 // Healthchecking
-func (b BlueGreen) Healthchecking(config Config) bool {
+func (b BlueGreen) Healthchecking(config Config) map[string]bool {
+	stack_name := b.GetStackName()
+	Logger.Info(fmt.Sprintf("Healthchecking for state %s starts... : ", stack_name ))
 	finished := []string{}
 
 	//Valid Count
@@ -155,11 +161,7 @@ func (b BlueGreen) Healthchecking(config Config) bool {
 			continue
 		}
 
-		if IsStringInArray(region.Region, finished) {
-			continue
-		}
-
-		Logger.Info("Healthchecking for region starts... : " + region.Region )
+		b.Logger.Info("Healthchecking for region starts... : " + region.Region )
 
 		//select client
 		client, err := _select_client_from_list(b.AWSClients, region.Region)
@@ -167,7 +169,7 @@ func (b BlueGreen) Healthchecking(config Config) bool {
 			error_logging(err.Error())
 		}
 
-		asg := client.EC2Service.GetAllMatchingAutoscalingGroups(b.AsgNames[region.Region])
+		asg := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
 
 		isHealthy := b.Deployer.polling(region, asg, client)
 
@@ -177,13 +179,93 @@ func (b BlueGreen) Healthchecking(config Config) bool {
 	}
 
 	if len(finished) == validCount {
-		return true
+		return map[string]bool{stack_name: true}
 	}
 
-	return false
+	return map[string]bool{stack_name: false}
 }
 
 //Stack Name Getter
 func (b BlueGreen) GetStackName() string {
 	return b.Stack.Stack
+}
+
+//Clean Previous Version
+func (b BlueGreen) CleanPreviousVersion() error {
+	b.Logger.Info("Delete Mode is " + b.Mode)
+
+	for _, region := range b.Stack.Regions {
+		b.Logger.Info(fmt.Sprintf("The number of previous versions to Delete is %d.\n", len(b.PrevAsgs[region.Region])))
+
+		//select client
+		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		if err != nil {
+			error_logging(err.Error())
+		}
+
+		if len(b.PrevAsgs[region.Region]) > 0 {
+			for _, asg := range b.PrevAsgs[region.Region] {
+				// First make autoscaling group size to 0
+				err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Clean Teramination Checking
+func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
+	stack_name := b.GetStackName()
+	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name ))
+	finished := []string{}
+
+	//Valid Count
+	validCount := 1
+	if config.Region == "" {
+		validCount = len(b.Stack.Regions)
+	}
+
+	for _, region := range b.Stack.Regions {
+		//Region check
+		//If region id is passed from command line, then deployer will deploy in that region only.
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Info("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		b.Logger.Info("Checking Termination stack for region starts... : " + region.Region )
+
+		//select client
+		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		if err != nil {
+			error_logging(err.Error())
+		}
+
+		targets := b.PrevAsgs[region.Region]
+		if len(targets) == 0 {
+			continue
+		}
+
+		isHealthy := true
+		for _, target := range targets {
+			ok := b.Deployer.CheckTerminating(client, region.Region, target)
+			if !ok {
+				isHealthy = false
+			}
+		}
+
+		if isHealthy {
+			finished = append(finished, region.Region)
+		}
+	}
+
+	if len(finished) == validCount {
+		return map[string]bool{stack_name: true}
+	}
+
+	return map[string]bool{stack_name: false}
 }

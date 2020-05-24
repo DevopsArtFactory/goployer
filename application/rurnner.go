@@ -53,7 +53,7 @@ func (r Runner) Run()  {
 			continue
 		}
 
-		deployers = append(deployers, _get_deployer(r.Logger, stack, r.Builder.AwsConfig))
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig))
 	}
 
 	// Deploy
@@ -62,11 +62,19 @@ func (r Runner) Run()  {
 	}
 
 	// healthcheck
-	_do_healthchecking(deployers, r.Builder.Config)
+	doHealthchecking(deployers, r.Builder.Config)
 
+	// Clear previous Version
+	for _, deployer := range deployers {
+		deployer.CleanPreviousVersion()
+	}
+
+	// Checking all previous version before delete asg
+	cleanChecking(deployers, r.Builder.Config)
 }
 
-func _get_deployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) DeployManager {
+//Generate new deployer
+func getDeployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) DeployManager {
 	deployer := _NewBlueGrean(
 		stack.ReplacementType,
 		logger,
@@ -77,25 +85,92 @@ func _get_deployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) Depl
 	return deployer
 }
 
-func _do_healthchecking(deployers []DeployManager, config Config) {
+
+func doHealthchecking(deployers []DeployManager, config Config) {
 	healthyStackList := []string{}
 	healthy := false
+
+	ch := make(chan map[string]bool)
+
 	for ! healthy {
+		count := 0
+
+		checkTimeout(config.StartTimestamp, config.Timeout)
+
 		for _, deployer := range deployers {
 			if IsStringInArray(deployer.GetStackName(), healthyStackList) {
 				continue
 			}
-			ret := deployer.Healthchecking(config)
 
-			if ret {
-				healthyStackList = append(healthyStackList, deployer.GetStackName())
+			count += 1
+
+			//Start healthcheck thread
+			go func() {
+				ch <- deployer.Healthchecking(config)
+			}()
+		}
+
+		for count > 0 {
+			ret := <- ch
+			for stack, fin := range ret {
+				if fin {
+					healthyStackList = append(healthyStackList, stack)
+				}
 			}
+			count -= 1
 		}
 
 		if len(healthyStackList) == len(deployers) {
+			Logger.Info("All stacks are healthy")
 			healthy = true
 		} else {
+			Logger.Info("All stacks are not healthy... Please waiting to be deployed...")
 			time.Sleep(POLLING_SLEEP_TIME)
 		}
 	}
 }
+
+
+func cleanChecking(deployers []DeployManager, config Config) {
+	doneStackList := []string{}
+	done := false
+
+	ch := make(chan map[string]bool)
+
+	for ! done {
+		count := 0
+
+		for _, deployer := range deployers {
+			if IsStringInArray(deployer.GetStackName(), doneStackList) {
+				continue
+			}
+
+			count += 1
+
+			//Start terminateChecking thread
+			go func() {
+				ch <- deployer.TerminateChecking(config)
+			}()
+		}
+
+		for count > 0 {
+			ret := <- ch
+			for stack, fin := range ret {
+				if fin {
+					doneStackList = append(doneStackList, stack)
+				}
+			}
+			count -= 1
+		}
+
+		if len(doneStackList) == len(deployers) {
+			Logger.Info("All stacks are terminated!!")
+			done = true
+		} else {
+			Logger.Info("All stacks are not ready to be terminated... Please waiting...")
+			time.Sleep(POLLING_SLEEP_TIME)
+		}
+	}
+}
+
+

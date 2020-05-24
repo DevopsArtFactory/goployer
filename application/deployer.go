@@ -13,6 +13,7 @@ import (
 type Deployer struct {
 	Mode 	 		string
 	AsgNames		map[string]string
+	PrevAsgs		map[string][]string
 	Logger 	 		*Logger.Logger
 	Stack	 		Stack
 	AwsConfig		AWSConfig
@@ -59,8 +60,47 @@ func (d Deployer) polling(region RegionConfig, asg *autoscaling.Group, client AW
 	return false
 }
 
+func (d Deployer) CheckTerminating(client AWSClient, region, target string) bool {
+	asgInfo := client.EC2Service.GetMatchingAutoscalingGroup(target)
+	if asgInfo == nil {
+		return false
+	}
+
+	d.Logger.Info(fmt.Sprintf("Waiting for instance termination in asg %s", target))
+	if len(asgInfo.Instances) > 0 {
+		d.Logger.Info(fmt.Sprintf("%d instance found", len(asgInfo.Instances)))
+		return false
+	}
+
+	d.Logger.Info(fmt.Sprintf("Start deleting autoscaling group : %s\n", target))
+	ok := client.EC2Service.DeleteAutoscalingSet(target)
+	if !ok {
+		return false
+	}
+
+	d.Logger.Info(fmt.Sprintf("Start deleting launch configurations in %s\n", target))
+	err := client.EC2Service.DeleteLaunchConfigurations(target)
+	if err != nil {
+		d.Logger.Errorln(err.Error())
+		return false
+	}
+
+	return true
+}
+
+func (d Deployer) ResizingAutoScalingGroupToZero(client AWSClient, stack, asg string) error {
+	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s(%s)", asg, stack))
+	err := client.EC2Service.UpdateAutoScalingGroup(asg, 0, 0, 0)
+	if err != nil {
+		d.Logger.Errorln(err.Error())
+		return err
+	}
+
+	return nil
+}
+
 //Check timeout
-func _check_timeout(start int64, timeout int64) bool {
+func checkTimeout(start int64, timeout int64) bool {
 	now := time.Now().Unix()
 	timeoutSec := timeout * 60
 

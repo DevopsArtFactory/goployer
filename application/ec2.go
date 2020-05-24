@@ -41,10 +41,10 @@ func _get_asg_client_fn(session *session.Session, region string, creds *credenti
 	return autoscaling.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
-func (c EC2Client) GetAllMatchingAutoscalingGroups(name string) *autoscaling.Group {
+func (e EC2Client) GetMatchingAutoscalingGroup(name string) *autoscaling.Group {
 
 	asgGroups := []*autoscaling.Group{}
-	asgGroups = _get_autoscaling_groups(c.AsClient, asgGroups, nil)
+	asgGroups = getAutoScalingGroups(e.AsClient, asgGroups, nil)
 
 	ret := []*autoscaling.Group{}
 	for _, asgGroup := range asgGroups {
@@ -60,9 +60,59 @@ func (c EC2Client) GetAllMatchingAutoscalingGroups(name string) *autoscaling.Gro
 	return nil
 }
 
-func (c EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) []*autoscaling.Group {
+// Delete All Launch Configurations belongs to the autoscaling group
+func (e EC2Client) DeleteLaunchConfigurations(asg_name string) error {
+	lcs := getAllLaunchConfigurations(e.AsClient, []*autoscaling.LaunchConfiguration{}, nil)
+
+	for _, lc := range lcs {
+		if strings.HasPrefix(*lc.LaunchConfigurationName, asg_name) {
+			err := deleteLaunchConfiguration(e.AsClient, *lc.LaunchConfigurationName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Delete Autoscaling group Set
+// 1. Autoscaling Group
+// 2. Luanch Configurations in asg
+func (e EC2Client) DeleteAutoscalingSet(asg_name string) bool {
+	input := &autoscaling.DeleteAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asg_name),
+	}
+
+	_, err := e.AsClient.DeleteAutoScalingGroup(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeScalingActivityInProgressFault:
+				fmt.Println(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
+			case autoscaling.ErrCodeResourceInUseFault:
+				fmt.Println(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return false
+	}
+
+	return true
+}
+
+// Get All matching autoscaling groups with aws prefix
+// By this function, you could get the latest version of deployment
+func (e EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) []*autoscaling.Group {
 	asgGroups := []*autoscaling.Group{}
-	asgGroups = _get_autoscaling_groups(c.AsClient, asgGroups, nil)
+	asgGroups = getAutoScalingGroups(e.AsClient, asgGroups, nil)
 
 	ret := []*autoscaling.Group{}
 	for _, asgGroup := range asgGroups {
@@ -74,7 +124,9 @@ func (c EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) []*a
 	return ret
 }
 
-func _get_autoscaling_groups(client *autoscaling.AutoScaling, asgGroup []*(autoscaling.Group), nextToken *string) []*autoscaling.Group {
+// Batch of retrieving list of autoscaling group
+// By Token, if needed, you could get all autoscaling groups with paging.
+func getAutoScalingGroups(client *autoscaling.AutoScaling, asgGroup []*(autoscaling.Group), nextToken *string) []*autoscaling.Group {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{
 		NextToken: nextToken,
 	}
@@ -86,12 +138,76 @@ func _get_autoscaling_groups(client *autoscaling.AutoScaling, asgGroup []*(autos
 	asgGroup = append(asgGroup, ret.AutoScalingGroups...)
 
 	if ret.NextToken != nil {
-		return _get_autoscaling_groups(client, asgGroup, ret.NextToken)
+		return getAutoScalingGroups(client, asgGroup, ret.NextToken)
 	}
 
 	return asgGroup
 }
 
+// Batch of retrieving all launch configurations
+func getAllLaunchConfigurations(client *autoscaling.AutoScaling, lcs []*autoscaling.LaunchConfiguration, nextToken *string) []*autoscaling.LaunchConfiguration {
+	input := &autoscaling.DescribeLaunchConfigurationsInput{
+		NextToken: nextToken,
+	}
+
+	ret, err := client.DescribeLaunchConfigurations(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeInvalidNextToken:
+				fmt.Println(autoscaling.ErrCodeInvalidNextToken, aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return nil
+	}
+
+	lcs = append(lcs, ret.LaunchConfigurations...)
+
+	if ret.NextToken != nil {
+		return getAllLaunchConfigurations(client, lcs, ret.NextToken)
+	}
+
+	return lcs
+}
+
+// Delete Single Launch Configuration
+func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) error {
+	input := &autoscaling.DeleteLaunchConfigurationInput{
+		LaunchConfigurationName: aws.String(lc_name),
+	}
+
+	_, err := client.DeleteLaunchConfiguration(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeResourceInUseFault:
+				fmt.Println(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return err
+	}
+
+	return nil
+}
+
+
+// Create New Launch Configuration
 func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*autoscaling.BlockDeviceMapping) bool {
 	input := &autoscaling.CreateLaunchConfigurationInput{
 		LaunchConfigurationName: aws.String(name),
@@ -131,6 +247,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 	return true
 }
 
+// Get All Security Group Information New Launch Configuration
 func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 	if len (sgList) == 0 {
 		error_logging("Need to specify at least one security group")
@@ -449,4 +566,37 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool) []string {
 	}
 
 	return ret
+}
+
+// Update Autoscaling Group size
+func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) error {
+	input := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asg),
+		MaxSize:              aws.Int64(max),
+		MinSize:              aws.Int64(min),
+		DesiredCapacity: 	  aws.Int64(desired),
+	}
+
+	_, err := e.AsClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeScalingActivityInProgressFault:
+				fmt.Println(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			case autoscaling.ErrCodeServiceLinkedRoleFailure:
+				fmt.Println(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return err
+	}
+
+	return nil
 }
