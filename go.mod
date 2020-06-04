@@ -1,4 +1,4 @@
-module github.com/GwonsooLee/deployer
+module github.com/DevopsArtFactory/deployer
 
 go 1.14
 
