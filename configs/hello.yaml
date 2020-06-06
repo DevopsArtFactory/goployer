@@ -5,17 +5,17 @@ userdata:
   path: scripts/userdata.sh
 
 autoscaling: &autoscaling_policy
-  scale_up:
+  - name: scale_up
     adjustment_type: ChangeInCapacity
     scaling_adjustment: 1
     cooldown: 60
-  scale_down:
+  - name: scale_down
     adjustment_type: ChangeInCapacity
     scaling_adjustment: -1
     cooldown: 180
 
 alarms: &autoscaling_alarms
-  scale_up_on_util:
+  - name: scale_up_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -25,7 +25,7 @@ alarms: &autoscaling_alarms
     evaluation_periods: 2
     alarm_actions:
       - scale_up
-  scale_down_on_util:
+  - name: scale_down_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -63,10 +63,8 @@ stacks:
       min: 1
       max: 1
       desired: 1
-    autoscaling:
-      <<: *autoscaling_policy
-    alarms:
-      <<: *autoscaling_alarms
+    autoscaling: *autoscaling_policy
+    alarms: *autoscaling_alarms
     lifecycle_callbacks:
       pre_terminate_past_clusters:
         - service hello stop

@@ -2,17 +2,14 @@ package main
 
 import (
 	"github.com/DevopsArtFactory/deployer/application"
+	Logger "github.com/sirupsen/logrus"
+	"os"
 )
 
 func main()  {
-	builder := application.NewBuilder()
-	builder.CheckValidation()
-
-	builder.PrintSummary()
-
-	//Prepare Deployment
-	runner := application.NewRunner(builder)
-	runner.WarmUp()
-
-	runner.Run()
+	//Create new builder
+	if err := application.Start(); err != nil{
+		Logger.Error(err.Error())
+		os.Exit(1)
+	}
 }

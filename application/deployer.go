@@ -21,7 +21,8 @@ type Deployer struct {
 	LocalProvider 	UserdataProvider
 }
 
-func _get_current_version(prev_versions []int) int {
+// getCurrentVersion returns current version for current deployment step
+func getCurrentVersion(prev_versions []int) int {
 	if len(prev_versions) == 0 {
 		return 0
 	}
@@ -113,7 +114,7 @@ func checkTimeout(start int64, timeout int64) bool {
 	return false
 }
 
-func _select_client_from_list(awsClients []AWSClient, region string) (AWSClient, error) {
+func selectClientFromList(awsClients []AWSClient, region string) (AWSClient, error) {
 	for _, c := range awsClients {
 		if c.Region == region {
 			return c, nil

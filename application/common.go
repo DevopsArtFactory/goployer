@@ -1,7 +1,6 @@
 package application
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -35,13 +34,9 @@ func error_logging(msg string)  {
 }
 
 // Fatal Error
-func _fatal_error(err error)  {
+func fatalError(err error)  {
 	log.Fatalf("error: %v", err)
 	os.Exit(1)
-}
-
-func _ctos(i interface{}) string {
-	return fmt.Sprintf("%v", i)
 }
 
 func isZero(v reflect.Value) bool {

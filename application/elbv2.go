@@ -26,11 +26,11 @@ type HealthcheckHost struct {
 
 func NewELBV2Client(session *session.Session, region string, creds *credentials.Credentials) ELBV2Client {
 	return ELBV2Client{
-		Client: _get_elb_client_fn(session, region, creds),
+		Client: getElbClientFn(session, region, creds),
 	}
 }
 
-func _get_elb_client_fn(session *session.Session, region string, creds *credentials.Credentials) *elbv2.ELBV2 {
+func getElbClientFn(session *session.Session, region string, creds *credentials.Credentials) *elbv2.ELBV2 {
 	if creds == nil {
 		return elbv2.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -44,7 +44,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 	}
 
 	input := &elbv2.DescribeTargetGroupsInput{
-		Names: _make_string_array_to_aws_strings(target_groups),
+		Names: makeStringArrayToAwsStrings(target_groups),
 	}
 
 	result, err := e.Client.DescribeTargetGroups(input)

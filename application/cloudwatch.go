@@ -13,14 +13,22 @@ type CloudWatchClient struct {
 
 func NewCloudWatchClient(session *session.Session, region string, creds *credentials.Credentials) CloudWatchClient {
 	return CloudWatchClient{
-		Client: _get_cloudwatch_client_fn(session, region, creds),
+		Client: getCloudwatchClientFn(session, region, creds),
 	}
 }
 
-func _get_cloudwatch_client_fn(session *session.Session, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
+func getCloudwatchClientFn(session *session.Session, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
 	if creds == nil {
 		return cloudwatch.New(session, &aws.Config{Region: aws.String(region)})
 	}
 	return cloudwatch.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
+//CreateScalingAlarms creates scaling alarms
+func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []AlarmConfigs, policyArns []*string, policies []string) error {
+	if len(alarms) == 0 {
+		return nil
+	}
+
+	return nil
+}

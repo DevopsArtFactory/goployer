@@ -23,11 +23,11 @@ type Frigga struct {
 	Prefix string
 }
 
-func _build_prefix_name(name string, env string, region string) string {
+func buildPrefixName(name string, env string, region string) string {
 	return fmt.Sprintf("%s-%s_%s", name, env, strings.ReplaceAll(region, "-", ""))
 }
 
-func _parse_version(name string) int {
+func parseVersion(name string) int {
 	if len(name) != 0 {
 		parts := strings.Split(name, "-")
 		for _, part := range parts {
@@ -41,16 +41,14 @@ func _parse_version(name string) int {
 	return 0
 }
 
-func _generate_asg_name(prefix string, version int) string {
-	return _build_name(prefix, version)
+// generateAsgName generates the autoscaling name
+func generateAsgName(prefix string, version int) string {
+	return fmt.Sprintf("%s-v%03d", prefix, version)
 }
 
-func _generate_lc_name(asg_name string) string {
+// generateLcName generates new launch configuration name
+func generateLcName(asg_name string) string {
 	now := time.Now()
 	secs := now.Unix()
 	return fmt.Sprintf("%s-%d", asg_name, secs)
-}
-
-func _build_name(prefix string, version int) string {
-	return fmt.Sprintf("%s-v%03d", prefix, version)
 }

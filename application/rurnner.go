@@ -1,7 +1,6 @@
 package application
 
 import (
-	"fmt"
 	Logger "github.com/sirupsen/logrus"
 	"time"
 
@@ -14,6 +13,21 @@ type Runner struct {
 	Slacker Slack
 }
 
+//WithRunner creates runner and runs the deployment process
+func WithRunner(builder Builder, postAction func() error ) error {
+	// Print the summary
+	builder.PrintSummary()
+
+	//Prepare runnger
+	runner := NewRunner(builder)
+	runner.LogFormatting()
+	if err := runner.Run(); err != nil {
+		return err
+	}
+
+	return postAction()
+}
+
 func NewRunner(builder Builder) Runner {
 	return Runner{
 		Logger:  Logger.New(),
@@ -22,7 +36,7 @@ func NewRunner(builder Builder) Runner {
 	}
 }
 
-func (r Runner) WarmUp()  {
+func (r Runner) LogFormatting()  {
 	//logger.SetFormatter(&Logger.JSONFormatter{})
 	r.Logger.SetOutput(os.Stdout)
 	r.Logger.SetLevel(Logger.InfoLevel)
@@ -30,22 +44,21 @@ func (r Runner) WarmUp()  {
 	r.Logger.Info("Warm up before starting deployment")
 }
 
-// Run
-func (r Runner) Run()  {
-
+// Run executes all required steps for deployments
+func (r Runner) Run() error  {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println(err)
+			Logger.Error(err)
 			os.Exit(1)
 		}
 	}()
 
 	//Send Beginning Message
-
 	r.Logger.Info("Beginning deploy for application: "+r.Builder.AwsConfig.Name)
 
+	//Prepare deployers
 	deployers := []DeployManager{}
-	for _, stack := range r.Builder.Stacks.Stacks {
+	for _, stack := range r.Builder.Stacks {
 		// If target stack is passed from command, then
 		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
@@ -64,6 +77,11 @@ func (r Runner) Run()  {
 	// healthcheck
 	doHealthchecking(deployers, r.Builder.Config)
 
+	// Attach scaling policy
+	for _, deployer := range deployers {
+		deployer.FinishAdditionalWork()
+	}
+
 	// Clear previous Version
 	for _, deployer := range deployers {
 		deployer.CleanPreviousVersion()
@@ -71,11 +89,13 @@ func (r Runner) Run()  {
 
 	// Checking all previous version before delete asg
 	cleanChecking(deployers, r.Builder.Config)
+
+	return nil
 }
 
 //Generate new deployer
 func getDeployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) DeployManager {
-	deployer := _NewBlueGrean(
+	deployer := NewBlueGrean(
 		stack.ReplacementType,
 		logger,
 		awsConfig,
@@ -85,7 +105,7 @@ func getDeployer(logger *Logger.Logger, stack Stack, awsConfig AWSConfig) Deploy
 	return deployer
 }
 
-
+// doHealthchecking checks if newly deployed autoscaling group is healthy
 func doHealthchecking(deployers []DeployManager, config Config) {
 	healthyStackList := []string{}
 	healthy := false
@@ -106,7 +126,7 @@ func doHealthchecking(deployers []DeployManager, config Config) {
 
 			//Start healthcheck thread
 			go func() {
-				ch <- deployer.Healthchecking(config)
+				ch <- deployer.HealthChecking(config)
 			}()
 		}
 
@@ -130,7 +150,7 @@ func doHealthchecking(deployers []DeployManager, config Config) {
 	}
 }
 
-
+// cleanChecking cleans old autoscaling groups
 func cleanChecking(deployers []DeployManager, config Config) {
 	doneStackList := []string{}
 	done := false

@@ -13,11 +13,11 @@ type SSMClient struct {
 
 func NewSSMClient(session *session.Session, region string, creds *credentials.Credentials) SSMClient {
 	return SSMClient{
-		Client: _get_ssm_client_fn(session, region, creds),
+		Client: getSsmClientFn(session, region, creds),
 	}
 }
 
-func _get_ssm_client_fn(session *session.Session, region string, creds *credentials.Credentials) *ssm.SSM {
+func getSsmClientFn(session *session.Session, region string, creds *credentials.Credentials) *ssm.SSM {
 	if creds == nil {
 		return ssm.New(session, &aws.Config{Region: aws.String(region)})
 	}

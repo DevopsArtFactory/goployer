@@ -20,12 +20,12 @@ type AWSClient struct {
 	SSMService SSMClient
 }
 
-func _get_aws_session() *session.Session {
+func getAwsSession() *session.Session {
 	mySession := session.Must(session.NewSession())
 	return mySession
 }
 
-func _make_string_array_to_aws_strings (arr []string) []*string {
+func makeStringArrayToAwsStrings (arr []string) []*string {
 	if len(arr) == 0 {
 		return nil
 	}
@@ -39,8 +39,8 @@ func _make_string_array_to_aws_strings (arr []string) []*string {
 }
 
 
-func _bootstrap_services(region string, assume_role string) AWSClient {
-	aws_session := _get_aws_session()
+func bootstrapServices(region string, assume_role string) AWSClient {
+	aws_session := getAwsSession()
 
 	var creds *credentials.Credentials
 	if len(assume_role) != 0  {

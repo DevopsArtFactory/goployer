@@ -1,11 +1,12 @@
 package application
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
+	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-     "encoding/base64"
 	"time"
 )
 
@@ -25,30 +26,10 @@ type S3Provider struct {
 	Path string
 }
 
-func (l LocalProvider) provide() string {
-	if l.Path == "" {
-		error_logging("Please specify userdata script path")
-	}
-	if ! fileExists(l.Path) {
-		error_logging(fmt.Sprintf("File does not exist in %s", l.Path))
-	}
-
-	userdata, err := ioutil.ReadFile(l.Path)
-	if err != nil {
-		error_logging("Error reading userdata file")
-	}
-
-	return base64.StdEncoding.EncodeToString(userdata)
-}
-
-func (s S3Provider) provide() string  {
-	return ""
-}
-
 type Builder struct {
 	Config 		Config		// Config from command
 	AwsConfig 	AWSConfig 	// Common Config
-	Stacks 		Stacks 		// Stack Config
+	Stacks 		[]Stack 		// Stack Config
 }
 
 type Config struct {
@@ -65,7 +46,7 @@ type Config struct {
 
 
 type YamlConfig struct {
-	Name 			string
+	Name 			string		`yaml:"name"`
 	Userdata 		Userdata 	`yaml:"userdata"`
 	Tags 		 	[]string 	`yaml:"tags"`
 	Stacks			[]Stack 	`yaml:"stacks"`
@@ -77,32 +58,20 @@ type AWSConfig struct {
 	Tags 		 	[]string
 }
 
-type Stacks struct {
-	Stacks 	[]Stack
-}
-
 type Userdata struct {
 	Type string `yaml:"type"`
 	Path string `yaml:"path"`
 }
 
-type AutoscalingPolicy struct {
-	ScaleUp 	ScalePolicy `yaml:"scale_up"`
-	ScaleDown 	ScalePolicy `yaml:"scale_down"`
-}
-
 type ScalePolicy struct {
+	Name				string `yaml:"name"`
 	AdjustmentType 		string `yaml:"adjustment_type"`
-	ScalingAdjustment 	int `yaml:"scaling_adjustment"`
-	Cooldown 			string `yaml:"cooldown"`
-}
-
-type Alarms struct {
-	ScaleUpOnUtil 	AlarmConfigs `yaml:"scale_up_on_util"`
-	ScaleDownOnUtil	AlarmConfigs `yaml:"scale_down_on_util"`
+	ScalingAdjustment 	int64 `yaml:"scaling_adjustment"`
+	Cooldown 			int64 `yaml:"cooldown"`
 }
 
 type AlarmConfigs struct {
+	Name				string
 	Namespace 			string
 	Metric 				string
 	Statistic 			string
@@ -128,8 +97,8 @@ type Stack struct {
 	BlockDevices 		[]BlockDevice `yaml:"block_devices"`
 	ExtraVars 			string `yaml:"extra_vars"`
 	Capacity 			Capacity `yaml:"capacity"`
-	Autoscaling 		AutoscalingPolicy
-	Alarms 				Alarms
+	Autoscaling 		[]ScalePolicy `yaml:"autoscaling"`
+	Alarms 				[]AlarmConfigs	`yaml:alarms`
 	LifecycleCallbacks 	LifecycleCallbacks `yaml:"lifecycle_callbacks"`
 	Regions 			[]RegionConfig
 }
@@ -162,27 +131,98 @@ type Capacity struct {
 	Desired int64 `yaml:"desired"`
 }
 
-func NewBuilder() Builder {
-	// Parsing Argument
-	config := _argument_parsing()
-	awsConfig, Stacks := _parsingManifestFile(config.Manifest)
 
-	// Get New Builder
-	builder := Builder{
-		Config: config,
-		AwsConfig: awsConfig,
-		Stacks: Stacks,
+func (l LocalProvider) provide() string {
+	if l.Path == "" {
+		error_logging("Please specify userdata script path")
+	}
+	if ! fileExists(l.Path) {
+		error_logging(fmt.Sprintf("File does not exist in %s", l.Path))
 	}
 
-	return builder
+	userdata, err := ioutil.ReadFile(l.Path)
+	if err != nil {
+		error_logging("Error reading userdata file")
+	}
+
+	return base64.StdEncoding.EncodeToString(userdata)
+}
+
+func (s S3Provider) provide() string  {
+	return ""
+}
+
+//Start function is the starting point of all processes.
+func Start() error  {
+	// Create new builder
+	builder, err := NewBuilder()
+	if err != nil {
+		return err
+	}
+
+	// Check validation of configurations
+	if err := builder.CheckValidation(); err != nil {
+		return err
+	}
+
+	// run with runner
+	return WithRunner(builder, func() error {
+		// These are post actions after deployment
+		return nil
+	})
+}
+
+func NewBuilder() (Builder, error) {
+	builder := Builder{}
+
+	// Parsing Argument
+	config := argumentParsing()
+
+	//Check manifest file
+	if len(config.Manifest) == 0 || ! fileExists(config.Manifest) {
+		return builder, fmt.Errorf(NO_MANIFEST_EXISTS)
+	}
+
+
+	// Set config
+	builder.Config = config
+
+	return builder.SetStacks(), nil
+}
+
+// SetStacks set stack information
+func (b Builder) SetStacks() Builder {
+
+	awsConfig, Stacks := parsingManifestFile(b.Config.Manifest)
+
+	b.AwsConfig = awsConfig
+	b.Stacks = Stacks
+
+	return b
 }
 
 // Validation Check
-func (b Builder) CheckValidation()  {
-	//Check manifest file
-	if len(b.Config.Manifest) == 0 || ! fileExists(b.Config.Manifest) {
-		error_logging(NO_MANIFEST_EXISTS)
+func (b Builder) CheckValidation() error {
+	for _, stack := range b.Stacks {
+		// Check Autoscaling and Alarm setting
+		if len(stack.Autoscaling) != 0 && len(stack.Alarms) != 0 {
+			policies := []string{}
+			for _, scaling := range stack.Autoscaling {
+				if len(scaling.Name) == 0 {
+					return fmt.Errorf("autoscaling policy doesn't have a name.")
+				}
+				policies = append(policies, scaling.Name)
+			}
+			for _, alarm := range stack.Alarms {
+				for _, action := range alarm.AlarmActions {
+					if !IsStringInArray(action, policies) {
+						return fmt.Errorf("no scaling action exists : %s", action)
+					}
+				}
+			}
+		}
 	}
+	return nil
 }
 
 // Print Summary
@@ -201,12 +241,12 @@ Stacks
 	summary := fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Ami, b.Config.Region, b.Config.Timeout)
 	fmt.Println(summary)
 
-	for _, stack := range b.Stacks.Stacks {
-		_print_environment(stack)
+	for _, stack := range b.Stacks {
+		printEnvironment(stack)
 	}
 }
 
-func _print_environment(stack Stack)  {
+func printEnvironment(stack Stack)  {
 	formatting := `[ %s ]
 Environment             : %s
 Environment             : %s
@@ -224,17 +264,17 @@ Block_devices           : %+v
 }
 
 // Parsing Manifest File
-func  _parsingManifestFile(manifest string) (AWSConfig, Stacks) {
+func  parsingManifestFile(manifest string) (AWSConfig, []Stack) {
     yamlConfig := YamlConfig{}
 	yamlFile, err := ioutil.ReadFile(manifest)
 	if err != nil {
-		fmt.Printf("Error reading YAML file: %s\n", err)
-		error_logging("Please check the yaml file")
+		Logger.Errorf("Error reading YAML file: %s\n", err)
+		return AWSConfig{}, nil
 	}
 
 	err = yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
-		_fatal_error(err)
+		fatalError(err)
 	}
 
 	awsConfig := AWSConfig{
@@ -243,13 +283,13 @@ func  _parsingManifestFile(manifest string) (AWSConfig, Stacks) {
 		Tags:     yamlConfig.Tags,
 	}
 
-	Stacks := Stacks{Stacks: yamlConfig.Stacks}
+	Stacks := yamlConfig.Stacks
 
 	return awsConfig, Stacks
 }
 
 // Parsing Config from command
-func _argument_parsing() Config {
+func argumentParsing() Config {
 	manifest := flag.String("manifest", "", "The manifest configuration file to use.")
 	ami := flag.String("ami", "", "The AMI to use for the servers.")
 	env := flag.String("env", "", "The environment that is being deployed into.")
@@ -277,7 +317,7 @@ func _argument_parsing() Config {
 }
 
 // Set Userdata provider
-func _set_userdata_provider(userdata Userdata, default_userdata Userdata) UserdataProvider {
+func setUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataProvider {
 
 	//Set default if no userdata exists in the stack
 	if userdata.Type == "" {
@@ -296,18 +336,3 @@ func _set_userdata_provider(userdata Userdata, default_userdata Userdata) Userda
 		Path: userdata.Path,
 	}
 }
-
-func (s Stacks) GetTargetStack(config Config) (bool, Stack, RegionConfig) {
-	for _, stack := range s.Stacks {
-		if stack.Stack == config.Stack {
-			for _, region := range stack.Regions {
-				if region.Region == config.Region {
-					return true, stack, region
-				}
-			}
-		}
-	}
-	// Null Value
-	return false, Stack{}, RegionConfig{}
-}
-

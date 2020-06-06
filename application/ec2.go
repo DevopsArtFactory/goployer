@@ -21,12 +21,12 @@ type EC2Client struct {
 
 func NewEC2Client(session *session.Session, region string, creds *credentials.Credentials) EC2Client {
 	return EC2Client{
-		Client: _get_ec2_client_fn(session, region, creds),
-		AsClient: _get_asg_client_fn(session, region, creds),
+		Client: getEC2ClientFn(session, region, creds),
+		AsClient: getAsgClientFn(session, region, creds),
 	}
 }
 
-func _get_ec2_client_fn(session *session.Session, region string, creds *credentials.Credentials) *ec2.EC2 {
+func getEC2ClientFn(session *session.Session, region string, creds *credentials.Credentials) *ec2.EC2 {
 	if creds == nil {
 		return ec2.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -34,7 +34,7 @@ func _get_ec2_client_fn(session *session.Session, region string, creds *credenti
 }
 
 
-func _get_asg_client_fn(session *session.Session, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
+func getAsgClientFn(session *session.Session, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
 	if creds == nil {
 		return autoscaling.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -132,7 +132,7 @@ func getAutoScalingGroups(client *autoscaling.AutoScaling, asgGroup []*(autoscal
 	}
 	ret, err := client.DescribeAutoScalingGroups(input)
 	if err != nil {
-		_fatal_error(err)
+		fatalError(err)
 	}
 
 	asgGroup = append(asgGroup, ret.AutoScalingGroups...)
@@ -597,6 +597,69 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) e
 		}
 		return err
 	}
+
+	return nil
+}
+
+//CreateScalingPolicy creates scaling policy
+func (e EC2Client) CreateScalingPolicy(policy ScalePolicy, asg_name string) (*string, error) {
+	input := &autoscaling.PutScalingPolicyInput{
+		AdjustmentType:       aws.String(policy.AdjustmentType),
+		AutoScalingGroupName: aws.String(asg_name),
+		PolicyName:           aws.String(policy.Name),
+		ScalingAdjustment:    aws.Int64(policy.ScalingAdjustment),
+		Cooldown: 			  aws.Int64(policy.Cooldown),
+	}
+
+	result, err := e.AsClient.PutScalingPolicy(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeLimitExceededFault:
+				fmt.Println(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			case autoscaling.ErrCodeServiceLinkedRoleFailure:
+				fmt.Println(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return nil, err
+	}
+
+	return result.PolicyARN, nil
+}
+
+// EnableMetrics enables metric monitoring of autoscaling group
+func (e EC2Client) EnableMetrics(asg_name string) error {
+	input := &autoscaling.EnableMetricsCollectionInput{
+		AutoScalingGroupName: aws.String(asg_name),
+		Granularity:          aws.String("1Minute"),
+	}
+
+	_, err := e.AsClient.EnableMetricsCollection(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case autoscaling.ErrCodeResourceContentionFault:
+				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return err
+	}
+
+	Logger.Info(fmt.Sprintf("Metrics monitoring of autoscaling group is enabled : %s", asg_name))
 
 	return nil
 }

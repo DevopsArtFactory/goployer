@@ -11,10 +11,10 @@ type BlueGreen struct {
 	Deployer
 }
 
-func _NewBlueGrean(mode string, logger *Logger.Logger, awsConfig AWSConfig, stack Stack) BlueGreen {
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig AWSConfig, stack Stack) BlueGreen {
 	awsClients := []AWSClient{}
 	for _, region := range stack.Regions {
-		awsClients = append(awsClients, _bootstrap_services(region.Region, stack.AssumeRole))
+		awsClients = append(awsClients, bootstrapServices(region.Region, stack.AssumeRole))
 	}
 	return BlueGreen{
 		Deployer{
@@ -34,7 +34,7 @@ func (b BlueGreen) Deploy(config Config) {
 	b.Logger.Info("Deploy Mode is " + b.Mode)
 
 	//Get LocalFileProvider
-	b.LocalProvider = _set_userdata_provider(b.Stack.Userdata, b.AwsConfig.Userdata)
+	b.LocalProvider = setUserdataProvider(b.Stack.Userdata, b.AwsConfig.Userdata)
 
 	// Make Frigga
 	frigga := Frigga{}
@@ -47,10 +47,10 @@ func (b BlueGreen) Deploy(config Config) {
 		}
 
 		//Setup frigga with prefix
-		frigga.Prefix = _build_prefix_name(b.AwsConfig.Name, b.Stack.Env, region.Region)
+		frigga.Prefix = buildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
 
 		//select client
-		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			error_logging(err.Error())
 		}
@@ -63,20 +63,20 @@ func (b BlueGreen) Deploy(config Config) {
 		prev_versions := []int{}
 		for _, asgGroup := range asgGroups {
 			prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
-			prev_versions = append(prev_versions, _parse_version(*asgGroup.AutoScalingGroupName))
+			prev_versions = append(prev_versions, parseVersion(*asgGroup.AutoScalingGroupName))
 		}
 		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
 
 		// Get Current Version
-		cur_version := _get_current_version(prev_versions)
+		cur_version := getCurrentVersion(prev_versions)
 		b.Logger.Info("Current Version :", cur_version)
 
 		//Get AMI
 		ami := config.Ami
 
 		// Generate new name for autoscaling group and launch configuration
-		new_asg_name := _generate_asg_name(frigga.Prefix, cur_version)
-		launch_configuration_name := _generate_lc_name(new_asg_name)
+		new_asg_name := generateAsgName(frigga.Prefix, cur_version)
+		launch_configuration_name := generateLcName(new_asg_name)
 
 		userdata := (b.LocalProvider).provide()
 
@@ -128,10 +128,10 @@ func (b BlueGreen) Deploy(config Config) {
 			healthcheck_type,
 			healthcheck_grace_period,
 			b.Stack.Capacity,
-			_make_string_array_to_aws_strings(loadbalancers),
+			makeStringArrayToAwsStrings(loadbalancers),
 			target_group_arns,
 			termination_policies,
-			_make_string_array_to_aws_strings(availability_zones),
+			makeStringArrayToAwsStrings(availability_zones),
 			tags,
 			subnets,
 		)
@@ -142,7 +142,7 @@ func (b BlueGreen) Deploy(config Config) {
 }
 
 // Healthchecking
-func (b BlueGreen) Healthchecking(config Config) map[string]bool {
+func (b BlueGreen) HealthChecking(config Config) map[string]bool {
 	stack_name := b.GetStackName()
 	Logger.Info(fmt.Sprintf("Healthchecking for state %s starts... : ", stack_name ))
 	finished := []string{}
@@ -164,7 +164,7 @@ func (b BlueGreen) Healthchecking(config Config) map[string]bool {
 		b.Logger.Info("Healthchecking for region starts... : " + region.Region )
 
 		//select client
-		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			error_logging(err.Error())
 		}
@@ -190,15 +190,54 @@ func (b BlueGreen) GetStackName() string {
 	return b.Stack.Stack
 }
 
+//BlueGreen finish final work
+func (b BlueGreen) FinishAdditionalWork() error {
+	if len(b.Stack.Autoscaling) == 0 {
+		b.Logger.Info("No scaling policy exists")
+		return nil
+	}
+
+	b.Logger.Info("Attaching autoscaling policies")
+	//Apply Autosacling Policies
+	for _, region := range b.Stack.Regions {
+		b.Logger.Info("Attaching autoscaling policies")
+
+		//select client
+		client, err := selectClientFromList(b.AWSClients, region.Region)
+		if err != nil {
+			error_logging(err.Error())
+		}
+
+		//putting autoscaling group policies
+		policies := []string{}
+		policyArns := []*string{}
+		for _, policy := range b.Stack.Autoscaling {
+			policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
+			if err != nil {
+				error_logging(err.Error())
+				return err
+			}
+			policyArns = append(policyArns, policyArn)
+			policies = append(policies, policy.Name)
+		}
+
+		client.EC2Service.EnableMetrics(b.AsgNames[region.Region])
+
+		client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns, policies)
+	}
+
+	return nil
+}
+
 //Clean Previous Version
 func (b BlueGreen) CleanPreviousVersion() error {
 	b.Logger.Info("Delete Mode is " + b.Mode)
 
 	for _, region := range b.Stack.Regions {
-		b.Logger.Info(fmt.Sprintf("The number of previous versions to Delete is %d.\n", len(b.PrevAsgs[region.Region])))
+		b.Logger.Info(fmt.Sprintf("The number of previous versions to delete is %d.\n", len(b.PrevAsgs[region.Region])))
 
 		//select client
-		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			error_logging(err.Error())
 		}
@@ -240,7 +279,7 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 		b.Logger.Info("Checking Termination stack for region starts... : " + region.Region )
 
 		//select client
-		client, err := _select_client_from_list(b.AWSClients, region.Region)
+		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			error_logging(err.Error())
 		}
