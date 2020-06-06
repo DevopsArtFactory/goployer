@@ -79,12 +79,12 @@ func (r Runner) Run() error  {
 
 	// Attach scaling policy
 	for _, deployer := range deployers {
-		deployer.FinishAdditionalWork()
+		deployer.FinishAdditionalWork(r.Builder.Config)
 	}
 
 	// Clear previous Version
 	for _, deployer := range deployers {
-		deployer.CleanPreviousVersion()
+		deployer.CleanPreviousVersion(r.Builder.Config)
 	}
 
 	// Checking all previous version before delete asg
@@ -177,6 +177,7 @@ func cleanChecking(deployers []DeployManager, config Config) {
 			ret := <- ch
 			for stack, fin := range ret {
 				if fin {
+					Logger.Info("Finished stack : ", stack)
 					doneStackList = append(doneStackList, stack)
 				}
 			}

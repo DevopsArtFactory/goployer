@@ -76,17 +76,31 @@ func (b BlueGreen) Deploy(config Config) {
 
 		// Generate new name for autoscaling group and launch configuration
 		new_asg_name := generateAsgName(frigga.Prefix, cur_version)
-		launch_configuration_name := generateLcName(new_asg_name)
+		launch_template_name := generateLcName(new_asg_name)
 
 		userdata := (b.LocalProvider).provide()
 
 		//Stack check
 		securityGroups := client.EC2Service.GetSecurityGroupList(region.VPC, region.SecurityGroups)
-		blockDevices := client.EC2Service.MakeBlockDevices(b.Stack.BlockDevices)
+		blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(b.Stack.BlockDevices)
 		ebsOptimized := b.Stack.EbsOptimized
 
-		ret := client.EC2Service.CreateNewLaunchConfiguration(
-			launch_configuration_name,
+		// Launch Configuration
+		//ret := client.EC2Service.CreateNewLaunchConfiguration(
+		//	launch_configuration_name,
+		//	ami,
+		//	b.Stack.InstanceType,
+		//	b.Stack.SshKey,
+		//	b.Stack.IamInstanceProfile,
+		//	userdata,
+		//	ebsOptimized,
+		//	securityGroups,
+		//	blockDevices,
+		//)
+
+		// LaunchTemplate
+		ret := client.EC2Service.CreateNewLaunchTemplate(
+			launch_template_name,
 			ami,
 			b.Stack.InstanceType,
 			b.Stack.SshKey,
@@ -95,10 +109,11 @@ func (b BlueGreen) Deploy(config Config) {
 			ebsOptimized,
 			securityGroups,
 			blockDevices,
+			b.Stack.InstanceMarketOptions,
 		)
 
 		if ! ret {
-			error_logging("Unknown error happened creating new launch configuration.")
+			error_logging("Unknown error happened creating new launch template.")
 		}
 
 		health_elb := region.HealthcheckLB
@@ -120,11 +135,11 @@ func (b BlueGreen) Deploy(config Config) {
 		availability_zones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
 		target_group_arns := client.ELBService.GetTargetGroupARNs(target_groups)
 		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack)
-		subnets := client.EC2Service.GetSubnets(region.VPC, use_public_subnets)
+		subnets := client.EC2Service.GetSubnets(region.VPC, use_public_subnets, availability_zones)
 
-		client.EC2Service.CreateAutoScalingGroup(
+		 ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
-			launch_configuration_name,
+			launch_template_name,
 			healthcheck_type,
 			healthcheck_grace_period,
 			b.Stack.Capacity,
@@ -136,6 +151,10 @@ func (b BlueGreen) Deploy(config Config) {
 			subnets,
 		)
 
+		if ! ret {
+			error_logging("Unknown error happened creating new autoscaling group.")
+		}
+
 		b.AsgNames[region.Region] = new_asg_name
 		b.PrevAsgs[region.Region] = prev_asgs
 	}
@@ -144,13 +163,19 @@ func (b BlueGreen) Deploy(config Config) {
 // Healthchecking
 func (b BlueGreen) HealthChecking(config Config) map[string]bool {
 	stack_name := b.GetStackName()
-	Logger.Info(fmt.Sprintf("Healthchecking for state %s starts... : ", stack_name ))
+	Logger.Info(fmt.Sprintf("Healthchecking for stack %s starts : ", stack_name ))
 	finished := []string{}
 
 	//Valid Count
 	validCount := 1
 	if config.Region == "" {
 		validCount = len(b.Stack.Regions)
+	}
+
+	if len(config.Region) > 0 {
+		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+			validCount = 0
+		}
 	}
 
 	for _, region := range b.Stack.Regions {
@@ -161,7 +186,7 @@ func (b BlueGreen) HealthChecking(config Config) map[string]bool {
 			continue
 		}
 
-		b.Logger.Info("Healthchecking for region starts... : " + region.Region )
+		b.Logger.Info("Healthchecking for region starts : " + region.Region )
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -191,15 +216,18 @@ func (b BlueGreen) GetStackName() string {
 }
 
 //BlueGreen finish final work
-func (b BlueGreen) FinishAdditionalWork() error {
+func (b BlueGreen) FinishAdditionalWork(config Config) error {
 	if len(b.Stack.Autoscaling) == 0 {
 		b.Logger.Info("No scaling policy exists")
 		return nil
 	}
 
-	b.Logger.Info("Attaching autoscaling policies")
-	//Apply Autosacling Policies
+	if len(config.Region) > 0 && !checkRegionExist(config.Region, b.Stack.Regions) {
+		return nil
+	}
+
 	for _, region := range b.Stack.Regions {
+		//Apply Autosacling Policies
 		b.Logger.Info("Attaching autoscaling policies")
 
 		//select client
@@ -210,28 +238,43 @@ func (b BlueGreen) FinishAdditionalWork() error {
 
 		//putting autoscaling group policies
 		policies := []string{}
-		policyArns := []*string{}
+		policyArns := map[string]string{}
 		for _, policy := range b.Stack.Autoscaling {
 			policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
 			if err != nil {
 				error_logging(err.Error())
 				return err
 			}
-			policyArns = append(policyArns, policyArn)
+			policyArns[policy.Name] = *policyArn
 			policies = append(policies, policy.Name)
 		}
 
-		client.EC2Service.EnableMetrics(b.AsgNames[region.Region])
+		if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
+			return err
+		}
 
-		client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns, policies)
+		if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
+			return nil
+		}
+
+
+		//Apply lifecycle callback options
+		b.Logger.Info("Attaching lifecycle callbacks.")
 	}
 
+	Logger.Info("Finish addtional works.")
 	return nil
 }
 
 //Clean Previous Version
-func (b BlueGreen) CleanPreviousVersion() error {
+func (b BlueGreen) CleanPreviousVersion(config Config) error {
 	b.Logger.Info("Delete Mode is " + b.Mode)
+
+	if len(config.Region) > 0 {
+		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+			return nil
+		}
+	}
 
 	for _, region := range b.Stack.Regions {
 		b.Logger.Info(fmt.Sprintf("The number of previous versions to delete is %d.\n", len(b.PrevAsgs[region.Region])))
@@ -260,7 +303,6 @@ func (b BlueGreen) CleanPreviousVersion() error {
 func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 	stack_name := b.GetStackName()
 	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name ))
-	finished := []string{}
 
 	//Valid Count
 	validCount := 1
@@ -268,6 +310,13 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 		validCount = len(b.Stack.Regions)
 	}
 
+	if len(config.Region) > 0 {
+		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+			validCount = 0
+		}
+	}
+
+	finished := []string{}
 	for _, region := range b.Stack.Regions {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
@@ -276,7 +325,7 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 			continue
 		}
 
-		b.Logger.Info("Checking Termination stack for region starts... : " + region.Region )
+		b.Logger.Info("Checking Termination stack for region starts : " + region.Region )
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -286,18 +335,21 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 
 		targets := b.PrevAsgs[region.Region]
 		if len(targets) == 0 {
+			Logger.Info("No target to delete : ", region.Region)
+			finished = append(finished, region.Region)
 			continue
 		}
 
-		isHealthy := true
+		ok_count := 0
 		for _, target := range targets {
-			ok := b.Deployer.CheckTerminating(client, region.Region, target)
-			if !ok {
-				isHealthy = false
+			ok := b.Deployer.CheckTerminating(client, target)
+			if ok {
+				Logger.Info("finished : ", target)
+				ok_count++
 			}
 		}
 
-		if isHealthy {
+		if ok_count == len(targets) {
 			finished = append(finished, region.Region)
 		}
 	}
@@ -307,4 +359,18 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 	}
 
 	return map[string]bool{stack_name: false}
+}
+
+
+//checkRegionExist checks if target region is really in regions described in manifest file
+func checkRegionExist(target string, regions []RegionConfig) bool {
+	regionExists := false
+	for _, region := range regions {
+		if region.Region == target {
+			regionExists = true
+			break
+		}
+	}
+
+	return regionExists
 }

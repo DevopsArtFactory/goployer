@@ -76,6 +76,22 @@ func (e EC2Client) DeleteLaunchConfigurations(asg_name string) error {
 	return nil
 }
 
+// Delete all launch template belongs to the autoscaling group
+func (e EC2Client) DeleteLaunchTemplates(asg_name string) error {
+	lts := getAllLaunchTemplates(e.Client, []*ec2.LaunchTemplate{}, nil)
+
+	for _, lt := range lts {
+		if strings.HasPrefix(*lt.LaunchTemplateName, asg_name) {
+			err := deleteLaunchTemplate(e.Client, *lt.LaunchTemplateName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // Delete Autoscaling group Set
 // 1. Autoscaling Group
 // 2. Luanch Configurations in asg
@@ -178,6 +194,34 @@ func getAllLaunchConfigurations(client *autoscaling.AutoScaling, lcs []*autoscal
 	return lcs
 }
 
+// Batch of retrieving all launch templates
+func getAllLaunchTemplates(client *ec2.EC2, lts []*ec2.LaunchTemplate, nextToken *string) []*ec2.LaunchTemplate {
+	input := &ec2.DescribeLaunchTemplatesInput{
+		NextToken: nextToken,
+	}
+
+	ret, err := client.DescribeLaunchTemplates(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			fmt.Println(err.Error())
+		}
+		return nil
+	}
+
+	lts = append(lts, ret.LaunchTemplates...)
+
+	if ret.NextToken != nil {
+		return getAllLaunchTemplates(client, lts, ret.NextToken)
+	}
+
+	return lts
+}
+
 // Delete Single Launch Configuration
 func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) error {
 	input := &autoscaling.DeleteLaunchConfigurationInput{
@@ -206,6 +250,27 @@ func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) 
 	return nil
 }
 
+// Delete Single Launch Template
+func deleteLaunchTemplate(client *ec2.EC2, lt_name string) error {
+	input := &ec2.DeleteLaunchTemplateInput{
+		LaunchTemplateName: aws.String(lt_name),
+	}
+
+	_, err := client.DeleteLaunchTemplate(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			fmt.Println(err.Error())
+		}
+		return err
+	}
+
+	return nil
+}
 
 // Create New Launch Configuration
 func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*autoscaling.BlockDeviceMapping) bool {
@@ -243,6 +308,57 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 	}
 
 	Logger.Info("Successfully create new launch configurations : ", name)
+
+	return true
+}
+
+
+// Create New Launch Template
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions InstanceMarketOptions) bool {
+	input := &ec2.CreateLaunchTemplateInput{
+		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
+			ImageId:      aws.String(ami),
+			InstanceType: aws.String(instanceType),
+			KeyName: aws.String(keyName),
+			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
+				Name: aws.String(iamProfileName),
+			},
+			UserData: aws.String(userdata),
+			SecurityGroupIds: securityGroups,
+			EbsOptimized: aws.Bool(ebsOptimized),
+			BlockDeviceMappings: blockDevices,
+		},
+		LaunchTemplateName: aws.String(name),
+	}
+
+	if len(instanceMarketOptions.MarketType) != 0  {
+		input.LaunchTemplateData.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
+			MarketType:  aws.String(instanceMarketOptions.MarketType),
+			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{
+				BlockDurationMinutes:         aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes),
+				InstanceInterruptionBehavior: aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior),
+				MaxPrice:                     aws.String(instanceMarketOptions.SpotOptions.MaxPrice),
+				SpotInstanceType:             aws.String(instanceMarketOptions.SpotOptions.SpotInstanceType),
+			},
+		}
+	}
+
+	_, err := e.Client.CreateLaunchTemplate(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return false
+	}
+
+	Logger.Info("Successfully create new launch template : ", name)
 
 	return true
 }
@@ -310,6 +426,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 	return retList
 }
 
+// MakeBlockDevices returns list of block device mapping for launch configuration
 func (e EC2Client) MakeBlockDevices(blocks []BlockDevice) []*autoscaling.BlockDeviceMapping {
 	ret := []*autoscaling.BlockDeviceMapping{}
 
@@ -329,6 +446,37 @@ func (e EC2Client) MakeBlockDevices(blocks []BlockDevice) []*autoscaling.BlockDe
 		ret = append(ret, &autoscaling.BlockDeviceMapping{
 			DeviceName:  aws.String(block.DeviceName),
 			Ebs:         &autoscaling.Ebs{
+				VolumeSize:          aws.Int64(bSize),
+				VolumeType:          aws.String(bType),
+			},
+			NoDevice:    nil,
+			VirtualName: nil,
+		})
+	}
+
+	return ret
+}
+
+//MakeLaunchTemplateBlockDeviceMappings returns list of block device mappings for launch template
+func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []BlockDevice) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
+	ret := []*ec2.LaunchTemplateBlockDeviceMappingRequest{}
+
+	for _, block := range blocks {
+		bType := block.VolumeType
+		if bType == "" {
+			Logger.Info("Volume type not defined for device mapping: defaulting to \"gp2\"")
+			bType = "gp2"
+		}
+
+		bSize := block.VolumeSize
+		if bSize == 0 {
+			Logger.Info("Volume size not defined for device mapping: defaulting to 16GB")
+			bSize = 16
+		}
+
+		ret = append(ret, &ec2.LaunchTemplateBlockDeviceMappingRequest{
+			DeviceName:  aws.String(block.DeviceName),
+			Ebs:         &ec2.LaunchTemplateEbsBlockDeviceRequest{
 				VolumeSize:          aws.Int64(bSize),
 				VolumeType:          aws.String(bType),
 			},
@@ -390,10 +538,12 @@ func (e EC2Client) GetVPCId(vpc string) string {
 	return *result.Vpcs[0].VpcId
 }
 
-func (e EC2Client) CreateAutoScalingGroup(name, launch_config_name, healthcheck_type string, healthcheck_grace_period int64, capacity Capacity,  loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string) bool {
+func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity Capacity,  loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string) bool {
 	input := &autoscaling.CreateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(name),
-		LaunchConfigurationName: aws.String(launch_config_name),
+		LaunchTemplate:			 &autoscaling.LaunchTemplateSpecification{
+			LaunchTemplateName: aws.String(launch_template_name),
+		},
 		MaxSize:                 aws.Int64(capacity.Max),
 		MinSize:                 aws.Int64(capacity.Min),
 		DesiredCapacity:		 aws.Int64(capacity.Desired),
@@ -478,13 +628,6 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack string) [
 
 func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 	ret := []string{}
-	if len(azs) > 0 {
-		for _, az := range azs {
-			ret = append(ret, az)
-		}
-		return ret
-	}
-
 	vpcId := e.GetVPCId(vpc)
 
 	input := &ec2.DescribeSubnetsInput{
@@ -514,7 +657,7 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 	}
 
 	for _, subnet := range result.Subnets {
-		if IsStringInArray(*subnet.AvailabilityZone, ret) {
+		if IsStringInArray(*subnet.AvailabilityZone, ret) || !IsStringInArray(*subnet.AvailabilityZone, azs) {
 			continue
 		}
 		ret = append(ret, *subnet.AvailabilityZone)
@@ -523,7 +666,7 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 	return ret
 }
 
-func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool) []string {
+func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string) []string {
 	vpcId := e.GetVPCId(vpc)
 
 	input := &ec2.DescribeSubnetsInput{
@@ -558,6 +701,10 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool) []string {
 		subnetType = "public"
 	}
 	for _, subnet := range result.Subnets {
+		if ! IsStringInArray(*subnet.AvailabilityZone, azs) {
+			continue
+		}
+
 		for _, tag := range subnet.Tags {
 			if *tag.Key == "Name" && strings.HasPrefix(*tag.Value, subnetType) {
 				ret = append(ret, *subnet.SubnetId)

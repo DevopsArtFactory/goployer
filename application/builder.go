@@ -12,6 +12,7 @@ import (
 
 var (
 	NO_MANIFEST_EXISTS="Manifest file does not exist"
+	availableBlockTypes=[]string{"io1", "gp2", "st1", "sc1"}
 )
 
 type UserdataProvider interface {
@@ -76,31 +77,44 @@ type AlarmConfigs struct {
 	Metric 				string
 	Statistic 			string
 	Comparison 			string
-	Threshold 			int
-	Period 				int
-	EvaluationPeriods 	int `yaml:"evaluation_periods"`
+	Threshold 			float64
+	Period 				int64
+	EvaluationPeriods 	int64 	 `yaml:"evaluation_periods"`
 	AlarmActions 		[]string `yaml:"alarm_actions"`
 }
 
 type Stack struct {
-	Stack 				string `yaml:"stack"`
-	Account 			string `yaml:"account"`
-	Env 				string `yaml:"env"`
-	ReplacementType 	string `yaml:"replacement_type"`
-	InstanceType 		string `yaml:"instance_type"`
-	SshKey 				string `yaml:"ssh_key"`
-	Userdata 			Userdata `yaml:"userdata"`
-	IamInstanceProfile 	string `yaml:"iam_instance_profile"`
-	AnsibleTags 		string `yaml:"ansible_tags"`
-	AssumeRole 			string `yaml:"assume_role"`
-	EbsOptimized 		bool   `yaml:"ebs_optimized"`
-	BlockDevices 		[]BlockDevice `yaml:"block_devices"`
-	ExtraVars 			string `yaml:"extra_vars"`
-	Capacity 			Capacity `yaml:"capacity"`
-	Autoscaling 		[]ScalePolicy `yaml:"autoscaling"`
-	Alarms 				[]AlarmConfigs	`yaml:alarms`
-	LifecycleCallbacks 	LifecycleCallbacks `yaml:"lifecycle_callbacks"`
-	Regions 			[]RegionConfig
+	Stack 					string `yaml:"stack"`
+	Account 				string `yaml:"account"`
+	Env 					string `yaml:"env"`
+	ReplacementType 		string `yaml:"replacement_type"`
+	InstanceType 			string `yaml:"instance_type"`
+	SshKey 					string `yaml:"ssh_key"`
+	Userdata 				Userdata `yaml:"userdata"`
+	IamInstanceProfile 		string `yaml:"iam_instance_profile"`
+	AnsibleTags 			string `yaml:"ansible_tags"`
+	AssumeRole 				string `yaml:"assume_role"`
+	EbsOptimized 			bool   `yaml:"ebs_optimized"`
+	InstanceMarketOptions 	InstanceMarketOptions `yaml:"instance_market_options"`
+	BlockDevices 			[]BlockDevice `yaml:"block_devices"`
+	ExtraVars 				string `yaml:"extra_vars"`
+	Capacity 				Capacity `yaml:"capacity"`
+	Autoscaling 			[]ScalePolicy `yaml:"autoscaling"`
+	Alarms 					[]AlarmConfigs	`yaml:alarms`
+	LifecycleCallbacks 		LifecycleCallbacks `yaml:"lifecycle_callbacks"`
+	Regions 				[]RegionConfig
+}
+
+type InstanceMarketOptions struct {
+	MarketType string `yaml:"market_type"`
+	SpotOptions SpotOptions `yaml:"spot_options"`
+}
+
+type SpotOptions struct {
+	BlockDurationMinutes int64 `yaml:"block_duration_minutes"`
+	InstanceInterruptionBehavior string `yaml:"instance_interruption_behavior"`
+	MaxPrice string `yaml:"max_price"`
+	SpotInstanceType string `yaml:"spot_instance_type"`
 }
 
 type BlockDevice struct {
@@ -221,6 +235,46 @@ func (b Builder) CheckValidation() error {
 				}
 			}
 		}
+
+		// Check Spot Options
+		if len(stack.InstanceMarketOptions.MarketType) != 0 {
+			if stack.InstanceMarketOptions.MarketType != "spot" {
+				return fmt.Errorf("no valid market type : %s", stack.InstanceMarketOptions.MarketType)
+			}
+
+			if stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes % 60 != 0 || stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes > 360 {
+				return fmt.Errorf("block_duration_minutes should be one of [ 60, 120, 180, 240, 300, 360 ]")
+			}
+
+			if stack.InstanceMarketOptions.SpotOptions.SpotInstanceType == "persistent" && stack.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior == "terminate" {
+				return fmt.Errorf("persistent type is not allowed with termiante behavior.")
+			}
+		}
+
+		// Check block device setting
+		if len(stack.BlockDevices) > 0 {
+			dNames  := []string{}
+			for _, block := range stack.BlockDevices {
+				if len(block.DeviceName) == 0 {
+					return fmt.Errorf("name of device is required.")
+				}
+
+				if ! IsStringInArray(block.VolumeType, availableBlockTypes) {
+					return fmt.Errorf("not available volume type : %s", block.VolumeType)
+				}
+
+				if block.VolumeType == "st1" && block.VolumeSize < 500 {
+					return fmt.Errorf("volume size of st1 type should be larger than 500GiB")
+				}
+
+				if IsStringInArray(block.DeviceName, dNames) {
+					return fmt.Errorf("device names are duplicated : %s", block.DeviceName)
+				} else {
+					dNames = append(dNames, block.DeviceName)
+				}
+
+			}
+		}
 	}
 	return nil
 }
@@ -296,7 +350,7 @@ func argumentParsing() Config {
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
 	assume_role := flag.String("assume_role", "", "The Role ARN to assume into")
 	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
-	region := flag.String("region", "us-east-2", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
+	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
 
 	flag.Parse()

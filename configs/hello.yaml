@@ -44,53 +44,102 @@ tags:
 
 stacks:
   - stack: dayonep
+
+    # account alias
     account: prod
+
+    # environment variable
     env: prod
+
+    # assume_role for deployment
     assume_role: ""
+
+    # Replacement type
     replacement_type: BlueGreen
-    instance_type: t3.medium
+    instance_type: m5.large
     ssh_key: dayone-prod-master
+
+    # IAM instance profile, not instance role
     iam_instance_profile: 'app-hello-profile'
     ansible_tags: all
     extra_vars: ""
-    ebs_optimized: false
+    ebs_optimized: true
+
+    # instance_market_options is for spot usage
+    # You only can choose spot as market_type.
+    # If you want to set customized stop options, then please write spot_options correctly.
+    instance_market_options:
+      market_type: spot
+      spot_options:
+        block_duration_minutes: 180
+        instance_interruption_behavior: terminate # terminate / stop / hibernate
+        max_price: 0.2
+        spot_instance_type: one-time # one-time or persistent
+
+    # block_devices is the list of ebs volumes you can use for ec2
+    # device_name is required
+    # If you do not set volume_size, it would be 16.
+    # If you do not set volume_type, it would be gp2.
     block_devices:
       - device_name: /dev/xvda
         volume_size: 100
         volume_type: "gp2"
       - device_name: /dev/xvdb
+        volume_type: "st1"
+        volume_size: 500
+
+    # capacity
     capacity:
       min: 1
-      max: 1
+      max: 2
       desired: 1
+
+    # autoscaling means scaling policy of autoscaling group
+    # You can find format in autoscaling block upside
     autoscaling: *autoscaling_policy
+
+    # alarms means cloudwatch alarms for triggering autoscaling scaling policy
+    # You can find format in alarms block upside
     alarms: *autoscaling_alarms
+
+    # lifecycle callbacks
     lifecycle_callbacks:
       pre_terminate_past_clusters:
         - service hello stop
+
+    # list of region
+    # deployer will concurrently deploy across the region
     regions:
       - region: ap-northeast-2
         # Whether you want to use public subnet or not
         # By Default, deployer selects private subnets
-        # If you want to use public subnet, then you should set this value to ture
+        # If you want to use public subnet, then you should set this value to ture.
         use_public_subnets: true
+
         # You can use VPC id(vpc-xxx)
         # If you specify the name of VPC, then deployer will find the VPC id with it.
-        # In this case, only one VPC should exist
+        # In this case, only one VPC should exist.
         vpc: vpc-dayonep_apnortheast2
+
         # You can use security group id(sg-xxx)
         # If you specify the name of security group, then deployer will find the security group id with it.
         # In this case, only one security group should exist
         security_groups:
           - hello-dayonep_apnortheast2
           - default-dayonep_apnortheast2
+
+        # You can use healthcheck target group
         healthcheck_target_group: hello-dayonepapne2-ext
-        # If no availability zones specified, then all availability zones are selected by default
-        # If you want all availability zones, then please remove availability_zones key
-#        availability_zones:
-#          - ap-northeast-2a
+
+        # If no availability zones specified, then all availability zones are selected by default.
+        # If you want all availability zones, then please remove availability_zones key.
+        availability_zones:
+          - ap-northeast-2a
 #          - ap-northeast-2b
 #          - ap-northeast-2c
+
+        # list of target groups.
+        # The target group in the healthcheck_target_group should be included here.
         target_groups:
           - hello-dayonepapne2-ext
 

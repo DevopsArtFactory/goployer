@@ -38,7 +38,6 @@ func makeStringArrayToAwsStrings (arr []string) []*string {
 	return ret
 }
 
-
 func bootstrapServices(region string, assume_role string) AWSClient {
 	aws_session := getAwsSession()
 
