@@ -56,11 +56,11 @@ stacks:
 
     # Replacement type
     replacement_type: BlueGreen
-    instance_type: m5.large
-    ssh_key: dayone-prod-master
 
     # IAM instance profile, not instance role
     iam_instance_profile: 'app-hello-profile'
+
+    # Ansible tags
     ansible_tags: all
     extra_vars: ""
     ebs_optimized: true
@@ -111,6 +111,17 @@ stacks:
     # deployer will concurrently deploy across the region
     regions:
       - region: ap-northeast-2
+
+        # instance type
+        instance_type: m5.large
+
+        # ssh_key for instances
+        ssh_key: dayone-prod-master
+
+        # ami_id
+        # You can override this value via command line `--ami`
+        ami_id: ami-01288945bd24ed49a
+
         # Whether you want to use public subnet or not
         # By Default, deployer selects private subnets
         # If you want to use public subnet, then you should set this value to ture.
@@ -135,12 +146,27 @@ stacks:
         # If you want all availability zones, then please remove availability_zones key.
         availability_zones:
           - ap-northeast-2a
-#          - ap-northeast-2b
-#          - ap-northeast-2c
+          - ap-northeast-2b
+          - ap-northeast-2c
 
         # list of target groups.
         # The target group in the healthcheck_target_group should be included here.
         target_groups:
           - hello-dayonepapne2-ext
+
+
+      - region: us-east-1
+        ami_id: ami-09d95fab7fff3776c
+        instance_type: t3.large
+        ssh_key: dayone-prod-master
+        use_public_subnets: true
+        vpc: vpc-dayonep_useast1
+        security_groups:
+          - hello-dayonep_useast1
+          - default-dayonep_useast1
+        healthcheck_target_group: hello-dayonepuse1-ext
+        target_groups:
+          - hello-dayonepuse1-ext
+
 
 

@@ -31,6 +31,7 @@ If the autoscaling of sample application is already launched, for example `hello
     * `--ami` : AMI ID
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
+* If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 ```bash
 go run deployer.go --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
 ```
@@ -38,7 +39,6 @@ go run deployer.go --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --s
 
 ## Manifest
 Manifest file is the configurations for application deployment. You need to set at least one stack for each application. You can find the example manifest file in `config/hello.yaml`.
-
 ```yaml
 ---
 name: hello
@@ -98,11 +98,11 @@ stacks:
 
     # Replacement type
     replacement_type: BlueGreen
-    instance_type: m5.large
-    ssh_key: dayone-prod-master
 
     # IAM instance profile, not instance role
     iam_instance_profile: 'app-hello-profile'
+
+    # Ansible tags
     ansible_tags: all
     extra_vars: ""
     ebs_optimized: true
@@ -144,10 +144,26 @@ stacks:
     # You can find format in alarms block upside
     alarms: *autoscaling_alarms
 
+    # lifecycle callbacks
+    lifecycle_callbacks:
+      pre_terminate_past_clusters:
+        - service hello stop
+
     # list of region
     # deployer will concurrently deploy across the region
     regions:
       - region: ap-northeast-2
+
+        # instance type
+        instance_type: m5.large
+
+        # ssh_key for instances
+        ssh_key: dayone-prod-master
+
+        # ami_id
+        # You can override this value via command line `--ami`
+        ami_id: ami-01288945bd24ed49a
+
         # Whether you want to use public subnet or not
         # By Default, deployer selects private subnets
         # If you want to use public subnet, then you should set this value to ture.
@@ -179,6 +195,20 @@ stacks:
         # The target group in the healthcheck_target_group should be included here.
         target_groups:
           - hello-dayonepapne2-ext
+
+
+      - region: us-east-1
+        ami_id: ami-09d95fab7fff3776c
+        instance_type: t3.large
+        ssh_key: dayone-prod-master
+        use_public_subnets: true
+        vpc: vpc-dayonep_useast1
+        security_groups:
+          - hello-dayonep_useast1
+          - default-dayonep_useast1
+        healthcheck_target_group: hello-dayonepuse1-ext
+        target_groups:
+          - hello-dayonepuse1-ext
 ``` 
 
 

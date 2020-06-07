@@ -9,7 +9,7 @@ import (
 
 type Runner struct {
 	Logger 	*Logger.Logger
-	Builder   Builder
+	Builder Builder
 	Slacker Slack
 }
 

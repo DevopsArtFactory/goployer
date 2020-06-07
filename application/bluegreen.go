@@ -72,7 +72,12 @@ func (b BlueGreen) Deploy(config Config) {
 		b.Logger.Info("Current Version :", cur_version)
 
 		//Get AMI
-		ami := config.Ami
+		var ami string
+		if len(config.Ami) > 0 {
+			ami = config.Ami
+		} else {
+			ami = region.AmiId
+		}
 
 		// Generate new name for autoscaling group and launch configuration
 		new_asg_name := generateAsgName(frigga.Prefix, cur_version)
@@ -102,8 +107,8 @@ func (b BlueGreen) Deploy(config Config) {
 		ret := client.EC2Service.CreateNewLaunchTemplate(
 			launch_template_name,
 			ami,
-			b.Stack.InstanceType,
-			b.Stack.SshKey,
+			region.InstanceType,
+			region.SshKey,
 			b.Stack.IamInstanceProfile,
 			userdata,
 			ebsOptimized,
@@ -137,7 +142,7 @@ func (b BlueGreen) Deploy(config Config) {
 		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack)
 		subnets := client.EC2Service.GetSubnets(region.VPC, use_public_subnets, availability_zones)
 
-		 ret = client.EC2Service.CreateAutoScalingGroup(
+		ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
 			launch_template_name,
 			healthcheck_type,

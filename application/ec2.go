@@ -657,7 +657,7 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 	}
 
 	for _, subnet := range result.Subnets {
-		if IsStringInArray(*subnet.AvailabilityZone, ret) || !IsStringInArray(*subnet.AvailabilityZone, azs) {
+		if IsStringInArray(*subnet.AvailabilityZone, ret) || (len(azs) >0 && !IsStringInArray(*subnet.AvailabilityZone, azs)) {
 			continue
 		}
 		ret = append(ret, *subnet.AvailabilityZone)

@@ -38,6 +38,7 @@ func getElbClientFn(session *session.Session, region string, creds *credentials.
 }
 
 
+// GetTargetGroupARNs returns arn list of target groups
 func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 	if len(target_groups) == 0 {
 		return nil

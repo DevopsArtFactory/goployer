@@ -7,6 +7,7 @@ import (
 	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"strings"
 	"time"
 )
 
@@ -84,25 +85,23 @@ type AlarmConfigs struct {
 }
 
 type Stack struct {
-	Stack 					string `yaml:"stack"`
-	Account 				string `yaml:"account"`
-	Env 					string `yaml:"env"`
-	ReplacementType 		string `yaml:"replacement_type"`
-	InstanceType 			string `yaml:"instance_type"`
-	SshKey 					string `yaml:"ssh_key"`
-	Userdata 				Userdata `yaml:"userdata"`
-	IamInstanceProfile 		string `yaml:"iam_instance_profile"`
-	AnsibleTags 			string `yaml:"ansible_tags"`
-	AssumeRole 				string `yaml:"assume_role"`
-	EbsOptimized 			bool   `yaml:"ebs_optimized"`
-	InstanceMarketOptions 	InstanceMarketOptions `yaml:"instance_market_options"`
-	BlockDevices 			[]BlockDevice `yaml:"block_devices"`
-	ExtraVars 				string `yaml:"extra_vars"`
-	Capacity 				Capacity `yaml:"capacity"`
-	Autoscaling 			[]ScalePolicy `yaml:"autoscaling"`
-	Alarms 					[]AlarmConfigs	`yaml:alarms`
-	LifecycleCallbacks 		LifecycleCallbacks `yaml:"lifecycle_callbacks"`
-	Regions 				[]RegionConfig
+	Stack 					string 					`yaml:"stack"`
+	Account 				string 					`yaml:"account"`
+	Env 					string 					`yaml:"env"`
+	ReplacementType 		string 					`yaml:"replacement_type"`
+	Userdata 				Userdata 				`yaml:"userdata"`
+	IamInstanceProfile 		string 					`yaml:"iam_instance_profile"`
+	AnsibleTags 			string 					`yaml:"ansible_tags"`
+	AssumeRole 				string 					`yaml:"assume_role"`
+	EbsOptimized 			bool   					`yaml:"ebs_optimized"`
+	InstanceMarketOptions 	InstanceMarketOptions 	`yaml:"instance_market_options"`
+	BlockDevices 			[]BlockDevice 			`yaml:"block_devices"`
+	ExtraVars 				string 					`yaml:"extra_vars"`
+	Capacity 				Capacity 				`yaml:"capacity"`
+	Autoscaling 			[]ScalePolicy 			`yaml:"autoscaling"`
+	Alarms 					[]AlarmConfigs			`yaml:alarms`
+	LifecycleCallbacks 		LifecycleCallbacks 		`yaml:"lifecycle_callbacks"`
+	Regions 				[]RegionConfig			`yaml:"regions"`
 }
 
 type InstanceMarketOptions struct {
@@ -128,15 +127,18 @@ type LifecycleCallbacks struct {
 }
 
 type RegionConfig struct {
-	Region 					string `yaml:"region"`
-	UsePublicSubnets		bool `yaml:"use_public_subnets"`
-	VPC 					string `yaml:"vpc"`
-	SecurityGroups 			[]string `yaml:"security_groups"`
-	HealthcheckLB 			string `yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup 	string `yaml:"healthcheck_target_group"`
-	TargetGroups 			[]string `yaml:"target_groups"`
-	LoadBalancers 			[]string `yaml:"loadbalancers"`
-	AvailabilityZones 		[]string `yaml:"availability_zones"`
+	Region 					string 		`yaml:"region"`
+	UsePublicSubnets		bool 		`yaml:"use_public_subnets"`
+	InstanceType 			string 		`yaml:"instance_type"`
+	SshKey 					string 		`yaml:"ssh_key"`
+	AmiId 					string 		`yaml:"ami_id"`
+	VPC 					string 		`yaml:"vpc"`
+	SecurityGroups 			[]string 	`yaml:"security_groups"`
+	HealthcheckLB 			string 		`yaml:"healthcheck_load_balancer"`
+	HealthcheckTargetGroup 	string 		`yaml:"healthcheck_target_group"`
+	TargetGroups 			[]string 	`yaml:"target_groups"`
+	LoadBalancers 			[]string 	`yaml:"loadbalancers"`
+	AvailabilityZones 		[]string 	`yaml:"availability_zones"`
 }
 
 type Capacity struct {
@@ -168,6 +170,11 @@ func (s S3Provider) provide() string  {
 
 //Start function is the starting point of all processes.
 func Start() error  {
+	// Check OS first
+	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+	//	return errors.New("you cannot run from local command.")
+	//}
+
 	// Create new builder
 	builder, err := NewBuilder()
 	if err != nil {
@@ -217,7 +224,18 @@ func (b Builder) SetStacks() Builder {
 
 // Validation Check
 func (b Builder) CheckValidation() error {
+	target_ami := b.Config.Ami
+	target_region := b.Config.Region
+
+	// Global AMI check
+	if len(target_region) == 0 && len(target_ami) != 0 && strings.HasPrefix(target_ami, "ami-") {
+		// One ami id cannot be used in different regions
+		return fmt.Errorf("one ami id cannot be used in different regions : %s", target_ami)
+	}
+
+	// check validations in each stack
 	for _, stack := range b.Stacks {
+		// Check AMI
 		// Check Autoscaling and Alarm setting
 		if len(stack.Autoscaling) != 0 && len(stack.Alarms) != 0 {
 			policies := []string{}
@@ -272,7 +290,18 @@ func (b Builder) CheckValidation() error {
 				} else {
 					dNames = append(dNames, block.DeviceName)
 				}
+			}
+		}
 
+		for _, region := range stack.Regions {
+			//Check ami id
+			if len(target_ami) == 0 && len(region.AmiId) == 0 {
+				return fmt.Errorf("you have to specify at least one ami id.")
+			}
+
+			//Check instance type
+			if len(region.InstanceType) == 0 {
+				return fmt.Errorf("you have to specify the instance type.")
 			}
 		}
 	}
@@ -304,8 +333,6 @@ func printEnvironment(stack Stack)  {
 	formatting := `[ %s ]
 Environment             : %s
 Environment             : %s
-Instance type           : %s
-SSH key                 : %s
 IAM Instance Profile    : %s
 Ansible tags            : %s 
 Extra vars              : %s 
@@ -313,7 +340,7 @@ Capacity                : %+v
 Block_devices           : %+v
 ============================================================
 	`
-	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.InstanceType, stack.SshKey, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity, stack.BlockDevices)
+	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity, stack.BlockDevices)
 	fmt.Println(summary)
 }
 
