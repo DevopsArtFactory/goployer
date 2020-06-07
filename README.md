@@ -2,8 +2,8 @@
 `deployer` is an application you can use for EC2 deployment. You can deploy in a blue/green mode. Deployer only
 changes the autoscaling group so that you don't need to create another load balancer or manually attach autoscaling group to target group.
 <br><br>
-`deployer` is still in development and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
-
+`deployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
+<br>
 ## Requirements
 * You have to create a load balancer and target groups of it which deployer attach a new autoscaling group to. 
 * If you want to setup loadbalancer and target group in terraform, then please check this [link](https://devops-art-factory.gitbook.io/devops-workshop/terraform/terraform-resource/computing/elb-+-ec2).
