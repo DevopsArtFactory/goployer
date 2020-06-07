@@ -2,11 +2,13 @@ package application
 
 import (
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -171,9 +173,9 @@ func (s S3Provider) provide() string  {
 //Start function is the starting point of all processes.
 func Start() error  {
 	// Check OS first
-	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-	//	return errors.New("you cannot run from local command.")
-	//}
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return errors.New("you cannot run from local command.")
+	}
 
 	// Create new builder
 	builder, err := NewBuilder()
