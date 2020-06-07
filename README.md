@@ -32,8 +32,10 @@ If other autoscaling groups of sample application already existed, for example `
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
+* You *cannot run deployer from local environment* for security & management issue.
 ```bash
-go run deployer.go --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
+$ make build 
+$ ./bin/deployer --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
 ```
 <br>
 
