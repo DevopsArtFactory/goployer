@@ -1,14 +1,13 @@
-package application
+package builder
 
 import (
 	"encoding/base64"
-	"errors"
 	"flag"
 	"fmt"
+	"github.com/DevopsArtFactory/deployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -19,7 +18,7 @@ var (
 )
 
 type UserdataProvider interface {
-	provide() string
+	Provide() string
 }
 
 type LocalProvider struct {
@@ -31,9 +30,9 @@ type S3Provider struct {
 }
 
 type Builder struct {
-	Config 		Config		// Config from command
-	AwsConfig 	AWSConfig 	// Common Config
-	Stacks 		[]Stack 		// Stack Config
+	Config    Config    // Config from command
+	AwsConfig AWSConfig // Common Config
+	Stacks    []Stack   // Stack Config
 }
 
 type Config struct {
@@ -50,16 +49,16 @@ type Config struct {
 
 
 type YamlConfig struct {
-	Name 			string		`yaml:"name"`
-	Userdata 		Userdata 	`yaml:"userdata"`
-	Tags 		 	[]string 	`yaml:"tags"`
-	Stacks			[]Stack 	`yaml:"stacks"`
+	Name     string   `yaml:"name"`
+	Userdata Userdata `yaml:"userdata"`
+	Tags     []string `yaml:"tags"`
+	Stacks   []Stack  `yaml:"stacks"`
 }
 
 type AWSConfig struct {
-	Name 			string
-	Userdata 		Userdata
-	Tags 		 	[]string
+	Name     string
+	Userdata Userdata
+	Tags     []string
 }
 
 type Userdata struct {
@@ -87,27 +86,27 @@ type AlarmConfigs struct {
 }
 
 type Stack struct {
-	Stack 					string 					`yaml:"stack"`
-	Account 				string 					`yaml:"account"`
-	Env 					string 					`yaml:"env"`
-	ReplacementType 		string 					`yaml:"replacement_type"`
-	Userdata 				Userdata 				`yaml:"userdata"`
-	IamInstanceProfile 		string 					`yaml:"iam_instance_profile"`
-	AnsibleTags 			string 					`yaml:"ansible_tags"`
-	AssumeRole 				string 					`yaml:"assume_role"`
-	EbsOptimized 			bool   					`yaml:"ebs_optimized"`
-	InstanceMarketOptions 	InstanceMarketOptions 	`yaml:"instance_market_options"`
-	BlockDevices 			[]BlockDevice 			`yaml:"block_devices"`
-	ExtraVars 				string 					`yaml:"extra_vars"`
-	Capacity 				Capacity 				`yaml:"capacity"`
-	Autoscaling 			[]ScalePolicy 			`yaml:"autoscaling"`
-	Alarms 					[]AlarmConfigs			`yaml:alarms`
-	LifecycleCallbacks 		LifecycleCallbacks 		`yaml:"lifecycle_callbacks"`
-	Regions 				[]RegionConfig			`yaml:"regions"`
+	Stack                 string                `yaml:"stack"`
+	Account               string                `yaml:"account"`
+	Env                   string                `yaml:"env"`
+	ReplacementType       string                `yaml:"replacement_type"`
+	Userdata              Userdata              `yaml:"userdata"`
+	IamInstanceProfile    string                `yaml:"iam_instance_profile"`
+	AnsibleTags           string                `yaml:"ansible_tags"`
+	AssumeRole            string                `yaml:"assume_role"`
+	EbsOptimized          bool                  `yaml:"ebs_optimized"`
+	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
+	BlockDevices          []BlockDevice         `yaml:"block_devices"`
+	ExtraVars             string                `yaml:"extra_vars"`
+	Capacity              Capacity              `yaml:"capacity"`
+	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
+	Alarms                []AlarmConfigs        `yaml:alarms`
+	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
+	Regions               []RegionConfig        `yaml:"regions"`
 }
 
 type InstanceMarketOptions struct {
-	MarketType string `yaml:"market_type"`
+	MarketType  string      `yaml:"market_type"`
 	SpotOptions SpotOptions `yaml:"spot_options"`
 }
 
@@ -137,7 +136,7 @@ type RegionConfig struct {
 	VPC 					string 		`yaml:"vpc"`
 	SecurityGroups 			[]string 	`yaml:"security_groups"`
 	HealthcheckLB 			string 		`yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup 	string 		`yaml:"healthcheck_target_group"`
+	HealthcheckTargetGroup 	string 		`yaml:"healthcheckTargetGroup"`
 	TargetGroups 			[]string 	`yaml:"target_groups"`
 	LoadBalancers 			[]string 	`yaml:"loadbalancers"`
 	AvailabilityZones 		[]string 	`yaml:"availability_zones"`
@@ -150,49 +149,24 @@ type Capacity struct {
 }
 
 
-func (l LocalProvider) provide() string {
+func (l LocalProvider) Provide() string {
 	if l.Path == "" {
-		error_logging("Please specify userdata script path")
+		tool.ErrorLogging("Please specify userdata script path")
 	}
-	if ! fileExists(l.Path) {
-		error_logging(fmt.Sprintf("File does not exist in %s", l.Path))
+	if ! tool.FileExists(l.Path) {
+		tool.ErrorLogging(fmt.Sprintf("File does not exist in %s", l.Path))
 	}
 
 	userdata, err := ioutil.ReadFile(l.Path)
 	if err != nil {
-		error_logging("Error reading userdata file")
+		tool.ErrorLogging("Error reading userdata file")
 	}
 
 	return base64.StdEncoding.EncodeToString(userdata)
 }
 
-func (s S3Provider) provide() string  {
+func (s S3Provider) Provide() string  {
 	return ""
-}
-
-//Start function is the starting point of all processes.
-func Start() error  {
-	// Check OS first
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		return errors.New("you cannot run from local command.")
-	}
-
-	// Create new builder
-	builder, err := NewBuilder()
-	if err != nil {
-		return err
-	}
-
-	// Check validation of configurations
-	if err := builder.CheckValidation(); err != nil {
-		return err
-	}
-
-	// run with runner
-	return WithRunner(builder, func() error {
-		// These are post actions after deployment
-		return nil
-	})
 }
 
 func NewBuilder() (Builder, error) {
@@ -202,7 +176,7 @@ func NewBuilder() (Builder, error) {
 	config := argumentParsing()
 
 	//Check manifest file
-	if len(config.Manifest) == 0 || ! fileExists(config.Manifest) {
+	if len(config.Manifest) == 0 || ! tool.FileExists(config.Manifest) {
 		return builder, fmt.Errorf(NO_MANIFEST_EXISTS)
 	}
 
@@ -220,6 +194,10 @@ func (b Builder) SetStacks() Builder {
 
 	b.AwsConfig = awsConfig
 	b.Stacks = Stacks
+
+	if b.Config.Env == "" {
+		b.Config.Env = b.Stacks[0].Env
+	}
 
 	return b
 }
@@ -249,7 +227,7 @@ func (b Builder) CheckValidation() error {
 			}
 			for _, alarm := range stack.Alarms {
 				for _, action := range alarm.AlarmActions {
-					if !IsStringInArray(action, policies) {
+					if !tool.IsStringInArray(action, policies) {
 						return fmt.Errorf("no scaling action exists : %s", action)
 					}
 				}
@@ -279,7 +257,7 @@ func (b Builder) CheckValidation() error {
 					return fmt.Errorf("name of device is required.")
 				}
 
-				if ! IsStringInArray(block.VolumeType, availableBlockTypes) {
+				if ! tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
 					return fmt.Errorf("not available volume type : %s", block.VolumeType)
 				}
 
@@ -287,7 +265,7 @@ func (b Builder) CheckValidation() error {
 					return fmt.Errorf("volume size of st1 type should be larger than 500GiB")
 				}
 
-				if IsStringInArray(block.DeviceName, dNames) {
+				if tool.IsStringInArray(block.DeviceName, dNames) {
 					return fmt.Errorf("device names are duplicated : %s", block.DeviceName)
 				} else {
 					dNames = append(dNames, block.DeviceName)
@@ -311,39 +289,38 @@ func (b Builder) CheckValidation() error {
 }
 
 // Print Summary
-func (b Builder) PrintSummary() {
+func (b Builder) MakeSummary() string {
+	summary := []string{}
 	formatting := `
 ============================================================
 Target Stack Deployment Information
 ============================================================
 name       : %s
-ami        : %s
-region     : %s
+env        : %s
 timeout    : %d
 ============================================================
 Stacks
 ============================================================`
-	summary := fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Ami, b.Config.Region, b.Config.Timeout)
-	fmt.Println(summary)
+	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout))
 
 	for _, stack := range b.Stacks {
-		printEnvironment(stack)
+		summary = append(summary, printEnvironment(stack))
 	}
+
+	return strings.Join(summary, "\n")
 }
 
-func printEnvironment(stack Stack)  {
+func printEnvironment(stack Stack) string {
 	formatting := `[ %s ]
-Environment             : %s
+Account             	: %s
 Environment             : %s
 IAM Instance Profile    : %s
 Ansible tags            : %s 
 Extra vars              : %s 
-Capacity                : %+v 
-Block_devices           : %+v
-============================================================
-	`
-	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity, stack.BlockDevices)
-	fmt.Println(summary)
+Capacity                : %+v
+============================================================`
+	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity)
+	return summary
 }
 
 // Parsing Manifest File
@@ -357,7 +334,7 @@ func  parsingManifestFile(manifest string) (AWSConfig, []Stack) {
 
 	err = yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
-		fatalError(err)
+		tool.FatalError(err)
 	}
 
 	awsConfig := AWSConfig{
@@ -400,7 +377,7 @@ func argumentParsing() Config {
 }
 
 // Set Userdata provider
-func setUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataProvider {
+func SetUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataProvider {
 
 	//Set default if no userdata exists in the stack
 	if userdata.Type == "" {

@@ -140,7 +140,7 @@ stacks:
           - default-dayonep_apnortheast2
 
         # You can use healthcheck target group
-        healthcheck_target_group: hello-dayonepapne2-ext
+        healthcheckTargetGroup: hello-dayonepapne2-ext
 
         # If no availability zones specified, then all availability zones are selected by default.
         # If you want all availability zones, then please remove availability_zones key.
@@ -150,7 +150,7 @@ stacks:
           - ap-northeast-2c
 
         # list of target groups.
-        # The target group in the healthcheck_target_group should be included here.
+        # The target group in the healthcheckTargetGroup should be included here.
         target_groups:
           - hello-dayonepapne2-ext
 
@@ -164,7 +164,7 @@ stacks:
         security_groups:
           - hello-dayonep_useast1
           - default-dayonep_useast1
-        healthcheck_target_group: hello-dayonepuse1-ext
+        healthcheckTargetGroup: hello-dayonepuse1-ext
         target_groups:
           - hello-dayonepuse1-ext
 

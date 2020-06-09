@@ -1,7 +1,10 @@
-package application
+package deployer
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/deployer/pkg/aws"
+	"github.com/DevopsArtFactory/deployer/pkg/builder"
+	"github.com/DevopsArtFactory/deployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"strings"
 )
@@ -11,10 +14,10 @@ type BlueGreen struct {
 	Deployer
 }
 
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig AWSConfig, stack Stack) BlueGreen {
-	awsClients := []AWSClient{}
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfig, stack builder.Stack) BlueGreen {
+	awsClients := []aws.AWSClient{}
 	for _, region := range stack.Regions {
-		awsClients = append(awsClients, bootstrapServices(region.Region, stack.AssumeRole))
+		awsClients = append(awsClients, aws.BootstrapServices(region.Region, stack.AssumeRole))
 	}
 	return BlueGreen{
 		Deployer{
@@ -30,14 +33,14 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig AWSConfig, stack
 }
 
 // Deploy function
-func (b BlueGreen) Deploy(config Config) {
+func (b BlueGreen) Deploy(config builder.Config) {
 	b.Logger.Info("Deploy Mode is " + b.Mode)
 
 	//Get LocalFileProvider
-	b.LocalProvider = setUserdataProvider(b.Stack.Userdata, b.AwsConfig.Userdata)
+	b.LocalProvider = builder.SetUserdataProvider(b.Stack.Userdata, b.AwsConfig.Userdata)
 
 	// Make Frigga
-	frigga := Frigga{}
+	frigga := tool.Frigga{}
 	for _, region := range b.Stack.Regions {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
@@ -47,12 +50,12 @@ func (b BlueGreen) Deploy(config Config) {
 		}
 
 		//Setup frigga with prefix
-		frigga.Prefix = buildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
+		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			error_logging(err.Error())
+			tool.ErrorLogging(err.Error())
 		}
 
 		// Get All Autoscaling Groups
@@ -63,7 +66,7 @@ func (b BlueGreen) Deploy(config Config) {
 		prev_versions := []int{}
 		for _, asgGroup := range asgGroups {
 			prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
-			prev_versions = append(prev_versions, parseVersion(*asgGroup.AutoScalingGroupName))
+			prev_versions = append(prev_versions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
 		}
 		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
 
@@ -80,10 +83,10 @@ func (b BlueGreen) Deploy(config Config) {
 		}
 
 		// Generate new name for autoscaling group and launch configuration
-		new_asg_name := generateAsgName(frigga.Prefix, cur_version)
-		launch_template_name := generateLcName(new_asg_name)
+		new_asg_name := tool.GenerateAsgName(frigga.Prefix, cur_version)
+		launch_template_name := tool.GenerateLcName(new_asg_name)
 
-		userdata := (b.LocalProvider).provide()
+		userdata := (b.LocalProvider).Provide()
 
 		//Stack check
 		securityGroups := client.EC2Service.GetSecurityGroupList(region.VPC, region.SecurityGroups)
@@ -118,24 +121,24 @@ func (b BlueGreen) Deploy(config Config) {
 		)
 
 		if ! ret {
-			error_logging("Unknown error happened creating new launch template.")
+			tool.ErrorLogging("Unknown error happened creating new launch template.")
 		}
 
 		health_elb := region.HealthcheckLB
 		loadbalancers := region.LoadBalancers
-		if ! IsStringInArray(health_elb, loadbalancers) {
+		if ! tool.IsStringInArray(health_elb, loadbalancers) {
 			loadbalancers = append(loadbalancers, health_elb)
 		}
 
-		healthcheck_target_groups := region.HealthcheckTargetGroup
+		healthcheckTargetGroups := region.HealthcheckTargetGroup
 		target_groups := region.TargetGroups
-		if ! IsStringInArray(healthcheck_target_groups, target_groups) {
-			target_groups = append(target_groups, healthcheck_target_groups)
+		if ! tool.IsStringInArray(healthcheckTargetGroups, target_groups) {
+			target_groups = append(target_groups, healthcheckTargetGroups)
 		}
 
 		use_public_subnets := region.UsePublicSubnets
-		healthcheck_type := DEFAULT_HEALTHCHECK_TYPE
-		healthcheck_grace_period := int64(DEFAULT_HEALTHCHECK_GRACE_PERIOD)
+		healthcheck_type := aws.DEFAULT_HEALTHCHECK_TYPE
+		healthcheck_grace_period := int64(aws.DEFAULT_HEALTHCHECK_GRACE_PERIOD)
 		termination_policies := []*string{}
 		availability_zones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
 		target_group_arns := client.ELBService.GetTargetGroupARNs(target_groups)
@@ -148,16 +151,16 @@ func (b BlueGreen) Deploy(config Config) {
 			healthcheck_type,
 			healthcheck_grace_period,
 			b.Stack.Capacity,
-			makeStringArrayToAwsStrings(loadbalancers),
+			aws.MakeStringArrayToAwsStrings(loadbalancers),
 			target_group_arns,
 			termination_policies,
-			makeStringArrayToAwsStrings(availability_zones),
+			aws.MakeStringArrayToAwsStrings(availability_zones),
 			tags,
 			subnets,
 		)
 
 		if ! ret {
-			error_logging("Unknown error happened creating new autoscaling group.")
+			tool.ErrorLogging("Unknown error happened creating new autoscaling group.")
 		}
 
 		b.AsgNames[region.Region] = new_asg_name
@@ -166,7 +169,7 @@ func (b BlueGreen) Deploy(config Config) {
 }
 
 // Healthchecking
-func (b BlueGreen) HealthChecking(config Config) map[string]bool {
+func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	stack_name := b.GetStackName()
 	Logger.Info(fmt.Sprintf("Healthchecking for stack %s starts : ", stack_name ))
 	finished := []string{}
@@ -196,7 +199,7 @@ func (b BlueGreen) HealthChecking(config Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			error_logging(err.Error())
+			tool.ErrorLogging(err.Error())
 		}
 
 		asg := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
@@ -221,7 +224,7 @@ func (b BlueGreen) GetStackName() string {
 }
 
 //BlueGreen finish final work
-func (b BlueGreen) FinishAdditionalWork(config Config) error {
+func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	if len(b.Stack.Autoscaling) == 0 {
 		b.Logger.Info("No scaling policy exists")
 		return nil
@@ -238,7 +241,7 @@ func (b BlueGreen) FinishAdditionalWork(config Config) error {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			error_logging(err.Error())
+			tool.ErrorLogging(err.Error())
 		}
 
 		//putting autoscaling group policies
@@ -247,7 +250,7 @@ func (b BlueGreen) FinishAdditionalWork(config Config) error {
 		for _, policy := range b.Stack.Autoscaling {
 			policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
 			if err != nil {
-				error_logging(err.Error())
+				tool.ErrorLogging(err.Error())
 				return err
 			}
 			policyArns[policy.Name] = *policyArn
@@ -272,7 +275,7 @@ func (b BlueGreen) FinishAdditionalWork(config Config) error {
 }
 
 //Clean Previous Version
-func (b BlueGreen) CleanPreviousVersion(config Config) error {
+func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 	b.Logger.Info("Delete Mode is " + b.Mode)
 
 	if len(config.Region) > 0 {
@@ -287,7 +290,7 @@ func (b BlueGreen) CleanPreviousVersion(config Config) error {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			error_logging(err.Error())
+			tool.ErrorLogging(err.Error())
 		}
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
@@ -305,7 +308,7 @@ func (b BlueGreen) CleanPreviousVersion(config Config) error {
 }
 
 // Clean Teramination Checking
-func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
+func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	stack_name := b.GetStackName()
 	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name ))
 
@@ -335,7 +338,7 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			error_logging(err.Error())
+			tool.ErrorLogging(err.Error())
 		}
 
 		targets := b.PrevAsgs[region.Region]
@@ -368,7 +371,7 @@ func (b BlueGreen) TerminateChecking(config Config) map[string]bool {
 
 
 //checkRegionExist checks if target region is really in regions described in manifest file
-func checkRegionExist(target string, regions []RegionConfig) bool {
+func checkRegionExist(target string, regions []builder.RegionConfig) bool {
 	regionExists := false
 	for _, region := range regions {
 		if region.Region == target {

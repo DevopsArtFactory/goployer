@@ -1,4 +1,4 @@
-package application
+package aws
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
@@ -13,11 +13,11 @@ var (
 )
 
 type AWSClient struct {
-	Region string
-	EC2Service EC2Client
-	ELBService ELBV2Client
+	Region            string
+	EC2Service        EC2Client
+	ELBService        ELBV2Client
 	CloudWatchService CloudWatchClient
-	SSMService SSMClient
+	SSMService        SSMClient
 }
 
 func getAwsSession() *session.Session {
@@ -25,7 +25,7 @@ func getAwsSession() *session.Session {
 	return mySession
 }
 
-func makeStringArrayToAwsStrings (arr []string) []*string {
+func MakeStringArrayToAwsStrings (arr []string) []*string {
 	if len(arr) == 0 {
 		return nil
 	}
@@ -38,7 +38,7 @@ func makeStringArrayToAwsStrings (arr []string) []*string {
 	return ret
 }
 
-func bootstrapServices(region string, assume_role string) AWSClient {
+func BootstrapServices(region string, assume_role string) AWSClient {
 	aws_session := getAwsSession()
 
 	var creds *credentials.Credentials
@@ -48,11 +48,11 @@ func bootstrapServices(region string, assume_role string) AWSClient {
 
 	//Get all clients
 	client := AWSClient{
-		Region: region,
-		EC2Service: NewEC2Client(aws_session, region, creds),
-		ELBService: NewELBV2Client(aws_session, region, creds),
+		Region:            region,
+		EC2Service:        NewEC2Client(aws_session, region, creds),
+		ELBService:        NewELBV2Client(aws_session, region, creds),
 		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
-		SSMService: NewSSMClient(aws_session, region, creds),
+		SSMService:        NewSSMClient(aws_session, region, creds),
 	}
 
 	return client

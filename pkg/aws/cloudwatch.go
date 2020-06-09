@@ -1,7 +1,8 @@
-package application
+package aws
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/deployer/pkg/builder"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -28,7 +29,7 @@ func getCloudwatchClientFn(session *session.Session, region string, creds *crede
 }
 
 //CreateScalingAlarms creates scaling alarms
-func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []AlarmConfigs, policyArns map[string]string) error {
+func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []builder.AlarmConfigs, policyArns map[string]string) error {
 	if len(alarms) == 0 {
 		return nil
 	}
@@ -49,17 +50,17 @@ func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []AlarmCon
 }
 
 // Create cloudwatch alarms for autoscaling group
-func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm AlarmConfigs) error {
+func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.AlarmConfigs) error {
 	input := &cloudwatch.PutMetricAlarmInput{
-		AlarmName: aws.String(alarm.Name),
-		AlarmActions: makeStringArrayToAwsStrings(alarm.AlarmActions),
-		MetricName: aws.String(alarm.Metric),
-		Namespace: aws.String(alarm.Namespace),
-		Statistic: aws.String(alarm.Statistic),
+		AlarmName:          aws.String(alarm.Name),
+		AlarmActions:       MakeStringArrayToAwsStrings(alarm.AlarmActions),
+		MetricName:         aws.String(alarm.Metric),
+		Namespace:          aws.String(alarm.Namespace),
+		Statistic:          aws.String(alarm.Statistic),
 		ComparisonOperator: aws.String(alarm.Comparison),
-		Threshold: aws.Float64(alarm.Threshold),
-		Period: aws.Int64(alarm.Period),
-		EvaluationPeriods: aws.Int64(alarm.EvaluationPeriods),
+		Threshold:          aws.Float64(alarm.Threshold),
+		Period:             aws.Int64(alarm.Period),
+		EvaluationPeriods:  aws.Int64(alarm.EvaluationPeriods),
 		Dimensions: []*cloudwatch.Dimension{
 			{
 				Name:  aws.String("AutoScalingGroupName"),

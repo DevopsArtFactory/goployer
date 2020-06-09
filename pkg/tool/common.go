@@ -1,6 +1,7 @@
-package application
+package tool
 
 import (
+	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"reflect"
@@ -15,7 +16,7 @@ var (
 )
 
 // Check if file exists
-func fileExists(filename string) bool {
+func FileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	if os.IsNotExist(err) {
 		return false
@@ -24,7 +25,7 @@ func fileExists(filename string) bool {
 }
 
 // Error Logging
-func error_logging(msg string)  {
+func ErrorLogging(msg string)  {
 	if len(msg) == 0 {
 		Red(NO_ERROR_MESSAGE_PASSED)
 		os.Exit(1)
@@ -34,7 +35,7 @@ func error_logging(msg string)  {
 }
 
 // Fatal Error
-func fatalError(err error)  {
+func FatalError(err error)  {
 	log.Fatalf("error: %v", err)
 	os.Exit(1)
 }
@@ -103,3 +104,18 @@ func IsStringInArray(s string, arr []string) bool {
 	}
 	return false
 }
+
+//Check timeout
+func CheckTimeout(start int64, timeout int64) bool {
+	now := time.Now().Unix()
+	timeoutSec := timeout * 60
+
+	//Over timeout
+	if (now - start) > timeoutSec {
+		Logger.Error("Timeout has been exceeded : %s minutes", timeout)
+		os.Exit(1)
+	}
+
+	return false
+}
+

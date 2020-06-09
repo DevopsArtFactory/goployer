@@ -1,7 +1,8 @@
-package application
+package aws
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/deployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -21,7 +22,7 @@ type HealthcheckHost struct {
 	LifecycleState 	string
 	TargetStatus	string
 	HealthStatus    string
-	healthy			bool
+	Healthy			bool
 }
 
 func NewELBV2Client(session *session.Session, region string, creds *credentials.Credentials) ELBV2Client {
@@ -45,7 +46,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 	}
 
 	input := &elbv2.DescribeTargetGroupsInput{
-		Names: makeStringArrayToAwsStrings(target_groups),
+		Names: MakeStringArrayToAwsStrings(target_groups),
 	}
 
 	result, err := e.Client.DescribeTargetGroups(input)
@@ -75,6 +76,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 	return ret
 }
 
+// GetHostInTarget gets host instance
 func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) []HealthcheckHost {
 	Logger.Info(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
 
@@ -106,7 +108,7 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 
 	ret := []HealthcheckHost{}
 	for _, instance := range group.Instances {
-		target_state := INITIAL_STATUS
+		target_state := tool.INITIAL_STATUS
 		for _, hd := range result.TargetHealthDescriptions {
 			if *hd.Target.Id == *instance.InstanceId {
 				target_state = *hd.TargetHealth.State
@@ -119,7 +121,7 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 			LifecycleState: *instance.LifecycleState,
 			TargetStatus:   target_state,
 			HealthStatus:   *instance.HealthStatus,
-			healthy:        *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy",
+			Healthy:        *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy",
 		})
 	}
 	return ret

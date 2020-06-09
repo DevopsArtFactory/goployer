@@ -1,4 +1,4 @@
-package application
+package tool
 
 import (
 	"fmt"
@@ -23,11 +23,11 @@ type Frigga struct {
 	Prefix string
 }
 
-func buildPrefixName(name string, env string, region string) string {
+func BuildPrefixName(name string, env string, region string) string {
 	return fmt.Sprintf("%s-%s_%s", name, env, strings.ReplaceAll(region, "-", ""))
 }
 
-func parseVersion(name string) int {
+func ParseVersion(name string) int {
 	if len(name) != 0 {
 		parts := strings.Split(name, "-")
 		for _, part := range parts {
@@ -41,13 +41,13 @@ func parseVersion(name string) int {
 	return 0
 }
 
-// generateAsgName generates the autoscaling name
-func generateAsgName(prefix string, version int) string {
+// GenerateAsgName generates the autoscaling name
+func GenerateAsgName(prefix string, version int) string {
 	return fmt.Sprintf("%s-v%03d", prefix, version)
 }
 
-// generateLcName generates new launch configuration name
-func generateLcName(asg_name string) string {
+// GenerateLcName generates new launch configuration name
+func GenerateLcName(asg_name string) string {
 	now := time.Now()
 	secs := now.Unix()
 	return fmt.Sprintf("%s-%d", asg_name, secs)

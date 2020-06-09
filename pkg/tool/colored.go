@@ -1,4 +1,4 @@
-package application
+package tool
 
 import (
 	"github.com/fatih/color"
