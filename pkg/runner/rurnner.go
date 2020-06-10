@@ -1,10 +1,12 @@
 package runner
 
 import (
+	"errors"
 	"github.com/DevopsArtFactory/deployer/pkg/builder"
 	"github.com/DevopsArtFactory/deployer/pkg/deployer"
 	"github.com/DevopsArtFactory/deployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
+	"runtime"
 	"time"
 
 	"os"
@@ -19,9 +21,9 @@ type Runner struct {
 //Start function is the starting point of all processes.
 func Start() error  {
 	// Check OS first
-	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-	//	return errors.New("you cannot run from local command.")
-	//}
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return errors.New("you cannot run from local command.")
+	}
 
 	// Create new builder
 	builder, err := builder.NewBuilder()

@@ -3,7 +3,7 @@ ARTIFACT_PATH := bin
 EXECUTE_FILE := deployer
 
 build:
-	GOOS=${GOOS} go build -o ${ARTIFACT_PATH}/${EXECUTE_FILE} deployer.go
+	GOOS=${GOOS} go build -o ${ARTIFACT_PATH}/${EXECUTE_FILE} main.go
 
 clean:
 	@echo "  >  Cleaning build cache"
