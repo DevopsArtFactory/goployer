@@ -56,6 +56,7 @@ func withRunner(builder builder.Builder, postAction func() error ) error {
 	return postAction()
 }
 
+//NewRunner creates a new runner
 func NewRunner(builder builder.Builder) Runner {
 	return Runner{
 		Logger:  Logger.New(),

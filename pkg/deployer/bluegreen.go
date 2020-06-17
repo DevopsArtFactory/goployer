@@ -45,7 +45,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Info("This region is skipped by user : " + region.Region)
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
 			continue
 		}
 
@@ -190,7 +190,7 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Info("This region is skipped by user : " + region.Region)
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
 			continue
 		}
 
@@ -234,9 +234,14 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		return nil
 	}
 
+	//Apply Autosacling Policies
+	b.Logger.Info("Attaching autoscaling policies")
 	for _, region := range b.Stack.Regions {
-		//Apply Autosacling Policies
-		b.Logger.Info("Attaching autoscaling policies")
+		//If region id is passed from command line, then deployer will deploy in that region only.
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -329,7 +334,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Info("This region is skipped by user : " + region.Region)
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
 			continue
 		}
 

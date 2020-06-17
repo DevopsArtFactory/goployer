@@ -43,13 +43,13 @@ tags:
   - repo=hello-deploy
 
 stacks:
-  - stack: dayonep
+  - stack: artd
 
     # account alias
-    account: prod
+    account: dev
 
     # environment variable
-    env: prod
+    env: dev
 
     # assume_role for deployment
     assume_role: ""
@@ -57,7 +57,7 @@ stacks:
     # Replacement type
     replacement_type: BlueGreen
 
-    # IAM instance profile, not instance role
+    # IAM instance profile, not IAM role
     iam_instance_profile: 'app-hello-profile'
 
     # Ansible tags
@@ -116,7 +116,7 @@ stacks:
         instance_type: m5.large
 
         # ssh_key for instances
-        ssh_key: dayone-prod-master
+        ssh_key: test-master-key
 
         # ami_id
         # You can override this value via command line `--ami`
@@ -130,17 +130,17 @@ stacks:
         # You can use VPC id(vpc-xxx)
         # If you specify the name of VPC, then deployer will find the VPC id with it.
         # In this case, only one VPC should exist.
-        vpc: vpc-dayonep_apnortheast2
+        vpc: vpc-artd_apnortheast2
 
         # You can use security group id(sg-xxx)
         # If you specify the name of security group, then deployer will find the security group id with it.
         # In this case, only one security group should exist
         security_groups:
-          - hello-dayonep_apnortheast2
-          - default-dayonep_apnortheast2
+          - hello-artd_apnortheast2
+          - default-artd_apnortheast2
 
         # You can use healthcheck target group
-        healthcheckTargetGroup: hello-dayonepapne2-ext
+        healthcheckTargetGroup: hello-artdapne2-ext
 
         # If no availability zones specified, then all availability zones are selected by default.
         # If you want all availability zones, then please remove availability_zones key.
@@ -152,7 +152,7 @@ stacks:
         # list of target groups.
         # The target group in the healthcheckTargetGroup should be included here.
         target_groups:
-          - hello-dayonepapne2-ext
+          - hello-artdapne2-ext
 
 
       - region: us-east-1
@@ -160,13 +160,13 @@ stacks:
         instance_type: t3.large
         ssh_key: dayone-prod-master
         use_public_subnets: true
-        vpc: vpc-dayonep_useast1
+        vpc: vpc-artd_useast1
         security_groups:
-          - hello-dayonep_useast1
-          - default-dayonep_useast1
-        healthcheckTargetGroup: hello-dayonepuse1-ext
+          - hello-artd_useast1
+          - default-artd_useast1
+        healthcheckTargetGroup: hello-artduse1-ext
         target_groups:
-          - hello-dayonepuse1-ext
+          - hello-artduse1-ext
 
 
 
