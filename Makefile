@@ -1,6 +1,6 @@
 GOOS := "linux"
 ARTIFACT_PATH := bin
-EXECUTE_FILE := deployer
+EXECUTE_FILE := goployer
 
 build:
 	GOOS=${GOOS} go build -o ${ARTIFACT_PATH}/${EXECUTE_FILE} main.go

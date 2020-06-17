@@ -1,41 +1,41 @@
-# deployer
-`deployer` is an application you can use for EC2 deployment. You can deploy in a blue/green mode. Deployer only
+# goployer
+`goployer` is an application you can use for EC2 deployment. You can deploy in a blue/green mode. goployer only
 changes the autoscaling group so that you don't need to create another load balancer or manually attach autoscaling group to target group.
 <br><br>
-`deployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
+`goployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
 <br><br>
 
 ## Requirements
-* You have to create a load balancer and target groups of it which deployer attach a new autoscaling group to. 
+* You have to create a load balancer and target groups of it which goployer attach a new autoscaling group to. 
 * If you want to setup loadbalancer and target group with terraform, then please check this [devopsart workshop](https://devops-art-factory.gitbook.io/devops-workshop/terraform/terraform-resource/computing/elb-+-ec2).
-* Please understand how deployer really deploys application before applying to the real environment.
+* Please understand how goployer really deploys application before applying to the real environment.
 <br>
 
-## how deployer works
-* Here's the steps that deployer executes for deployment
+## how goployer works
+* Here's the steps that goployer executes for deployment
 1. Generate new version for current deployment.<br>
 If other autoscaling groups of sample application already existed, for example `hello-v001`, then next version will be `hello-v002`
 2. Create a new launch template. 
 3. Create autoscaling group with launch template from the previous step. A newly created autoscaling group will be automatically attached to the target groups you specified in manifest.
 4. Check all instances of all stacks are healty. Until all of them pass healthchecking, it won't go to the next step.
-5. (optional) If you add `autoscaling` in manifest, deployer creates autoscaling policies and put these to the autoscaling group. If you use `alarms` with autoscaling, then deployer will also create a cloudwatch alarm for autoscaling policy.
-6. After all stacks are deployed, then deployer tries to delete previous versions of the same application.
+5. (optional) If you add `autoscaling` in manifest, goployer creates autoscaling policies and put these to the autoscaling group. If you use `alarms` with autoscaling, then goployer will also create a cloudwatch alarm for autoscaling policy.
+6. After all stacks are deployed, then goployer tries to delete previous versions of the same application.
    Launch templates of previous autoscaling groups are also going to be deleted.
    
 <br>
 
-## How to run deployer
-* Before applying deployer, please make sure that you have made [manifest](#Manifest).
+## How to run goployer
+* Before applying goployer, please make sure that you have made [manifest](#Manifest).
 * Here are options you can use with command line
     * `--manifest` : manifest file path
     * `--ami` : AMI ID
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
-* You *cannot run deployer from local environment* for security & management issue.
+* You *cannot run goployer from local environment* for security & management issue.
 ```bash
 $ make build 
-$ ./bin/deployer --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
+$ ./bin/goployer --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
 ```
 <br>
 
@@ -152,7 +152,7 @@ stacks:
         - service hello stop
 
     # list of region
-    # deployer will concurrently deploy across the region
+    # goployer will concurrently deploy across the region
     regions:
       - region: ap-northeast-2
 
@@ -167,17 +167,17 @@ stacks:
         ami_id: ami-01288945bd24ed49a
 
         # Whether you want to use public subnet or not
-        # By Default, deployer selects private subnets
+        # By Default, goployer selects private subnets
         # If you want to use public subnet, then you should set this value to ture.
         use_public_subnets: true
 
         # You can use VPC id(vpc-xxx)
-        # If you specify the name of VPC, then deployer will find the VPC id with it.
+        # If you specify the name of VPC, then goployer will find the VPC id with it.
         # In this case, only one VPC should exist.
         vpc: vpc-dayonep_apnortheast2
 
         # You can use security group id(sg-xxx)
-        # If you specify the name of security group, then deployer will find the security group id with it.
+        # If you specify the name of security group, then goployer will find the security group id with it.
         # In this case, only one security group should exist
         security_groups:
           - hello-dayonep_apnortheast2
