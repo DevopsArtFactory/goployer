@@ -2,9 +2,9 @@ package runner
 
 import (
 	"errors"
-	"github.com/DevopsArtFactory/deployer/pkg/builder"
-	"github.com/DevopsArtFactory/deployer/pkg/deployer"
-	"github.com/DevopsArtFactory/deployer/pkg/tool"
+	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/deployer"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"runtime"
 	"time"

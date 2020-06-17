@@ -2,7 +2,7 @@ package aws
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/deployer/pkg/tool"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"

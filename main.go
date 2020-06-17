@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/DevopsArtFactory/deployer/pkg/runner"
+	"github.com/DevopsArtFactory/goployer/pkg/runner"
 	Logger "github.com/sirupsen/logrus"
 	"os"
 )

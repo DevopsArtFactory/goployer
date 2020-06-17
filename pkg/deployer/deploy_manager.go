@@ -1,7 +1,7 @@
 package deployer
 
 import (
-	"github.com/DevopsArtFactory/deployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/builder"
 )
 
 type DeployManager interface {

@@ -3,9 +3,9 @@ package deployer
 import (
 	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/deployer/pkg/aws"
-	"github.com/DevopsArtFactory/deployer/pkg/builder"
-	"github.com/DevopsArtFactory/deployer/pkg/tool"
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
+	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
 )

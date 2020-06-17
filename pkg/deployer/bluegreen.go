@@ -2,9 +2,9 @@ package deployer
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/deployer/pkg/aws"
-	"github.com/DevopsArtFactory/deployer/pkg/builder"
-	"github.com/DevopsArtFactory/deployer/pkg/tool"
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
+	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"strings"
 )
