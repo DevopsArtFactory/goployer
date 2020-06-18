@@ -21,12 +21,14 @@ var (
 
 type Slack struct {
 	Client 		*slack.Client
+	Token 		string
 	ChannelId 	string
 }
 
 func NewSlackClient() Slack {
 	return Slack{
-		Client: slack.New(os.Getenv(SLACK_TOKEN)),
+		Client: 	slack.New(os.Getenv(SLACK_TOKEN)),
+		Token: 		os.Getenv(SLACK_TOKEN),
 		ChannelId:  os.Getenv(SLACK_CHANNEL),
 	}
 }
@@ -36,6 +38,9 @@ type SlackBody struct {
 }
 
 func (s Slack) SendSimpleMessage(message string, env string) {
+	if ! s.ValidClient() {
+		return
+	}
 	color := colorMapping[env]
 	attachment := slack.Attachment{
 		Text: message,
@@ -73,4 +78,13 @@ func (s Slack) CreateSimpleAttachments(title, text string) slack.MsgOption {
 			MarkdownIn:    []string{"text"},
 		},
 	)
+}
+
+//ValidClient validates slack variables
+func (s Slack) ValidClient() bool {
+	if len(s.Token) == 0 || len(s.ChannelId) == 0 {
+		return false
+	}
+
+	return true
 }

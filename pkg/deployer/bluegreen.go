@@ -291,7 +291,12 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 	}
 
 	for _, region := range b.Stack.Regions {
-		b.Logger.Info(fmt.Sprintf("The number of previous versions to delete is %d.\n", len(b.PrevAsgs[region.Region])))
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		b.Logger.Infof("[%s]The number of previous versions to delete is %d\n", region.Region, len(b.PrevAsgs[region.Region]))
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -307,6 +312,10 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 					return err
 				}
 			}
+		} else {
+
+			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
+			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), config.Env)
 		}
 	}
 

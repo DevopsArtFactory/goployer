@@ -38,15 +38,16 @@ func Start() error  {
 	}
 
 	// run with runner
-	return withRunner(builder, func() error {
+	return withRunner(builder, func(slacker tool.Slack) error {
 		// These are post actions after deployment
+		slacker.SendSimpleMessage(":100: Deployment is done.", builder.Config.Env)
 		return nil
 	})
 }
 
 
 //withRunner creates runner and runs the deployment process
-func withRunner(builder builder.Builder, postAction func() error ) error {
+func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error ) error {
 	//Prepare runnger
 	runner := NewRunner(builder)
 	runner.LogFormatting()
@@ -54,7 +55,7 @@ func withRunner(builder builder.Builder, postAction func() error ) error {
 		return err
 	}
 
-	return postAction()
+	return postAction(runner.Slacker)
 }
 
 //NewRunner creates a new runner
@@ -86,7 +87,13 @@ func (r Runner) Run() error  {
 
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
-	r.Slacker.SendSimpleMessage(r.Builder.MakeSummary(r.Builder.Config.Stack), r.Builder.Config.Env)
+
+	if r.Slacker.ValidClient() {
+		r.Slacker.SendSimpleMessage(r.Builder.MakeSummary(r.Builder.Config.Stack), r.Builder.Config.Env)
+	} else {
+		// Slack variables are not set
+		r.Logger.Warn("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
+	}
 
 	//Prepare deployers
 	deployers := []deployer.DeployManager{}
