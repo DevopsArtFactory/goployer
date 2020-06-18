@@ -1,0 +1,26 @@
+version: 0.2
+
+run-as: art
+
+env:
+  variables:
+    HOME: /home/art
+    SERVICE_NAME: ""
+    SLACK_CHANNEL: ""
+    USERDATA_PATH: scripts/userdata.sh
+    REGION: "ap-northeast-2"
+    STACK: "artp"
+    BASE_AMI_ID: ""
+    EXTRA_VARS: "--extra-vars branch=${branch}"
+  parameter-store:
+    SLACK_TOKEN: "/CodeBuild/SLACK_TOKEN"
+
+phases:
+#  pre_build:
+#    commands:
+  build:
+    commands:
+      - echo "Start Deployment"
+      - ./bin/goployer --manifest=configs/${SERVICE_NAME}.yaml --stack=${STACK} --region=${REGION}
+#  post_build:
+#    commands:
