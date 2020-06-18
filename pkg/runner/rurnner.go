@@ -25,6 +25,7 @@ func Start() error  {
 		return errors.New("you cannot run from local command.")
 	}
 
+
 	// Create new builder
 	builder, err := builder.NewBuilder()
 	if err != nil {
@@ -82,7 +83,6 @@ func (r Runner) Run() error  {
 			os.Exit(1)
 		}
 	}()
-
 
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)

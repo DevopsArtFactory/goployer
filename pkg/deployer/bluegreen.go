@@ -235,13 +235,14 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	}
 
 	//Apply Autosacling Policies
-	b.Logger.Info("Attaching autoscaling policies")
 	for _, region := range b.Stack.Regions {
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
 			b.Logger.Debug("This region is skipped by user : " + region.Region)
 			continue
 		}
+
+		b.Logger.Info("Attaching autoscaling policies : " + region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
