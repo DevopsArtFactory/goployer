@@ -211,6 +211,11 @@ func (b Builder) CheckValidation() error {
 	target_ami := b.Config.Ami
 	target_region := b.Config.Region
 
+	// Check stack
+	if len(b.Config.Stack) == 0 {
+		return fmt.Errorf("you should choose at least one stack.")
+	}
+
 	// Global AMI check
 	if len(target_region) == 0 && len(target_ami) != 0 && strings.HasPrefix(target_ami, "ami-") {
 		// One ami id cannot be used in different regions

@@ -21,6 +21,6 @@ phases:
   build:
     commands:
       - echo "Start Deployment"
-      - ./bin/goployer --manifest=configs/${SERVICE_NAME}.yaml --stack=${STACK} --region=${REGION}
+      - ./bin/goployer --manifest=configs/${SERVICE_NAME}.yaml --stack=${STACK} --region=${REGION} --ami=${BASE_AMI_ID}
 #  post_build:
 #    commands:
