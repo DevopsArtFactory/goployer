@@ -49,7 +49,7 @@ stacks:
     account: prod
 
     # environment variable
-    env: prd
+    env: prod
 
     # assume_role for deployment
     assume_role: ""

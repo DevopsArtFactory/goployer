@@ -196,7 +196,11 @@ func (b Builder) SetStacks() Builder {
 	b.Stacks = Stacks
 
 	if b.Config.Env == "" {
-		b.Config.Env = b.Stacks[0].Env
+		for _, stack := range Stacks {
+			if b.Config.Stack == stack.Stack {
+				b.Config.Env = stack.Env
+			}
+		}
 	}
 
 	return b
@@ -289,7 +293,7 @@ func (b Builder) CheckValidation() error {
 }
 
 // Print Summary
-func (b Builder) MakeSummary() string {
+func (b Builder) MakeSummary(target_stack string) string {
 	summary := []string{}
 	formatting := `
 ============================================================
@@ -304,7 +308,9 @@ Stacks
 	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout))
 
 	for _, stack := range b.Stacks {
-		summary = append(summary, printEnvironment(stack))
+		if stack.Stack == target_stack {
+			summary = append(summary, printEnvironment(stack))
+		}
 	}
 
 	return strings.Join(summary, "\n")

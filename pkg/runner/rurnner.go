@@ -1,12 +1,10 @@
 package runner
 
 import (
-	"errors"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
-	"runtime"
 	"time"
 
 	"os"
@@ -21,9 +19,9 @@ type Runner struct {
 //Start function is the starting point of all processes.
 func Start() error  {
 	// Check OS first
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		return errors.New("you cannot run from local command.")
-	}
+	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+	//	return errors.New("you cannot run from local command.")
+	//}
 
 	// Create new builder
 	builder, err := builder.NewBuilder()
@@ -86,7 +84,7 @@ func (r Runner) Run() error  {
 
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
-	r.Slacker.SendSimpleMessage(r.Builder.MakeSummary(), r.Builder.Config.Env)
+	r.Slacker.SendSimpleMessage(r.Builder.MakeSummary(r.Builder.Config.Stack), r.Builder.Config.Env)
 
 	//Prepare deployers
 	deployers := []deployer.DeployManager{}
@@ -94,7 +92,7 @@ func (r Runner) Run() error  {
 		// If target stack is passed from command, then
 		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Info("Skipping this stack, stack=%s", stack.Stack)
+			Logger.Debugf("Skipping this stack, stack=%s\n", stack.Stack)
 			continue
 		}
 		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker)
