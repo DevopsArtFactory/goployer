@@ -5,13 +5,13 @@ changes the autoscaling group so that you don't need to create another load bala
 `goployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
 <br><br>
 
-## Requirements
+## # Requirements
 * You have to create a load balancer and target groups of it which goployer attach a new autoscaling group to. 
 * If you want to setup loadbalancer and target group with terraform, then please check this [devopsart workshop](https://devops-art-factory.gitbook.io/devops-workshop/terraform/terraform-resource/computing/elb-+-ec2).
 * Please understand how goployer really deploys application before applying to the real environment.
 <br>
 
-## how goployer works
+## # How goployer works
 * Here's the steps that goployer executes for deployment
 1. Generate new version for current deployment.<br>
 If other autoscaling groups of sample application already existed, for example `hello-v001`, then next version will be `hello-v002`
@@ -24,7 +24,7 @@ If other autoscaling groups of sample application already existed, for example `
    
 <br>
 
-## How to run goployer
+## # How to run goployer
 * Before applying goployer, please make sure that you have made [manifest](#Manifest).
 * Here are options you can use with command line
     * `--manifest` : manifest file path
@@ -41,7 +41,7 @@ $ ./bin/goployer --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --sta
 ```
 <br>
 
-## Utilize Spot Instance
+## # Spot Instance
 * You can use `spot instance` option with goployer.
 * There are two possible ways to use `spot instance`.
 
