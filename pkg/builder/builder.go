@@ -102,7 +102,6 @@ type Stack struct {
 	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
 	MixedInstancesPolicy  MixedInstancesPolicy 	`yaml:"mixed_instances_policy,omitempty"`
 	BlockDevices          []BlockDevice         `yaml:"block_devices"`
-	extraTags             string                `yaml:"extra_vars"`
 	Capacity              Capacity              `yaml:"capacity"`
 	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
 	Alarms                []AlarmConfigs        `yaml:alarms`
@@ -336,10 +335,12 @@ Target Stack Deployment Information
 name       : %s
 env        : %s
 timeout    : %d
+assume role        : %s
+extra tags        : %s
 ============================================================
 Stacks
 ============================================================`
-	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout))
+	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout, b.Config.AssumeRole, b.Config.ExtraTags))
 
 	for _, stack := range b.Stacks {
 		if stack.Stack == target_stack {
@@ -356,7 +357,6 @@ Account             	: %s
 Environment             : %s
 IAM Instance Profile    : %s
 Ansible tags            : %s 
-Extra vars              : %s 
 Capacity                : %+v
 MixedInstancesPolicy
 - Enabled 			: %t
@@ -373,7 +373,6 @@ MixedInstancesPolicy
 		stack.Env,
 		stack.IamInstanceProfile,
 		stack.AnsibleTags,
-		stack.extraTags,
 		stack.Capacity,
 		stack.MixedInstancesPolicy.Enabled,
 		stack.MixedInstancesPolicy.Override,

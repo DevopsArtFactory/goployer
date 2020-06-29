@@ -217,7 +217,8 @@ stacks:
 
     # Ansible tags
     ansible_tags: all
-    extra_vars: ""
+
+    # EBS Optimized
     ebs_optimized: true
 
     # instance_market_options is for spot usage

@@ -130,37 +130,37 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			tool.ErrorLogging("Unknown error happened creating new launch template.")
 		}
 
-		health_elb := region.HealthcheckLB
+		healthElb := region.HealthcheckLB
 		loadbalancers := region.LoadBalancers
-		if ! tool.IsStringInArray(health_elb, loadbalancers) {
-			loadbalancers = append(loadbalancers, health_elb)
+		if ! tool.IsStringInArray(healthElb, loadbalancers) {
+			loadbalancers = append(loadbalancers, healthElb)
 		}
 
 		healthcheckTargetGroups := region.HealthcheckTargetGroup
-		target_groups := region.TargetGroups
-		if ! tool.IsStringInArray(healthcheckTargetGroups, target_groups) {
-			target_groups = append(target_groups, healthcheckTargetGroups)
+		targetGroups := region.TargetGroups
+		if ! tool.IsStringInArray(healthcheckTargetGroups, targetGroups) {
+			targetGroups = append(targetGroups, healthcheckTargetGroups)
 		}
 
-		use_public_subnets := region.UsePublicSubnets
-		healthcheck_type := aws.DEFAULT_HEALTHCHECK_TYPE
-		healthcheck_grace_period := int64(aws.DEFAULT_HEALTHCHECK_GRACE_PERIOD)
-		termination_policies := []*string{}
-		availability_zones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
-		target_group_arns := client.ELBService.GetTargetGroupARNs(target_groups)
-		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, config.ExtraTags)
-		subnets := client.EC2Service.GetSubnets(region.VPC, use_public_subnets, availability_zones)
+		usePublicSubnets := region.UsePublicSubnets
+		healthcheckType := aws.DEFAULT_HEALTHCHECK_TYPE
+		healthcheckGracePeriod := int64(aws.DEFAULT_HEALTHCHECK_GRACE_PERIOD)
+		terminationPolicies := []*string{}
+		availabilityZones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
+		targetGroupArns := client.ELBService.GetTargetGroupARNs(targetGroups)
+		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags)
+		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 
 		ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
 			launch_template_name,
-			healthcheck_type,
-			healthcheck_grace_period,
+			healthcheckType,
+			healthcheckGracePeriod,
 			b.Stack.Capacity,
 			aws.MakeStringArrayToAwsStrings(loadbalancers),
-			target_group_arns,
-			termination_policies,
-			aws.MakeStringArrayToAwsStrings(availability_zones),
+			targetGroupArns,
+			terminationPolicies,
+			aws.MakeStringArrayToAwsStrings(availabilityZones),
 			tags,
 			subnets,
 			b.Stack.MixedInstancesPolicy,
