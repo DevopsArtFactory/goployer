@@ -119,9 +119,9 @@ stacks:
 
     # capacity
     capacity:
-      min: 10
-      max: 10
-      desired: 10
+      min: 5
+      max: 5
+      desired: 5
 
     # autoscaling means scaling policy of autoscaling group
     # You can find format in autoscaling block upside

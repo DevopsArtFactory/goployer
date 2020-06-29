@@ -48,6 +48,7 @@ type Config struct {
 	Confirm  		bool
 	SlackOff  		bool
 	LogLevel  		string
+	ExtraTags		string
 }
 
 
@@ -101,7 +102,7 @@ type Stack struct {
 	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
 	MixedInstancesPolicy  MixedInstancesPolicy 	`yaml:"mixed_instances_policy,omitempty"`
 	BlockDevices          []BlockDevice         `yaml:"block_devices"`
-	ExtraVars             string                `yaml:"extra_vars"`
+	extraTags             string                `yaml:"extra_vars"`
 	Capacity              Capacity              `yaml:"capacity"`
 	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
 	Alarms                []AlarmConfigs        `yaml:alarms`
@@ -372,7 +373,7 @@ MixedInstancesPolicy
 		stack.Env,
 		stack.IamInstanceProfile,
 		stack.AnsibleTags,
-		stack.ExtraVars,
+		stack.extraTags,
 		stack.Capacity,
 		stack.MixedInstancesPolicy.Enabled,
 		stack.MixedInstancesPolicy.Override,
@@ -415,12 +416,13 @@ func argumentParsing() Config {
 	ami := flag.String("ami", "", "The AMI to use for the servers.")
 	env := flag.String("env", "", "The environment that is being deployed into.")
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
-	assume_role := flag.String("assume_role", "", "The Role ARN to assume into")
+	assumeRole := flag.String("assume_role", "", "The Role ARN to assume into")
 	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
 	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
 	slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
 	logLevel := flag.String("log-level", "info", "log level")
+	extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
 
 	flag.Parse()
 
@@ -430,12 +432,13 @@ func argumentParsing() Config {
 		Env: *env,
 		Stack: *stack,
 		Region: *region,
-		AssumeRole: *assume_role,
+		AssumeRole: *assumeRole,
 		Timeout: *timeout,
 		StartTimestamp: time.Now().Unix(),
 		Confirm: *confirm,
 		SlackOff: *slackOff,
 		LogLevel: *logLevel,
+		ExtraTags: *extraTags,
 	}
 
 	return config

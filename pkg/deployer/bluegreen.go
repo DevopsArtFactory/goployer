@@ -76,8 +76,8 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
 
 		// Get Current Version
-		cur_version := getCurrentVersion(prev_versions)
-		b.Logger.Info("Current Version :", cur_version)
+		curVersion := getCurrentVersion(prev_versions)
+		b.Logger.Info("Current Version :", curVersion)
 
 		//Get AMI
 		var ami string
@@ -88,7 +88,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		}
 
 		// Generate new name for autoscaling group and launch configuration
-		new_asg_name := tool.GenerateAsgName(frigga.Prefix, cur_version)
+		new_asg_name := tool.GenerateAsgName(frigga.Prefix, curVersion)
 		launch_template_name := tool.GenerateLcName(new_asg_name)
 
 		userdata := (b.LocalProvider).Provide()
@@ -148,7 +148,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		termination_policies := []*string{}
 		availability_zones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
 		target_group_arns := client.ELBService.GetTargetGroupARNs(target_groups)
-		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack)
+		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, config.ExtraTags)
 		subnets := client.EC2Service.GetSubnets(region.VPC, use_public_subnets, availability_zones)
 
 		ret = client.EC2Service.CreateAutoScalingGroup(

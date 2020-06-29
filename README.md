@@ -31,8 +31,10 @@ If other autoscaling groups of sample application already existed, for example `
     * `--ami` : AMI ID
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
-    * `--slack-off` : Whether turning off slack alarm or not. (default: false)
-    * `--log-level` : Level of Log (debug, info, error)
+    * `--slack-off` : whether turning off slack alarm or not. (default: false)
+    * `--log-level` : level of Log (debug, info, error)
+    * `--extra-tags` : extra tags to set from command line. comma-delimited string(no space between tags)
+        -  ex) `--extra-tags=key1=value1,key2=value2`
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 * You *cannot run goployer from local environment* for security & management issue.
 ```bash

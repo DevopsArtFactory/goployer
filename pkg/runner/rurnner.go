@@ -32,10 +32,9 @@ var (
 //Start function is the starting point of all processes.
 func Start() error  {
 	// Check OS first
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+	if runtime.GOOS == "darwi" || runtime.GOOS == "windows" {
 		return errors.New("you cannot run from local command.")
 	}
-
 
 	// Create new builder
 	builder, err := builder.NewBuilder()
