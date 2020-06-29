@@ -54,16 +54,16 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case elbv2.ErrCodeLoadBalancerNotFoundException:
-				fmt.Println(elbv2.ErrCodeLoadBalancerNotFoundException, aerr.Error())
+				Logger.Errorln(elbv2.ErrCodeLoadBalancerNotFoundException, aerr.Error())
 			case elbv2.ErrCodeTargetGroupNotFoundException:
-				fmt.Println(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
+				Logger.Errorln(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		os.Exit(1)
 	}
@@ -90,18 +90,18 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case elbv2.ErrCodeInvalidTargetException:
-				fmt.Println(elbv2.ErrCodeInvalidTargetException, aerr.Error())
+				Logger.Errorln(elbv2.ErrCodeInvalidTargetException, aerr.Error())
 			case elbv2.ErrCodeTargetGroupNotFoundException:
-				fmt.Println(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
+				Logger.Errorln(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
 			case elbv2.ErrCodeHealthUnavailableException:
-				fmt.Println(elbv2.ErrCodeHealthUnavailableException, aerr.Error())
+				Logger.Errorln(elbv2.ErrCodeHealthUnavailableException, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		os.Exit(1)
 	}

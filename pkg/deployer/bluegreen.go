@@ -27,6 +27,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfi
 			AWSClients: awsClients,
 			AsgNames: map[string]string{},
 			PrevAsgs: map[string][]string{},
+			PrevInstances: map[string][]string{},
 			Stack: stack,
 		},
 	}
@@ -63,10 +64,14 @@ func (b BlueGreen) Deploy(config builder.Config) {
 
 		//Get All Previous Autoscaling Groups and versions
 		prev_asgs := []string{}
+		prev_instanceIds := []string{}
 		prev_versions := []int{}
 		for _, asgGroup := range asgGroups {
 			prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
 			prev_versions = append(prev_versions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
+			for _, instance := range asgGroup.Instances {
+				prev_instanceIds = append(prev_instanceIds, *instance.InstanceId)
+			}
 		}
 		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
 
@@ -115,6 +120,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			b.Stack.IamInstanceProfile,
 			userdata,
 			ebsOptimized,
+			b.Stack.MixedInstancesPolicy.Enabled,
 			securityGroups,
 			blockDevices,
 			b.Stack.InstanceMarketOptions,
@@ -157,6 +163,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			aws.MakeStringArrayToAwsStrings(availability_zones),
 			tags,
 			subnets,
+			b.Stack.MixedInstancesPolicy,
 		)
 
 		if ! ret {
@@ -165,6 +172,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 
 		b.AsgNames[region.Region] = new_asg_name
 		b.PrevAsgs[region.Region] = prev_asgs
+		b.PrevInstances[region.Region] = prev_instanceIds
 	}
 }
 
@@ -270,13 +278,47 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
 			return nil
 		}
-
-
-		//Apply lifecycle callback options
-		b.Logger.Info("Attaching lifecycle callbacks.")
 	}
 
 	Logger.Info("Finish addtional works.")
+	return nil
+}
+
+// Run lifecycle callbacks before cleaninig.
+func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
+	if &b.Stack.LifecycleCallbacks == nil || len(b.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
+		b.Logger.Debugf("no lifecycle callbacks in %s\n", b.Stack.Stack)
+		return nil
+	}
+
+	if len(config.Region) > 0 {
+		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+			b.Logger.Debugf("region [ %s ] is not in the stack [ %s ].", config.Region, b.Stack.Stack)
+			return nil
+		}
+	}
+
+	for _, region := range b.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		//select client
+		client, err := selectClientFromList(b.AWSClients, region.Region)
+		if err != nil {
+			tool.ErrorLogging(err.Error())
+		}
+
+		if len(b.PrevInstances[region.Region]) > 0 {
+			b.Deployer.RunLifecycleCallbacks(client, b.PrevInstances[region.Region])
+		} else {
+
+			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
+			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), config.Env)
+		}
+
+	}
 	return nil
 }
 

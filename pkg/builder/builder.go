@@ -14,6 +14,7 @@ import (
 
 var (
 	NO_MANIFEST_EXISTS="Manifest file does not exist"
+	DFEAULT_SPOT_ALLOCATION_STRATEGY="lowest-price"
 	availableBlockTypes=[]string{"io1", "gp2", "st1", "sc1"}
 )
 
@@ -45,6 +46,8 @@ type Config struct {
 	StartTimestamp 	int64
 	Region   		string
 	Confirm  		bool
+	SlackOff  		bool
+	LogLevel  		string
 }
 
 
@@ -96,6 +99,7 @@ type Stack struct {
 	AssumeRole            string                `yaml:"assume_role"`
 	EbsOptimized          bool                  `yaml:"ebs_optimized"`
 	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
+	MixedInstancesPolicy  MixedInstancesPolicy 	`yaml:"mixed_instances_policy,omitempty"`
 	BlockDevices          []BlockDevice         `yaml:"block_devices"`
 	ExtraVars             string                `yaml:"extra_vars"`
 	Capacity              Capacity              `yaml:"capacity"`
@@ -108,6 +112,15 @@ type Stack struct {
 type InstanceMarketOptions struct {
 	MarketType  string      `yaml:"market_type"`
 	SpotOptions SpotOptions `yaml:"spot_options"`
+}
+
+type MixedInstancesPolicy struct {
+	Enabled					bool		`yaml:"enabled"`
+	Override 				[]string 	`yaml:"override_instance_types"`
+	OnDemandPercentage  	int64      	`yaml:"on_demand_percentage"`
+	SpotAllocationStrategy  string      `yaml:"spot_allocation_strategy"`
+	SpotInstancePools		int64		`yaml:"spot_instance_pools"`
+	SpotMaxPrice 			string 		`yaml:"spot_max_price,omitempty"`
 }
 
 type SpotOptions struct {
@@ -293,6 +306,21 @@ func (b Builder) CheckValidation() error {
 				return fmt.Errorf("you have to specify the instance type.")
 			}
 		}
+
+		// check mixed instances policy
+		if stack.MixedInstancesPolicy.Enabled {
+			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) ==0 {
+				stack.MixedInstancesPolicy.SpotAllocationStrategy = DFEAULT_SPOT_ALLOCATION_STRATEGY
+			}
+
+			if stack.MixedInstancesPolicy.SpotAllocationStrategy != "lowest-price" && stack.MixedInstancesPolicy.SpotInstancePools > 0 {
+				return fmt.Errorf("you can only set spot_instance_pools with lowest-price spot_allocation_strategy")
+			}
+
+			if len(stack.MixedInstancesPolicy.Override) <= 0 {
+				return fmt.Errorf("you have to set at least one instance type to use in override")
+			}
+		}
 	}
 	return nil
 }
@@ -329,8 +357,30 @@ IAM Instance Profile    : %s
 Ansible tags            : %s 
 Extra vars              : %s 
 Capacity                : %+v
+MixedInstancesPolicy
+- Enabled 			: %t
+- Override 			: %+v
+- OnDemandPercentage  		: %d
+- SpotAllocationStrategy 	: %s
+- SpotInstancePools 		: %d
+- SpotMaxPrice 			: %s
+	
 ============================================================`
-	summary := fmt.Sprintf(formatting, stack.Stack, stack.Account, stack.Env, stack.IamInstanceProfile, stack.AnsibleTags, stack.ExtraVars, stack.Capacity)
+	summary := fmt.Sprintf(formatting,
+		stack.Stack,
+		stack.Account,
+		stack.Env,
+		stack.IamInstanceProfile,
+		stack.AnsibleTags,
+		stack.ExtraVars,
+		stack.Capacity,
+		stack.MixedInstancesPolicy.Enabled,
+		stack.MixedInstancesPolicy.Override,
+		stack.MixedInstancesPolicy.OnDemandPercentage,
+		stack.MixedInstancesPolicy.SpotAllocationStrategy,
+		stack.MixedInstancesPolicy.SpotInstancePools,
+		stack.MixedInstancesPolicy.SpotMaxPrice,
+	)
 	return summary
 }
 
@@ -369,6 +419,8 @@ func argumentParsing() Config {
 	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
 	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
+	slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
+	logLevel := flag.String("log-level", "info", "log level")
 
 	flag.Parse()
 
@@ -382,6 +434,8 @@ func argumentParsing() Config {
 		Timeout: *timeout,
 		StartTimestamp: time.Now().Unix(),
 		Confirm: *confirm,
+		SlackOff: *slackOff,
+		LogLevel: *logLevel,
 	}
 
 	return config

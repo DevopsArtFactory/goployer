@@ -15,6 +15,7 @@ type Deployer struct {
 	Mode          	string
 	AsgNames      	map[string]string
 	PrevAsgs      	map[string][]string
+	PrevInstances    map[string][]string
 	Logger        	*Logger.Logger
 	Stack         	builder.Stack
 	AwsConfig     	builder.AWSConfig
@@ -113,6 +114,31 @@ func (d Deployer) ResizingAutoScalingGroupToZero(client aws.AWSClient, stack, as
 	return nil
 }
 
+
+// RunLifecycleCallbacks runs commands before terminating.
+func (d Deployer) RunLifecycleCallbacks(client aws.AWSClient, target []string) bool {
+
+	if len(target) == 0 {
+		d.Logger.Debugf("no target instance exists\n")
+		return false
+	}
+
+	commands := []string{}
+
+	for _, command := range d.Stack.LifecycleCallbacks.PreTerminatePastClusters {
+		commands = append(commands, command)
+	}
+
+	d.Logger.Debugf("run lifecycle callbacks before termination : %s", target)
+	client.SSMService.SendCommand(
+		aws.MakeStringArrayToAwsStrings(target),
+		aws.MakeStringArrayToAwsStrings(commands),
+	)
+
+	return false;
+}
+
+// selectClientFromList get aws client.
 func selectClientFromList(awsClients []aws.AWSClient, region string) (aws.AWSClient, error) {
 	for _, c := range awsClients {
 		if c.Region == region {

@@ -23,13 +23,15 @@ type Slack struct {
 	Client 		*slack.Client
 	Token 		string
 	ChannelId 	string
+	SlackOff	bool
 }
 
-func NewSlackClient() Slack {
+func NewSlackClient(slackOff bool) Slack {
 	return Slack{
 		Client: 	slack.New(os.Getenv(SLACK_TOKEN)),
 		Token: 		os.Getenv(SLACK_TOKEN),
 		ChannelId:  os.Getenv(SLACK_CHANNEL),
+		SlackOff: 	slackOff,
 	}
 }
 
@@ -82,7 +84,7 @@ func (s Slack) CreateSimpleAttachments(title, text string) slack.MsgOption {
 
 //ValidClient validates slack variables
 func (s Slack) ValidClient() bool {
-	if len(s.Token) == 0 || len(s.ChannelId) == 0 {
+	if len(s.Token) == 0 || len(s.ChannelId) == 0 || s.SlackOff {
 		return false
 	}
 

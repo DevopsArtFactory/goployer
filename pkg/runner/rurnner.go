@@ -18,6 +18,17 @@ type Runner struct {
 	Slacker tool.Slack
 }
 
+var (
+	logLevelMapper = map[string]Logger.Level{
+		"info": Logger.InfoLevel,
+		"debug": Logger.DebugLevel,
+		"warn": Logger.WarnLevel,
+		"trace": Logger.TraceLevel,
+		"fatal": Logger.FatalLevel,
+		"error": Logger.ErrorLevel,
+	}
+)
+
 //Start function is the starting point of all processes.
 func Start() error  {
 	// Check OS first
@@ -48,9 +59,8 @@ func Start() error  {
 
 //withRunner creates runner and runs the deployment process
 func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error ) error {
-	//Prepare runnger
 	runner := NewRunner(builder)
-	runner.LogFormatting()
+	runner.LogFormatting(builder.Config.LogLevel)
 	if err := runner.Run(); err != nil {
 		return err
 	}
@@ -63,17 +73,15 @@ func NewRunner(builder builder.Builder) Runner {
 	return Runner{
 		Logger:  Logger.New(),
 		Builder: builder,
-		Slacker: tool.NewSlackClient(),
+		Slacker: tool.NewSlackClient(builder.Config.SlackOff),
 	}
 }
 
 // Set log format
-func (r Runner) LogFormatting()  {
+func (r Runner) LogFormatting(logLevel string)  {
 	//logger.SetFormatter(&Logger.JSONFormatter{})
 	r.Logger.SetOutput(os.Stdout)
-	r.Logger.SetLevel(Logger.InfoLevel)
-
-	r.Logger.Info("Warm up before starting deployment")
+	r.Logger.SetLevel(logLevelMapper[logLevel])
 }
 
 // Run executes all required steps for deployments
@@ -88,8 +96,10 @@ func (r Runner) Run() error  {
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
 
+	msg := r.Builder.MakeSummary(r.Builder.Config.Stack)
+	r.Logger.Infof(msg)
 	if r.Slacker.ValidClient() {
-		r.Slacker.SendSimpleMessage(r.Builder.MakeSummary(r.Builder.Config.Stack), r.Builder.Config.Env)
+		r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
 	} else {
 		// Slack variables are not set
 		r.Logger.Warn("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
@@ -119,6 +129,11 @@ func (r Runner) Run() error  {
 	// Attach scaling policy
 	for _, deployer := range deployers {
 		deployer.FinishAdditionalWork(r.Builder.Config)
+	}
+
+	// Trigger Lifecycle Callbacks
+	for _, deployer := range deployers {
+		deployer.TriggerLifecycleCallbacks(r.Builder.Config)
 	}
 
 	// Clear previous Version

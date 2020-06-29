@@ -107,18 +107,18 @@ func (e EC2Client) DeleteAutoscalingSet(asg_name string) bool {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeScalingActivityInProgressFault:
-				fmt.Println(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
 			case autoscaling.ErrCodeResourceInUseFault:
-				fmt.Println(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return false
 	}
@@ -173,16 +173,16 @@ func getAllLaunchConfigurations(client *autoscaling.AutoScaling, lcs []*autoscal
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeInvalidNextToken:
-				fmt.Println(autoscaling.ErrCodeInvalidNextToken, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeInvalidNextToken, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return nil
 	}
@@ -207,10 +207,10 @@ func getAllLaunchTemplates(client *ec2.EC2, lts []*ec2.LaunchTemplate, nextToken
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return nil
 	}
@@ -235,16 +235,16 @@ func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) 
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeResourceInUseFault:
-				fmt.Println(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return err
 	}
@@ -263,10 +263,10 @@ func deleteLaunchTemplate(client *ec2.EC2, lt_name string) error {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return err
 	}
@@ -293,18 +293,18 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeAlreadyExistsFault:
-				fmt.Println(autoscaling.ErrCodeAlreadyExistsFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeAlreadyExistsFault, aerr.Error())
 			case autoscaling.ErrCodeLimitExceededFault:
-				fmt.Println(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return false
 	}
@@ -316,7 +316,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 
 
 // Create New Launch Template
-func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions builder.InstanceMarketOptions) bool {
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions builder.InstanceMarketOptions) bool {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
@@ -333,7 +333,7 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 		LaunchTemplateName: aws.String(name),
 	}
 
-	if len(instanceMarketOptions.MarketType) != 0  {
+	if len(instanceMarketOptions.MarketType) != 0  && ! mixedInstancePolicyEnabled {
 		input.LaunchTemplateData.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
 			MarketType:  aws.String(instanceMarketOptions.MarketType),
 			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{
@@ -350,12 +350,12 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return false
 	}
@@ -402,12 +402,12 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				default:
-					fmt.Println(aerr.Error())
+					Logger.Errorln(aerr.Error())
 				}
 			} else {
 				// Print the error, cast err to awserr.Error to get the Code and
 				// Message from an error.
-				fmt.Println(err.Error())
+				Logger.Errorln(err.Error())
 			}
 
 			os.Exit(1)
@@ -517,12 +517,12 @@ func (e EC2Client) GetVPCId(vpc string) string {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		os.Exit(1)
 	}
@@ -540,12 +540,13 @@ func (e EC2Client) GetVPCId(vpc string) string {
 	return *result.Vpcs[0].VpcId
 }
 
-func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity builder.Capacity,  loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string) bool {
+func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity builder.Capacity,  loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string, mixedInstancePolicy builder.MixedInstancesPolicy) bool {
+	lt := autoscaling.LaunchTemplateSpecification{
+		LaunchTemplateName: aws.String(launch_template_name),
+	}
+
 	input := &autoscaling.CreateAutoScalingGroupInput{
 		AutoScalingGroupName:    aws.String(name),
-		LaunchTemplate:			 &autoscaling.LaunchTemplateSpecification{
-			LaunchTemplateName: aws.String(launch_template_name),
-		},
 		MaxSize:                 aws.Int64(capacity.Max),
 		MinSize:                 aws.Int64(capacity.Min),
 		DesiredCapacity:		 aws.Int64(capacity.Desired),
@@ -565,25 +566,53 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 		input.TargetGroupARNs = target_group_arns
 	}
 
+	if mixedInstancePolicy.Enabled {
+		input.MixedInstancesPolicy = &autoscaling.MixedInstancesPolicy{
+			InstancesDistribution: &autoscaling.InstancesDistribution{
+				OnDemandPercentageAboveBaseCapacity: aws.Int64(mixedInstancePolicy.OnDemandPercentage),
+				SpotAllocationStrategy:              aws.String(mixedInstancePolicy.SpotAllocationStrategy),
+				SpotInstancePools:                   aws.Int64(mixedInstancePolicy.SpotInstancePools),
+				SpotMaxPrice:                        aws.String(mixedInstancePolicy.SpotMaxPrice),
+			},
+			LaunchTemplate:			 &autoscaling.LaunchTemplate{
+				LaunchTemplateSpecification: &lt,
+			},
+		}
+
+		if len(mixedInstancePolicy.Override) != 0 {
+			overrides := []*autoscaling.LaunchTemplateOverrides{}
+			for _, o := range mixedInstancePolicy.Override {
+				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
+					InstanceType:     aws.String(o),
+				})
+			}
+
+			input.MixedInstancesPolicy.LaunchTemplate.Overrides = overrides
+		}
+
+	} else {
+		input.LaunchTemplate = &lt
+	}
+
 	_, err := e.AsClient.CreateAutoScalingGroup(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeAlreadyExistsFault:
-				fmt.Println(autoscaling.ErrCodeAlreadyExistsFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeAlreadyExistsFault, aerr.Error())
 			case autoscaling.ErrCodeLimitExceededFault:
-				fmt.Println(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				fmt.Println(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return false
 	}
@@ -648,12 +677,12 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		os.Exit(1)
 	}
@@ -687,12 +716,12 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		os.Exit(1)
 	}
@@ -731,18 +760,18 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) e
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeScalingActivityInProgressFault:
-				fmt.Println(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				fmt.Println(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return err
 	}
@@ -765,18 +794,18 @@ func (e EC2Client) CreateScalingPolicy(policy builder.ScalePolicy, asg_name stri
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeLimitExceededFault:
-				fmt.Println(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				fmt.Println(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return nil, err
 	}
@@ -796,14 +825,14 @@ func (e EC2Client) EnableMetrics(asg_name string) error {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case autoscaling.ErrCodeResourceContentionFault:
-				fmt.Println(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
+				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return err
 	}
