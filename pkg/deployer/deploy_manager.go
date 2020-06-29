@@ -10,5 +10,6 @@ type DeployManager interface {
 	HealthChecking(config builder.Config) map[string]bool
 	FinishAdditionalWork(config builder.Config) error
 	CleanPreviousVersion(config builder.Config) error
+	TriggerLifecycleCallbacks(config builder.Config) error
 	TerminateChecking(config builder.Config) map[string] bool
 }

@@ -74,14 +74,14 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.A
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case cloudwatch.ErrCodeLimitExceededFault:
-				fmt.Println(cloudwatch.ErrCodeLimitExceededFault, aerr.Error())
+				Logger.Errorln(cloudwatch.ErrCodeLimitExceededFault, aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				Logger.Errorln(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			Logger.Errorln(err.Error())
 		}
 		return err
 	}

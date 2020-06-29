@@ -31,12 +31,49 @@ If other autoscaling groups of sample application already existed, for example `
     * `--ami` : AMI ID
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
+    * `--slack-off` : Whether turning off slack alarm or not. (default: false)
+    * `--log-level` : Level of Log (debug, info, error)
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 * You *cannot run goployer from local environment* for security & management issue.
 ```bash
 $ make build 
 $ ./bin/goployer --manifest=configs/hello.yaml --ami=ami-01288945bd24ed49a --stack=<stack name> --region=ap-northeast-2
 ```
+<br>
+
+## Utilize Spot Instance
+* You can use `spot instance` option with goployer.
+* There are two possible ways to use `spot instance`.
+
+
+`instance_market_options` : You can set spot instance options and with this, you will only use spot instances.
+```yaml
+    instance_market_options:
+      market_type: spot
+      spot_options:
+        block_duration_minutes: 180
+        instance_interruption_behavior: terminate # terminate / stop / hibernate
+        max_price: 0.2
+        spot_instance_type: one-time # one-time or persistent
+```
+<br>  
+  
+`mixed_instances_policy` : You can mix `on-demand` and `spot` together with this setting. 
+  
+```yaml
+    mixed_instances_policy:
+      enabled: true
+      override_instance_types:
+        - c5.large
+        - c5.xlarge
+      on_demand_percentage: 20
+      spot_allocation_strategy: lowest-price
+      spot_instance_pools: 3
+      spot_max_price: 0.3
+```
+ 
+You can see the detailed information in [manifest](#Manifest) section.
+
 <br>
 
 ## Manifest
@@ -87,7 +124,7 @@ tags:
   - repo=hello-deploy
 
 stacks:
-  - stack: dayonep
+  - stack: artp
 
     # account alias
     account: prod
@@ -101,8 +138,8 @@ stacks:
     # Replacement type
     replacement_type: BlueGreen
 
-    # IAM instance profile, not instance role
-    iam_instance_profile: 'app-hello-profile'
+    # IAM instance profile, not IAM role
+    iam_instance_profile: app-hello-profile
 
     # Ansible tags
     ansible_tags: all
@@ -120,7 +157,36 @@ stacks:
         max_price: 0.2
         spot_instance_type: one-time # one-time or persistent
 
-    # block_devices is the list of ebs volumes you can use for ec2
+    # MixedInstancesPolicy
+    # You can set autoscaling mixedInstancePolicy to use on demand and spot instances together.
+    # if mixed_instance_policy is set, then `instance_market_options` will be ignored.
+    mixed_instances_policy:
+      enabled: true
+
+      # instance type list to override the instance types in launch template.
+      override_instance_types:
+        - c5.large
+        - c5.xlarge
+
+      # Proportion of on-demand instances.
+      # By default, this value  will be 100 which means no spot instance.
+      on_demand_percentage: 20
+
+      # spot_allocation_strategy means in what strategy you want to allocate spot instances.
+      # options could be either `lowest-price` or `capacity-optimized`.
+      # by default, `low-price` strategy will be applied.
+      spot_allocation_strategy: lowest-price
+
+      # The number of spot instances pool.
+      # This will be set among instance types in `override` fields
+      # This will be valid only if the `spot_allocation_strategy` is low-price.
+      spot_instance_pools: 3
+
+      # Spot price.
+      # By default, on-demand price will be automatically applied.
+      spot_max_price: 0.3
+
+  # block_devices is the list of ebs volumes you can use for ec2
     # device_name is required
     # If you do not set volume_size, it would be 16.
     # If you do not set volume_type, it would be gp2.
@@ -134,9 +200,9 @@ stacks:
 
     # capacity
     capacity:
-      min: 1
-      max: 2
-      desired: 1
+      min: 10
+      max: 10
+      desired: 10
 
     # autoscaling means scaling policy of autoscaling group
     # You can find format in autoscaling block upside
@@ -149,10 +215,11 @@ stacks:
     # lifecycle callbacks
     lifecycle_callbacks:
       pre_terminate_past_clusters:
+        - echo test
         - service hello stop
 
     # list of region
-    # goployer will concurrently deploy across the region
+    # deployer will concurrently deploy across the region
     regions:
       - region: ap-northeast-2
 
@@ -160,31 +227,31 @@ stacks:
         instance_type: m5.large
 
         # ssh_key for instances
-        ssh_key: dayone-prod-master
+        ssh_key: test-master-key
 
         # ami_id
         # You can override this value via command line `--ami`
         ami_id: ami-01288945bd24ed49a
 
         # Whether you want to use public subnet or not
-        # By Default, goployer selects private subnets
+        # By Default, deployer selects private subnets
         # If you want to use public subnet, then you should set this value to ture.
         use_public_subnets: true
 
         # You can use VPC id(vpc-xxx)
-        # If you specify the name of VPC, then goployer will find the VPC id with it.
+        # If you specify the name of VPC, then deployer will find the VPC id with it.
         # In this case, only one VPC should exist.
-        vpc: vpc-dayonep_apnortheast2
+        vpc: vpc-artp_apnortheast2
 
         # You can use security group id(sg-xxx)
-        # If you specify the name of security group, then goployer will find the security group id with it.
+        # If you specify the name of security group, then deployer will find the security group id with it.
         # In this case, only one security group should exist
         security_groups:
-          - hello-dayonep_apnortheast2
-          - default-dayonep_apnortheast2
+          - hello-artp_apnortheast2
+          - default-artp_apnortheast2
 
         # You can use healthcheck target group
-        healthcheckTargetGroup: hello-dayonepapne2-ext
+        healthcheckTargetGroup: hello-artpapne2-ext
 
         # If no availability zones specified, then all availability zones are selected by default.
         # If you want all availability zones, then please remove availability_zones key.
@@ -196,21 +263,21 @@ stacks:
         # list of target groups.
         # The target group in the healthcheckTargetGroup should be included here.
         target_groups:
-          - hello-dayonepapne2-ext
+          - hello-artpapne2-ext
 
 
       - region: us-east-1
         ami_id: ami-09d95fab7fff3776c
         instance_type: t3.large
-        ssh_key: dayone-prod-master
+        ssh_key: art-prod-master
         use_public_subnets: true
-        vpc: vpc-dayonep_useast1
+        vpc: vpc-artp_useast1
         security_groups:
-          - hello-dayonep_useast1
-          - default-dayonep_useast1
-        healthcheckTargetGroup: hello-dayonepuse1-ext
+          - hello-artp_useast1
+          - default-artp_useast1
+        healthcheckTargetGroup: hello-artpuse1-ext
         target_groups:
-          - hello-dayonepuse1-ext
+          - hello-artpuse1-ext
 ``` 
 
 
