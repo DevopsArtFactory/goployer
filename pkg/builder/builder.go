@@ -421,7 +421,7 @@ func argumentParsing() Config {
 	ami := flag.String("ami", "", "The AMI to use for the servers.")
 	env := flag.String("env", "", "The environment that is being deployed into.")
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
-	assumeRole := flag.String("assume_role", "", "The Role ARN to assume into")
+	assumeRole := flag.String("assume-role", "", "The Role ARN to assume into")
 	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
 	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
