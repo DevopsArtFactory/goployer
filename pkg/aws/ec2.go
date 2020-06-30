@@ -17,7 +17,7 @@ import (
 )
 
 type EC2Client struct {
-	Client *ec2.EC2
+	Client   *ec2.EC2
 	AsClient *autoscaling.AutoScaling
 }
 
@@ -34,7 +34,6 @@ func getEC2ClientFn(session *session.Session, region string, creds *credentials.
 	}
 	return ec2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
-
 
 func getAsgClientFn(session *session.Session, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
 	if creds == nil {
@@ -278,14 +277,14 @@ func deleteLaunchTemplate(client *ec2.EC2, lt_name string) error {
 func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*autoscaling.BlockDeviceMapping) bool {
 	input := &autoscaling.CreateLaunchConfigurationInput{
 		LaunchConfigurationName: aws.String(name),
-		ImageId: aws.String(ami),
-		KeyName: aws.String(keyName),
-		InstanceType: aws.String(instanceType),
-		IamInstanceProfile: aws.String(iamProfileName),
-		UserData: aws.String(userdata),
-		SecurityGroups: securityGroups,
-		EbsOptimized: aws.Bool(ebsOptimized),
-		BlockDeviceMappings: blockDevices,
+		ImageId:                 aws.String(ami),
+		KeyName:                 aws.String(keyName),
+		InstanceType:            aws.String(instanceType),
+		IamInstanceProfile:      aws.String(iamProfileName),
+		UserData:                aws.String(userdata),
+		SecurityGroups:          securityGroups,
+		EbsOptimized:            aws.Bool(ebsOptimized),
+		BlockDeviceMappings:     blockDevices,
 	}
 
 	_, err := e.AsClient.CreateLaunchConfiguration(input)
@@ -314,28 +313,27 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 	return true
 }
 
-
 // Create New Launch Template
 func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions builder.InstanceMarketOptions) bool {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
 			InstanceType: aws.String(instanceType),
-			KeyName: aws.String(keyName),
+			KeyName:      aws.String(keyName),
 			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 				Name: aws.String(iamProfileName),
 			},
-			UserData: aws.String(userdata),
-			SecurityGroupIds: securityGroups,
-			EbsOptimized: aws.Bool(ebsOptimized),
+			UserData:            aws.String(userdata),
+			SecurityGroupIds:    securityGroups,
+			EbsOptimized:        aws.Bool(ebsOptimized),
 			BlockDeviceMappings: blockDevices,
 		},
 		LaunchTemplateName: aws.String(name),
 	}
 
-	if len(instanceMarketOptions.MarketType) != 0  && ! mixedInstancePolicyEnabled {
+	if len(instanceMarketOptions.MarketType) != 0 && !mixedInstancePolicyEnabled {
 		input.LaunchTemplateData.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
-			MarketType:  aws.String(instanceMarketOptions.MarketType),
+			MarketType: aws.String(instanceMarketOptions.MarketType),
 			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{
 				BlockDurationMinutes:         aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes),
 				InstanceInterruptionBehavior: aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior),
@@ -370,7 +368,7 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 
 // Get All Security Group Information New Launch Configuration
 func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
-	if len (sgList) == 0 {
+	if len(sgList) == 0 {
 		tool.ErrorLogging("Need to specify at least one security group")
 	}
 
@@ -378,7 +376,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 
 	var retList []*string
 	for _, sg := range sgList {
-		if strings.HasPrefix(sg,"sg-") {
+		if strings.HasPrefix(sg, "sg-") {
 			retList = append(retList, aws.String(sg))
 			continue
 		}
@@ -449,10 +447,10 @@ func (e EC2Client) MakeBlockDevices(blocks []builder.BlockDevice) []*autoscaling
 		}
 
 		ret = append(ret, &autoscaling.BlockDeviceMapping{
-			DeviceName:  aws.String(block.DeviceName),
-			Ebs:         &autoscaling.Ebs{
-				VolumeSize:          aws.Int64(bSize),
-				VolumeType:          aws.String(bType),
+			DeviceName: aws.String(block.DeviceName),
+			Ebs: &autoscaling.Ebs{
+				VolumeSize: aws.Int64(bSize),
+				VolumeType: aws.String(bType),
 			},
 			NoDevice:    nil,
 			VirtualName: nil,
@@ -480,10 +478,10 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []builder.BlockD
 		}
 
 		ret = append(ret, &ec2.LaunchTemplateBlockDeviceMappingRequest{
-			DeviceName:  aws.String(block.DeviceName),
-			Ebs:         &ec2.LaunchTemplateEbsBlockDeviceRequest{
-				VolumeSize:          aws.Int64(bSize),
-				VolumeType:          aws.String(bType),
+			DeviceName: aws.String(block.DeviceName),
+			Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+				VolumeSize: aws.Int64(bSize),
+				VolumeType: aws.String(bType),
 			},
 			NoDevice:    nil,
 			VirtualName: nil,
@@ -531,7 +529,7 @@ func (e EC2Client) GetVPCId(vpc string) string {
 	}
 
 	// More than 1 vpc..
-	if len (result.Vpcs) > 1 {
+	if len(result.Vpcs) > 1 {
 		tool.ErrorLogging(fmt.Sprintf("Expected only one VPC on name lookup for %v", vpc))
 	}
 
@@ -543,22 +541,22 @@ func (e EC2Client) GetVPCId(vpc string) string {
 	return *result.Vpcs[0].VpcId
 }
 
-func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity builder.Capacity,  loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string, mixedInstancePolicy builder.MixedInstancesPolicy) bool {
+func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity builder.Capacity, loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string, mixedInstancePolicy builder.MixedInstancesPolicy) bool {
 	lt := autoscaling.LaunchTemplateSpecification{
 		LaunchTemplateName: aws.String(launch_template_name),
 	}
 
 	input := &autoscaling.CreateAutoScalingGroupInput{
-		AutoScalingGroupName:    aws.String(name),
-		MaxSize:                 aws.Int64(capacity.Max),
-		MinSize:                 aws.Int64(capacity.Min),
-		DesiredCapacity:		 aws.Int64(capacity.Desired),
-		AvailabilityZones:  	 availability_zones,
-		HealthCheckType:  		 aws.String(healthcheck_type),
-		HealthCheckGracePeriod:  aws.Int64(healthcheck_grace_period),
-		TerminationPolicies:	 termination_policies,
-		Tags: 				     tags,
-		VPCZoneIdentifier: 		 aws.String(strings.Join(subnets,",")),
+		AutoScalingGroupName:   aws.String(name),
+		MaxSize:                aws.Int64(capacity.Max),
+		MinSize:                aws.Int64(capacity.Min),
+		DesiredCapacity:        aws.Int64(capacity.Desired),
+		AvailabilityZones:      availability_zones,
+		HealthCheckType:        aws.String(healthcheck_type),
+		HealthCheckGracePeriod: aws.Int64(healthcheck_grace_period),
+		TerminationPolicies:    termination_policies,
+		Tags:                   tags,
+		VPCZoneIdentifier:      aws.String(strings.Join(subnets, ",")),
 	}
 
 	if *loadbalancers[0] != "" {
@@ -577,7 +575,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 				SpotInstancePools:                   aws.Int64(mixedInstancePolicy.SpotInstancePools),
 				SpotMaxPrice:                        aws.String(mixedInstancePolicy.SpotMaxPrice),
 			},
-			LaunchTemplate:			 &autoscaling.LaunchTemplate{
+			LaunchTemplate: &autoscaling.LaunchTemplate{
 				LaunchTemplateSpecification: &lt,
 			},
 		}
@@ -586,7 +584,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 			overrides := []*autoscaling.LaunchTemplateOverrides{}
 			for _, o := range mixedInstancePolicy.Override {
 				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
-					InstanceType:     aws.String(o),
+					InstanceType: aws.String(o),
 				})
 			}
 
@@ -626,7 +624,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 }
 
 // GenerateTags creates tag list for autoscaling group
-func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags, extraTags string) []*autoscaling.Tag {
+func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags, extraTags, ansibleExtraVars string) []*autoscaling.Tag {
 	ret := []*autoscaling.Tag{}
 
 	for _, tagKV := range tagList {
@@ -635,7 +633,7 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 		v := arr[1]
 
 		ret = append(ret, &autoscaling.Tag{
-			Key: aws.String(k),
+			Key:   aws.String(k),
 			Value: aws.String(v),
 		})
 	}
@@ -666,12 +664,12 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 		})
 	}
 
-	//Add extraTags name
+	//Add extraTags
 	if len(extraTags) > 0 {
 		if strings.Contains(extraTags, ",") {
 			ts := strings.Split(extraTags, ",")
 			for _, s := range ts {
-				if ! strings.Contains(strings.TrimSpace(s), "="){
+				if !strings.Contains(strings.TrimSpace(s), "=") {
 					Logger.Warnln("extra-tags usage : --extra-tags=key1=value1,key2=value2...")
 					continue
 				}
@@ -684,6 +682,14 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 			}
 
 		}
+	}
+
+	// Add ansibleExtraVars
+	if len(ansibleExtraVars) > 0 {
+		ret = append(ret, &autoscaling.Tag{
+			Key:   aws.String("ansible-extra-vars"),
+			Value: aws.String(ansibleExtraVars),
+		})
 	}
 
 	return ret
@@ -720,7 +726,7 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 	}
 
 	for _, subnet := range result.Subnets {
-		if tool.IsStringInArray(*subnet.AvailabilityZone, ret) || (len(azs) >0 && !tool.IsStringInArray(*subnet.AvailabilityZone, azs)) {
+		if tool.IsStringInArray(*subnet.AvailabilityZone, ret) || (len(azs) > 0 && !tool.IsStringInArray(*subnet.AvailabilityZone, azs)) {
 			continue
 		}
 		ret = append(ret, *subnet.AvailabilityZone)
@@ -764,7 +770,7 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 		subnetType = "public"
 	}
 	for _, subnet := range result.Subnets {
-		if ! tool.IsStringInArray(*subnet.AvailabilityZone, azs) {
+		if !tool.IsStringInArray(*subnet.AvailabilityZone, azs) {
 			continue
 		}
 
@@ -784,7 +790,7 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) e
 		AutoScalingGroupName: aws.String(asg),
 		MaxSize:              aws.Int64(max),
 		MinSize:              aws.Int64(min),
-		DesiredCapacity: 	  aws.Int64(desired),
+		DesiredCapacity:      aws.Int64(desired),
 	}
 
 	_, err := e.AsClient.UpdateAutoScalingGroup(input)
@@ -818,7 +824,7 @@ func (e EC2Client) CreateScalingPolicy(policy builder.ScalePolicy, asg_name stri
 		AutoScalingGroupName: aws.String(asg_name),
 		PolicyName:           aws.String(policy.Name),
 		ScalingAdjustment:    aws.Int64(policy.ScalingAdjustment),
-		Cooldown: 			  aws.Int64(policy.Cooldown),
+		Cooldown:             aws.Int64(policy.Cooldown),
 	}
 
 	result, err := e.AsClient.PutScalingPolicy(input)

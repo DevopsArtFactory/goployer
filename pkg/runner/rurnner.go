@@ -18,9 +18,9 @@ type Runner struct {
 
 var (
 	logLevelMapper = map[string]Logger.Level{
-		"info": Logger.InfoLevel,
+		"info":  Logger.InfoLevel,
 		"debug": Logger.DebugLevel,
-		"warn": Logger.WarnLevel,
+		"warn":  Logger.WarnLevel,
 		"trace": Logger.TraceLevel,
 		"fatal": Logger.FatalLevel,
 		"error": Logger.ErrorLevel,
@@ -28,7 +28,7 @@ var (
 )
 
 //Start function is the starting point of all processes.
-func Start() error  {
+func Start() error {
 	// Check OS first
 	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 	//	return errors.New("you cannot run from local command.")
@@ -53,9 +53,8 @@ func Start() error  {
 	})
 }
 
-
 //withRunner creates runner and runs the deployment process
-func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error ) error {
+func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error) error {
 	runner := NewRunner(builder)
 	runner.LogFormatting(builder.Config.LogLevel)
 	if err := runner.Run(); err != nil {
@@ -75,14 +74,14 @@ func NewRunner(builder builder.Builder) Runner {
 }
 
 // Set log format
-func (r Runner) LogFormatting(logLevel string)  {
+func (r Runner) LogFormatting(logLevel string) {
 	//logger.SetFormatter(&Logger.JSONFormatter{})
 	r.Logger.SetOutput(os.Stdout)
 	r.Logger.SetLevel(logLevelMapper[logLevel])
 }
 
 // Run executes all required steps for deployments
-func (r Runner) Run() error  {
+func (r Runner) Run() error {
 	defer func() {
 		if err := recover(); err != nil {
 			Logger.Error(err)
@@ -165,7 +164,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config)
 
 	ch := make(chan map[string]bool)
 
-	for ! healthy {
+	for !healthy {
 		count := 0
 
 		tool.CheckTimeout(config.StartTimestamp, config.Timeout)
@@ -184,7 +183,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config)
 		}
 
 		for count > 0 {
-			ret := <- ch
+			ret := <-ch
 			for stack, fin := range ret {
 				if fin {
 					healthyStackList = append(healthyStackList, stack)
@@ -210,7 +209,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 
 	ch := make(chan map[string]bool)
 
-	for ! done {
+	for !done {
 		count := 0
 
 		for _, deployer := range deployers {
@@ -227,7 +226,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 		}
 
 		for count > 0 {
-			ret := <- ch
+			ret := <-ch
 			for stack, fin := range ret {
 				if fin {
 					Logger.Info("Finished stack : ", stack)
@@ -246,5 +245,3 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 		}
 	}
 }
-
-

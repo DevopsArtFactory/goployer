@@ -8,11 +8,10 @@ import (
 	"time"
 )
 
-
 var (
-	NO_ERROR_MESSAGE_PASSED="No Error Message exists"
-	INITIAL_STATUS="Not Found"
-	POLLING_SLEEP_TIME=(60 * time.Second)
+	NO_ERROR_MESSAGE_PASSED = "No Error Message exists"
+	INITIAL_STATUS          = "Not Found"
+	POLLING_SLEEP_TIME      = (60 * time.Second)
 )
 
 // Check if file exists
@@ -25,7 +24,7 @@ func FileExists(filename string) bool {
 }
 
 // Error Logging
-func ErrorLogging(msg string)  {
+func ErrorLogging(msg string) {
 	if len(msg) == 0 {
 		Red(NO_ERROR_MESSAGE_PASSED)
 		os.Exit(1)
@@ -35,7 +34,7 @@ func ErrorLogging(msg string)  {
 }
 
 // Fatal Error
-func FatalError(err error)  {
+func FatalError(err error) {
 	log.Fatalf("error: %v", err)
 	os.Exit(1)
 }
@@ -98,7 +97,7 @@ func IsZero(v interface{}) bool {
 // IsStringInArray checks if string value is in array or not
 func IsStringInArray(s string, arr []string) bool {
 	for _, as := range arr {
-		if (as == s) {
+		if as == s {
 			return true
 		}
 	}
@@ -118,4 +117,3 @@ func CheckTimeout(start int64, timeout int64) bool {
 
 	return false
 }
-

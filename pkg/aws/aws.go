@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	DEFAULT_HEALTHCHECK_TYPE="EC2"
-	DEFAULT_HEALTHCHECK_GRACE_PERIOD=300
+	DEFAULT_HEALTHCHECK_TYPE         = "EC2"
+	DEFAULT_HEALTHCHECK_GRACE_PERIOD = 300
 )
 
 type AWSClient struct {
@@ -25,7 +25,7 @@ func getAwsSession() *session.Session {
 	return mySession
 }
 
-func MakeStringArrayToAwsStrings (arr []string) []*string {
+func MakeStringArrayToAwsStrings(arr []string) []*string {
 	if len(arr) == 0 {
 		return nil
 	}
@@ -42,7 +42,7 @@ func BootstrapServices(region string, assume_role string) AWSClient {
 	aws_session := getAwsSession()
 
 	var creds *credentials.Credentials
-	if len(assume_role) != 0  {
+	if len(assume_role) != 0 {
 		creds = stscreds.NewCredentials(aws_session, assume_role)
 	}
 
@@ -57,4 +57,3 @@ func BootstrapServices(region string, assume_role string) AWSClient {
 
 	return client
 }
-

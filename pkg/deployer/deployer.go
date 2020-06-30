@@ -12,16 +12,16 @@ import (
 
 // Deployer per stack
 type Deployer struct {
-	Mode          	string
-	AsgNames      	map[string]string
-	PrevAsgs      	map[string][]string
-	PrevInstances    map[string][]string
-	Logger        	*Logger.Logger
-	Stack         	builder.Stack
-	AwsConfig     	builder.AWSConfig
-	AWSClients    	[]aws.AWSClient
-	LocalProvider 	builder.UserdataProvider
-	Slack			tool.Slack
+	Mode          string
+	AsgNames      map[string]string
+	PrevAsgs      map[string][]string
+	PrevInstances map[string][]string
+	Logger        *Logger.Logger
+	Stack         builder.Stack
+	AwsConfig     builder.AWSConfig
+	AWSClients    []aws.AWSClient
+	LocalProvider builder.UserdataProvider
+	Slack         tool.Slack
 }
 
 // getCurrentVersion returns current version for current deployment step
@@ -38,7 +38,7 @@ func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, c
 		tool.ErrorLogging(fmt.Sprintf("No autoscaling found for %s", d.AsgNames[region.Region]))
 	}
 
-	healthcheckTargetGroup 	 := region.HealthcheckTargetGroup
+	healthcheckTargetGroup := region.HealthcheckTargetGroup
 	healthcheckTargetGroupArn := (client.ELBService.GetTargetGroupARNs([]string{healthcheckTargetGroup}))[0]
 
 	threshold := d.Stack.Capacity.Desired
@@ -114,7 +114,6 @@ func (d Deployer) ResizingAutoScalingGroupToZero(client aws.AWSClient, stack, as
 	return nil
 }
 
-
 // RunLifecycleCallbacks runs commands before terminating.
 func (d Deployer) RunLifecycleCallbacks(client aws.AWSClient, target []string) bool {
 
@@ -135,7 +134,7 @@ func (d Deployer) RunLifecycleCallbacks(client aws.AWSClient, target []string) b
 		aws.MakeStringArrayToAwsStrings(commands),
 	)
 
-	return false;
+	return false
 }
 
 // selectClientFromList get aws client.

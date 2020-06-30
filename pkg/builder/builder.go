@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	NO_MANIFEST_EXISTS="Manifest file does not exist"
-	DFEAULT_SPOT_ALLOCATION_STRATEGY="lowest-price"
-	availableBlockTypes=[]string{"io1", "gp2", "st1", "sc1"}
+	NO_MANIFEST_EXISTS               = "Manifest file does not exist"
+	DFEAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
+	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 )
 
 type UserdataProvider interface {
@@ -37,20 +37,20 @@ type Builder struct {
 }
 
 type Config struct {
-	Manifest 		string
-	Ami  	 		string
-	Env  	 		string
-	Stack  	 		string
-	AssumeRole 		string
-	Timeout  		int64
-	StartTimestamp 	int64
-	Region   		string
-	Confirm  		bool
-	SlackOff  		bool
-	LogLevel  		string
-	ExtraTags		string
+	Manifest         string
+	Ami              string
+	Env              string
+	Stack            string
+	AssumeRole       string
+	Timeout          int64
+	StartTimestamp   int64
+	Region           string
+	Confirm          bool
+	SlackOff         bool
+	LogLevel         string
+	ExtraTags        string
+	AnsibleExtraVars string
 }
-
 
 type YamlConfig struct {
 	Name     string   `yaml:"name"`
@@ -71,22 +71,22 @@ type Userdata struct {
 }
 
 type ScalePolicy struct {
-	Name				string `yaml:"name"`
-	AdjustmentType 		string `yaml:"adjustment_type"`
-	ScalingAdjustment 	int64 `yaml:"scaling_adjustment"`
-	Cooldown 			int64 `yaml:"cooldown"`
+	Name              string `yaml:"name"`
+	AdjustmentType    string `yaml:"adjustment_type"`
+	ScalingAdjustment int64  `yaml:"scaling_adjustment"`
+	Cooldown          int64  `yaml:"cooldown"`
 }
 
 type AlarmConfigs struct {
-	Name				string
-	Namespace 			string
-	Metric 				string
-	Statistic 			string
-	Comparison 			string
-	Threshold 			float64
-	Period 				int64
-	EvaluationPeriods 	int64 	 `yaml:"evaluation_periods"`
-	AlarmActions 		[]string `yaml:"alarm_actions"`
+	Name              string
+	Namespace         string
+	Metric            string
+	Statistic         string
+	Comparison        string
+	Threshold         float64
+	Period            int64
+	EvaluationPeriods int64    `yaml:"evaluation_periods"`
+	AlarmActions      []string `yaml:"alarm_actions"`
 }
 
 type Stack struct {
@@ -100,7 +100,7 @@ type Stack struct {
 	AssumeRole            string                `yaml:"assume_role"`
 	EbsOptimized          bool                  `yaml:"ebs_optimized"`
 	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
-	MixedInstancesPolicy  MixedInstancesPolicy 	`yaml:"mixed_instances_policy,omitempty"`
+	MixedInstancesPolicy  MixedInstancesPolicy  `yaml:"mixed_instances_policy,omitempty"`
 	BlockDevices          []BlockDevice         `yaml:"block_devices"`
 	Capacity              Capacity              `yaml:"capacity"`
 	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
@@ -115,24 +115,24 @@ type InstanceMarketOptions struct {
 }
 
 type MixedInstancesPolicy struct {
-	Enabled					bool		`yaml:"enabled"`
-	Override 				[]string 	`yaml:"override_instance_types"`
-	OnDemandPercentage  	int64      	`yaml:"on_demand_percentage"`
-	SpotAllocationStrategy  string      `yaml:"spot_allocation_strategy"`
-	SpotInstancePools		int64		`yaml:"spot_instance_pools"`
-	SpotMaxPrice 			string 		`yaml:"spot_max_price,omitempty"`
+	Enabled                bool     `yaml:"enabled"`
+	Override               []string `yaml:"override_instance_types"`
+	OnDemandPercentage     int64    `yaml:"on_demand_percentage"`
+	SpotAllocationStrategy string   `yaml:"spot_allocation_strategy"`
+	SpotInstancePools      int64    `yaml:"spot_instance_pools"`
+	SpotMaxPrice           string   `yaml:"spot_max_price,omitempty"`
 }
 
 type SpotOptions struct {
-	BlockDurationMinutes int64 `yaml:"block_duration_minutes"`
+	BlockDurationMinutes         int64  `yaml:"block_duration_minutes"`
 	InstanceInterruptionBehavior string `yaml:"instance_interruption_behavior"`
-	MaxPrice string `yaml:"max_price"`
-	SpotInstanceType string `yaml:"spot_instance_type"`
+	MaxPrice                     string `yaml:"max_price"`
+	SpotInstanceType             string `yaml:"spot_instance_type"`
 }
 
 type BlockDevice struct {
 	DeviceName string `yaml:"device_name"`
-	VolumeSize int64 `yaml:"volume_size"`
+	VolumeSize int64  `yaml:"volume_size"`
 	VolumeType string `yaml:"volume_type"`
 }
 
@@ -141,32 +141,31 @@ type LifecycleCallbacks struct {
 }
 
 type RegionConfig struct {
-	Region 					string 		`yaml:"region"`
-	UsePublicSubnets		bool 		`yaml:"use_public_subnets"`
-	InstanceType 			string 		`yaml:"instance_type"`
-	SshKey 					string 		`yaml:"ssh_key"`
-	AmiId 					string 		`yaml:"ami_id"`
-	VPC 					string 		`yaml:"vpc"`
-	SecurityGroups 			[]string 	`yaml:"security_groups"`
-	HealthcheckLB 			string 		`yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup 	string 		`yaml:"healthcheckTargetGroup"`
-	TargetGroups 			[]string 	`yaml:"target_groups"`
-	LoadBalancers 			[]string 	`yaml:"loadbalancers"`
-	AvailabilityZones 		[]string 	`yaml:"availability_zones"`
+	Region                 string   `yaml:"region"`
+	UsePublicSubnets       bool     `yaml:"use_public_subnets"`
+	InstanceType           string   `yaml:"instance_type"`
+	SshKey                 string   `yaml:"ssh_key"`
+	AmiId                  string   `yaml:"ami_id"`
+	VPC                    string   `yaml:"vpc"`
+	SecurityGroups         []string `yaml:"security_groups"`
+	HealthcheckLB          string   `yaml:"healthcheck_load_balancer"`
+	HealthcheckTargetGroup string   `yaml:"healthcheckTargetGroup"`
+	TargetGroups           []string `yaml:"target_groups"`
+	LoadBalancers          []string `yaml:"loadbalancers"`
+	AvailabilityZones      []string `yaml:"availability_zones"`
 }
 
 type Capacity struct {
-	Min 	int64 `yaml:"min"`
-	Max 	int64 `yaml:"max"`
+	Min     int64 `yaml:"min"`
+	Max     int64 `yaml:"max"`
 	Desired int64 `yaml:"desired"`
 }
-
 
 func (l LocalProvider) Provide() string {
 	if l.Path == "" {
 		tool.ErrorLogging("Please specify userdata script path")
 	}
-	if ! tool.FileExists(l.Path) {
+	if !tool.FileExists(l.Path) {
 		tool.ErrorLogging(fmt.Sprintf("File does not exist in %s", l.Path))
 	}
 
@@ -178,7 +177,7 @@ func (l LocalProvider) Provide() string {
 	return base64.StdEncoding.EncodeToString(userdata)
 }
 
-func (s S3Provider) Provide() string  {
+func (s S3Provider) Provide() string {
 	return ""
 }
 
@@ -189,10 +188,9 @@ func NewBuilder() (Builder, error) {
 	config := argumentParsing()
 
 	//Check manifest file
-	if len(config.Manifest) == 0 || ! tool.FileExists(config.Manifest) {
+	if len(config.Manifest) == 0 || !tool.FileExists(config.Manifest) {
 		return builder, fmt.Errorf(NO_MANIFEST_EXISTS)
 	}
-
 
 	// Set config
 	builder.Config = config
@@ -222,7 +220,6 @@ func (b Builder) SetStacks() Builder {
 			}
 		}
 	}
-
 
 	return b
 }
@@ -270,7 +267,7 @@ func (b Builder) CheckValidation() error {
 				return fmt.Errorf("no valid market type : %s", stack.InstanceMarketOptions.MarketType)
 			}
 
-			if stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes % 60 != 0 || stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes > 360 {
+			if stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes%60 != 0 || stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes > 360 {
 				return fmt.Errorf("block_duration_minutes should be one of [ 60, 120, 180, 240, 300, 360 ]")
 			}
 
@@ -281,13 +278,13 @@ func (b Builder) CheckValidation() error {
 
 		// Check block device setting
 		if len(stack.BlockDevices) > 0 {
-			dNames  := []string{}
+			dNames := []string{}
 			for _, block := range stack.BlockDevices {
 				if len(block.DeviceName) == 0 {
 					return fmt.Errorf("name of device is required.")
 				}
 
-				if ! tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
+				if !tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
 					return fmt.Errorf("not available volume type : %s", block.VolumeType)
 				}
 
@@ -317,7 +314,7 @@ func (b Builder) CheckValidation() error {
 
 		// check mixed instances policy
 		if stack.MixedInstancesPolicy.Enabled {
-			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) ==0 {
+			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) == 0 {
 				stack.MixedInstancesPolicy.SpotAllocationStrategy = DFEAULT_SPOT_ALLOCATION_STRATEGY
 			}
 
@@ -393,8 +390,8 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func  parsingManifestFile(manifest string) (AWSConfig, []Stack) {
-    yamlConfig := YamlConfig{}
+func parsingManifestFile(manifest string) (AWSConfig, []Stack) {
+	yamlConfig := YamlConfig{}
 	yamlFile, err := ioutil.ReadFile(manifest)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
@@ -430,22 +427,24 @@ func argumentParsing() Config {
 	slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
 	logLevel := flag.String("log-level", "info", "log level")
 	extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
+	ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
 
 	flag.Parse()
 
 	config := Config{
-		Manifest: *manifest,
-		Ami: *ami,
-		Env: *env,
-		Stack: *stack,
-		Region: *region,
-		AssumeRole: *assumeRole,
-		Timeout: *timeout,
-		StartTimestamp: time.Now().Unix(),
-		Confirm: *confirm,
-		SlackOff: *slackOff,
-		LogLevel: *logLevel,
-		ExtraTags: *extraTags,
+		Manifest:         *manifest,
+		Ami:              *ami,
+		Env:              *env,
+		Stack:            *stack,
+		Region:           *region,
+		AssumeRole:       *assumeRole,
+		Timeout:          *timeout,
+		StartTimestamp:   time.Now().Unix(),
+		Confirm:          *confirm,
+		SlackOff:         *slackOff,
+		LogLevel:         *logLevel,
+		ExtraTags:        *extraTags,
+		AnsibleExtraVars: *ansibleExtraVars,
 	}
 
 	return config

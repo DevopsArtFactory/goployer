@@ -15,4 +15,3 @@ func Blue(s string) {
 func Yellow(s string) {
 	color.Yellow(s)
 }
-

@@ -29,12 +29,12 @@ func getSsmClientFn(session *session.Session, region string, creds *credentials.
 //SSM Send command
 func (s SSMClient) SendCommand(target []*string, commands []*string) bool {
 	input := &ssm.SendCommandInput{
-		DocumentName:           aws.String("AWS-RunShellScript"),
-		TimeoutSeconds:         aws.Int64(3600),
-		InstanceIds:            target,
-		Comment: 				aws.String("goployer lifecycle callbacks"),
-		Parameters: 			map[string][]*string{
-			"commands":			commands,
+		DocumentName:   aws.String("AWS-RunShellScript"),
+		TimeoutSeconds: aws.Int64(3600),
+		InstanceIds:    target,
+		Comment:        aws.String("goployer lifecycle callbacks"),
+		Parameters: map[string][]*string{
+			"commands": commands,
 		},
 	}
 

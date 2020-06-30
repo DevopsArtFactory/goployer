@@ -2,7 +2,10 @@ GOOS := "linux"
 ARTIFACT_PATH := bin
 EXECUTE_FILE := goployer
 
-build:
+format:
+	go fmt ./...
+
+build: format
 	GOOS=${GOOS} go build -o ${ARTIFACT_PATH}/${EXECUTE_FILE} main.go
 
 clean:

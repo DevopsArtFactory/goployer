@@ -2,21 +2,21 @@ package tool
 
 import (
 	"fmt"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
 var (
-	COUNTRIES = 'c'
-	DEV_PHASE = 'd'
-	HARDWARE = 'h'
-	PARTNERS = 'p'
-	REVISION = 'r'
-	USED_BY = 'u'
+	COUNTRIES      = 'c'
+	DEV_PHASE      = 'd'
+	HARDWARE       = 'h'
+	PARTNERS       = 'p'
+	REVISION       = 'r'
+	USED_BY        = 'u'
 	RED_BLACK_SWAP = 'w'
-	ZONE = 'z'
-	VERSION = 'v'
+	ZONE           = 'z'
+	VERSION        = 'v'
 )
 
 type Frigga struct {
@@ -31,8 +31,8 @@ func ParseVersion(name string) int {
 	if len(name) != 0 {
 		parts := strings.Split(name, "-")
 		for _, part := range parts {
-			if len(part) > 0 && strings.HasPrefix(part, "v"){
-				intVal, _ :=  strconv.Atoi(part[1:])
+			if len(part) > 0 && strings.HasPrefix(part, "v") {
+				intVal, _ := strconv.Atoi(part[1:])
 				return intVal
 			}
 		}

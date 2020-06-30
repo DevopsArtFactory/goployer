@@ -6,9 +6,9 @@ import (
 	"os"
 )
 
-func main()  {
+func main() {
 	//Create new builder
-	if err := runner.Start(); err != nil{
+	if err := runner.Start(); err != nil {
 		Logger.Error(err.Error())
 		os.Exit(1)
 	}

@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-
 type BlueGreen struct {
 	Deployer
 }
@@ -21,14 +20,14 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfi
 	}
 	return BlueGreen{
 		Deployer{
-			Mode:  mode,
-			Logger: logger,
-			AwsConfig: awsConfig,
-			AWSClients: awsClients,
-			AsgNames: map[string]string{},
-			PrevAsgs: map[string][]string{},
+			Mode:          mode,
+			Logger:        logger,
+			AwsConfig:     awsConfig,
+			AWSClients:    awsClients,
+			AsgNames:      map[string]string{},
+			PrevAsgs:      map[string][]string{},
 			PrevInstances: map[string][]string{},
-			Stack: stack,
+			Stack:         stack,
 		},
 	}
 }
@@ -126,19 +125,19 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			b.Stack.InstanceMarketOptions,
 		)
 
-		if ! ret {
+		if !ret {
 			tool.ErrorLogging("Unknown error happened creating new launch template.")
 		}
 
 		healthElb := region.HealthcheckLB
 		loadbalancers := region.LoadBalancers
-		if ! tool.IsStringInArray(healthElb, loadbalancers) {
+		if !tool.IsStringInArray(healthElb, loadbalancers) {
 			loadbalancers = append(loadbalancers, healthElb)
 		}
 
 		healthcheckTargetGroups := region.HealthcheckTargetGroup
 		targetGroups := region.TargetGroups
-		if ! tool.IsStringInArray(healthcheckTargetGroups, targetGroups) {
+		if !tool.IsStringInArray(healthcheckTargetGroups, targetGroups) {
 			targetGroups = append(targetGroups, healthcheckTargetGroups)
 		}
 
@@ -148,7 +147,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		terminationPolicies := []*string{}
 		availabilityZones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
 		targetGroupArns := client.ELBService.GetTargetGroupARNs(targetGroups)
-		tags  := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags)
+		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars)
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 
 		ret = client.EC2Service.CreateAutoScalingGroup(
@@ -166,7 +165,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			b.Stack.MixedInstancesPolicy,
 		)
 
-		if ! ret {
+		if !ret {
 			tool.ErrorLogging("Unknown error happened creating new autoscaling group.")
 		}
 
@@ -179,7 +178,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 // Healthchecking
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	stack_name := b.GetStackName()
-	Logger.Info(fmt.Sprintf("Healthchecking for stack %s starts : ", stack_name ))
+	Logger.Info(fmt.Sprintf("Healthchecking for stack %s starts : ", stack_name))
 	finished := []string{}
 
 	//Valid Count
@@ -189,7 +188,7 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(config.Region) > 0 {
-		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+		if !checkRegionExist(config.Region, b.Stack.Regions) {
 			validCount = 0
 		}
 	}
@@ -202,7 +201,7 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 			continue
 		}
 
-		b.Logger.Info("Healthchecking for region starts : " + region.Region )
+		b.Logger.Info("Healthchecking for region starts : " + region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -292,7 +291,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 	}
 
 	if len(config.Region) > 0 {
-		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+		if !checkRegionExist(config.Region, b.Stack.Regions) {
 			b.Logger.Debugf("region [ %s ] is not in the stack [ %s ].", config.Region, b.Stack.Stack)
 			return nil
 		}
@@ -327,7 +326,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 	b.Logger.Info("Delete Mode is " + b.Mode)
 
 	if len(config.Region) > 0 {
-		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+		if !checkRegionExist(config.Region, b.Stack.Regions) {
 			return nil
 		}
 	}
@@ -367,7 +366,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 // Clean Teramination Checking
 func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	stack_name := b.GetStackName()
-	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name ))
+	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name))
 
 	//Valid Count
 	validCount := 1
@@ -376,7 +375,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(config.Region) > 0 {
-		if ! checkRegionExist(config.Region, b.Stack.Regions) {
+		if !checkRegionExist(config.Region, b.Stack.Regions) {
 			validCount = 0
 		}
 	}
@@ -390,7 +389,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 			continue
 		}
 
-		b.Logger.Info("Checking Termination stack for region starts : " + region.Region )
+		b.Logger.Info("Checking Termination stack for region starts : " + region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -425,7 +424,6 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 
 	return map[string]bool{stack_name: false}
 }
-
 
 //checkRegionExist checks if target region is really in regions described in manifest file
 func checkRegionExist(target string, regions []builder.RegionConfig) bool {

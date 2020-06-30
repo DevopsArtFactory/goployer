@@ -18,11 +18,11 @@ type ELBV2Client struct {
 }
 
 type HealthcheckHost struct {
-	InstanceId 		string
-	LifecycleState 	string
-	TargetStatus	string
-	HealthStatus    string
-	Healthy			bool
+	InstanceId     string
+	LifecycleState string
+	TargetStatus   string
+	HealthStatus   string
+	Healthy        bool
 }
 
 func NewELBV2Client(session *session.Session, region string, creds *credentials.Credentials) ELBV2Client {
@@ -37,7 +37,6 @@ func getElbClientFn(session *session.Session, region string, creds *credentials.
 	}
 	return elbv2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
-
 
 // GetTargetGroupARNs returns arn list of target groups
 func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
@@ -79,7 +78,6 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 // GetHostInTarget gets host instance
 func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) []HealthcheckHost {
 	Logger.Info(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
-
 
 	input := &elbv2.DescribeTargetHealthInput{
 		TargetGroupArn: aws.String(*target_group_arn),
