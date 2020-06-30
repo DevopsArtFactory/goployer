@@ -93,7 +93,7 @@ func (r Runner) Run() error {
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
 
 	msg := r.Builder.MakeSummary(r.Builder.Config.Stack)
-	r.Logger.Infof(msg)
+	r.Logger.Infoln(msg)
 	if r.Slacker.ValidClient() {
 		r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
 	} else {
