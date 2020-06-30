@@ -339,9 +339,12 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{
 				BlockDurationMinutes:         aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes),
 				InstanceInterruptionBehavior: aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior),
-				MaxPrice:                     aws.String(instanceMarketOptions.SpotOptions.MaxPrice),
 				SpotInstanceType:             aws.String(instanceMarketOptions.SpotOptions.SpotInstanceType),
 			},
+		}
+
+		if len(instanceMarketOptions.SpotOptions.MaxPrice) > 0 {
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.MaxPrice = aws.String(instanceMarketOptions.SpotOptions.MaxPrice)
 		}
 	}
 
