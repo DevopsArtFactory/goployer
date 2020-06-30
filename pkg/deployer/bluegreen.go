@@ -178,7 +178,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 // Healthchecking
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	stack_name := b.GetStackName()
-	Logger.Info(fmt.Sprintf("Healthchecking for stack %s starts : ", stack_name))
+	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stack_name))
 	finished := []string{}
 
 	//Valid Count
@@ -201,7 +201,7 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 			continue
 		}
 
-		b.Logger.Info("Healthchecking for region starts : " + region.Region)
+		b.Logger.Debug("Healthchecking for region starts : " + region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -233,7 +233,7 @@ func (b BlueGreen) GetStackName() string {
 //BlueGreen finish final work
 func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	if len(b.Stack.Autoscaling) == 0 {
-		b.Logger.Info("No scaling policy exists")
+		b.Logger.Debug("No scaling policy exists")
 		return nil
 	}
 
@@ -279,7 +279,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		}
 	}
 
-	Logger.Info("Finish addtional works.")
+	Logger.Debug("Finish addtional works.")
 	return nil
 }
 
@@ -323,7 +323,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 
 //Clean Previous Version
 func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
-	b.Logger.Info("Delete Mode is " + b.Mode)
+	b.Logger.Debug("Delete Mode is " + b.Mode)
 
 	if len(config.Region) > 0 {
 		if !checkRegionExist(config.Region, b.Stack.Regions) {
@@ -337,7 +337,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			continue
 		}
 
-		b.Logger.Infof("[%s]The number of previous versions to delete is %d\n", region.Region, len(b.PrevAsgs[region.Region]))
+		b.Logger.Infof("[%s]The number of previous versions to delete is %d", region.Region, len(b.PrevAsgs[region.Region]))
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)

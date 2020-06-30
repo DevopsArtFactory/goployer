@@ -83,20 +83,20 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 	}
 	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target), d.Stack.Env)
 
-	d.Logger.Info(fmt.Sprintf("Start deleting autoscaling group : %s\n", target))
+	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
 	ok := client.EC2Service.DeleteAutoscalingSet(target)
 	if !ok {
 		return false
 	}
-	d.Logger.Info(fmt.Sprintf("Autoscaling group is deleted : %s\n", target))
+	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
 
-	d.Logger.Info(fmt.Sprintf("Start deleting launch templates in %s\n", target))
+	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
 	err := client.EC2Service.DeleteLaunchTemplates(target)
 	if err != nil {
 		d.Logger.Errorln(err.Error())
 		return false
 	}
-	d.Logger.Info(fmt.Sprintf("Launch templates are deleted in %s\n", target))
+	d.Logger.Debug(fmt.Sprintf("Launch templates are deleted in %s\n", target))
 
 	return true
 }

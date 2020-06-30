@@ -77,7 +77,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 
 // GetHostInTarget gets host instance
 func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) []HealthcheckHost {
-	Logger.Info(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
+	Logger.Debug(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
 
 	input := &elbv2.DescribeTargetHealthInput{
 		TargetGroupArn: aws.String(*target_group_arn),

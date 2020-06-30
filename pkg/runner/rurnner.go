@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
@@ -93,7 +94,7 @@ func (r Runner) Run() error {
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
 
 	msg := r.Builder.MakeSummary(r.Builder.Config.Stack)
-	r.Logger.Infoln(msg)
+	fmt.Println(msg)
 	if r.Slacker.ValidClient() {
 		r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
 	} else {
@@ -229,7 +230,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 			ret := <-ch
 			for stack, fin := range ret {
 				if fin {
-					Logger.Info("Finished stack : ", stack)
+					Logger.Debug("Finished stack : ", stack)
 					doneStackList = append(doneStackList, stack)
 				}
 			}
