@@ -99,7 +99,7 @@ func (r Runner) Run() error  {
 		r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
 	} else {
 		// Slack variables are not set
-		r.Logger.Warn("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
+		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
 	}
 
 	//Prepare deployers

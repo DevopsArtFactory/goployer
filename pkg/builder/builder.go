@@ -208,11 +208,17 @@ func (b Builder) SetStacks() Builder {
 	b.AwsConfig = awsConfig
 	b.Stacks = Stacks
 
-	if b.Config.Env == "" {
+	if len(b.Config.Env) == 0 {
 		for _, stack := range Stacks {
 			if b.Config.Stack == stack.Stack {
 				b.Config.Env = stack.Env
 			}
+		}
+	}
+
+	if len(b.Config.AssumeRole) > 0 {
+		for _, stack := range b.Stacks {
+			stack.AssumeRole = b.Config.AssumeRole
 		}
 	}
 
