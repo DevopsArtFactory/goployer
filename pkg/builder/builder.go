@@ -206,6 +206,13 @@ func (b Builder) SetStacks() Builder {
 	awsConfig, Stacks := parsingManifestFile(b.Config.Manifest)
 
 	b.AwsConfig = awsConfig
+
+	if len(b.Config.AssumeRole) > 0 {
+		for i, _ := range Stacks {
+			Stacks[i].AssumeRole = b.Config.AssumeRole
+		}
+	}
+
 	b.Stacks = Stacks
 
 	if len(b.Config.Env) == 0 {
@@ -216,11 +223,6 @@ func (b Builder) SetStacks() Builder {
 		}
 	}
 
-	if len(b.Config.AssumeRole) > 0 {
-		for _, stack := range b.Stacks {
-			stack.AssumeRole = b.Config.AssumeRole
-		}
-	}
 
 	return b
 }
