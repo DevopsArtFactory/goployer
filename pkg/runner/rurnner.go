@@ -40,7 +40,6 @@ func Start() error  {
 		return err
 	}
 
-	return nil
 	// Check validation of configurations
 	if err := builder.CheckValidation(); err != nil {
 		return err
