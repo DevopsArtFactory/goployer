@@ -323,12 +323,15 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 				Name: aws.String(iamProfileName),
 			},
-			UserData:            aws.String(userdata),
-			SecurityGroupIds:    securityGroups,
-			EbsOptimized:        aws.Bool(ebsOptimized),
-			BlockDeviceMappings: blockDevices,
+			UserData:         aws.String(userdata),
+			SecurityGroupIds: securityGroups,
+			EbsOptimized:     aws.Bool(ebsOptimized),
 		},
 		LaunchTemplateName: aws.String(name),
+	}
+
+	if len(blockDevices) > 0 {
+		input.LaunchTemplateData.BlockDeviceMappings = blockDevices
 	}
 
 	if len(instanceMarketOptions.MarketType) != 0 && !mixedInstancePolicyEnabled {

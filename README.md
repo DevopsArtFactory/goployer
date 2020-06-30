@@ -29,12 +29,14 @@ If other autoscaling groups of sample application already existed, for example `
 * Here are options you can use with command line
     * `--manifest` : manifest file path
     * `--ami` : AMI ID
+    * `--assume-role` : arn of IAM role you want to assume
     * `--stack` : the stack value you want to use for deployment
     * `--region` : the ID of region to which you want to deploy instances
     * `--slack-off` : whether turning off slack alarm or not. (default: false)
     * `--log-level` : level of Log (debug, info, error)
     * `--extra-tags` : extra tags to set from command line. comma-delimited string(no space between tags)
         -  ex) `--extra-tags=key1=value1,key2=value2`
+    * `--ansible-extra-vars` : extra variables to be used in ansible. Will be added to tag with `ansible-extra-vars` key.
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 * You *cannot run goployer from local environment* for security & management issue.
 ```bash
