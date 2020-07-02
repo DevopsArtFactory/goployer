@@ -347,6 +347,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
 			for _, asg := range b.PrevAsgs[region.Region] {
+				b.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
 				// First make autoscaling group size to 0
 				err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg)
 				if err != nil {
@@ -354,7 +355,6 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 				}
 			}
 		} else {
-
 			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
 			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), config.Env)
 		}

@@ -39,9 +39,9 @@ type SlackBody struct {
 	Text string `json:"text"`
 }
 
-func (s Slack) SendSimpleMessage(message string, env string) {
+func (s Slack) SendSimpleMessage(message string, env string) error {
 	if !s.ValidClient() {
-		return
+		return nil
 	}
 	color := colorMapping[env]
 	attachment := slack.Attachment{
@@ -49,16 +49,23 @@ func (s Slack) SendSimpleMessage(message string, env string) {
 		Color: color,
 	}
 	msgOpt := slack.MsgOptionAttachments(attachment)
-	s.SendMessage(msgOpt)
-}
 
-func (s Slack) SendMessage(msgOpt slack.MsgOption) (string, string, string) {
-	channel, timestamp, response, err := s.Client.SendMessage(s.ChannelId, msgOpt)
+	err := s.SendMessage(msgOpt)
 	if err != nil {
-		os.Exit(1)
+		return err
 	}
 
-	return channel, timestamp, response
+	return nil
+
+}
+
+func (s Slack) SendMessage(msgOpt slack.MsgOption) error {
+	_, _, _, err := s.Client.SendMessage(s.ChannelId, msgOpt)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s Slack) CreateSimpleSection(text string) *slack.SectionBlock {

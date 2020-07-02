@@ -96,11 +96,18 @@ func (r Runner) Run() error {
 	msg := r.Builder.MakeSummary(r.Builder.Config.Stack)
 	fmt.Println(msg)
 	if r.Slacker.ValidClient() {
-		r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
+		r.Logger.Debug("slack configuration is valid")
+		err := r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
+		if err != nil {
+			r.Logger.Warn(err.Error())
+			r.Slacker.SlackOff = true
+		}
 	} else {
 		// Slack variables are not set
 		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
 	}
+
+	Logger.Debug("create deployers for stacks")
 
 	//Prepare deployers
 	deployers := []deployer.DeployManager{}
@@ -108,7 +115,7 @@ func (r Runner) Run() error {
 		// If target stack is passed from command, then
 		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Debugf("Skipping this stack, stack=%s\n", stack.Stack)
+			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
 		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker)

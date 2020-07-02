@@ -255,7 +255,7 @@ stacks:
           - default-artp_apnortheast2
 
         # You can use healthcheck target group
-        healthcheckTargetGroup: hello-artpapne2-ext
+        healthcheck_target_group: hello-artpapne2-ext
 
         # If no availability zones specified, then all availability zones are selected by default.
         # If you want all availability zones, then please remove availability_zones key.
@@ -265,7 +265,7 @@ stacks:
           - ap-northeast-2c
 
         # list of target groups.
-        # The target group in the healthcheckTargetGroup should be included here.
+        # The target group in the healthcheck_target_group should be included here.
         target_groups:
           - hello-artpapne2-ext
 
@@ -279,7 +279,7 @@ stacks:
         security_groups:
           - hello-artp_useast1
           - default-artp_useast1
-        healthcheckTargetGroup: hello-artpuse1-ext
+        healthcheck_target_group: hello-artpuse1-ext
         target_groups:
           - hello-artpuse1-ext
 ``` 

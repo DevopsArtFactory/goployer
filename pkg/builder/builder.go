@@ -149,7 +149,7 @@ type RegionConfig struct {
 	VPC                    string   `yaml:"vpc"`
 	SecurityGroups         []string `yaml:"security_groups"`
 	HealthcheckLB          string   `yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup string   `yaml:"healthcheckTargetGroup"`
+	HealthcheckTargetGroup string   `yaml:"healthcheck_target_group"`
 	TargetGroups           []string `yaml:"target_groups"`
 	LoadBalancers          []string `yaml:"loadbalancers"`
 	AvailabilityZones      []string `yaml:"availability_zones"`
