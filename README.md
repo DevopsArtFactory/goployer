@@ -222,6 +222,39 @@ stacks:
         - echo test
         - service hello stop
 
+    # lifecycle hooks
+    lifecycle_hooks:
+      # Lifecycle hooks for launching new instances
+      launch_transition:
+        - lifecycle_hook_name: hello-launch-lifecycle-hook
+
+          # The maximum time, in seconds, that can elapse before the lifecycle hook times
+          # out.
+          #
+          # If the lifecycle hook times out, Amazon EC2 Auto Scaling performs the action
+          # that you specified in the `default_result` parameter.
+          heartbeat_timeout: 30
+
+          # Defines the action the Auto Scaling group should take when the lifecycle
+          # hook timeout elapses or if an unexpected failure occurs. The valid values
+          # are CONTINUE and ABANDON. The default value is ABANDON.
+          default_result: CONTINUE
+
+          # Additional information that you want to include any time Amazon EC2 AutoScaling sends a message to the notification target.
+          notification_metadata: "this is test for launching"
+
+          # The ARN of the target that Amazon EC2 Auto Scaling sends notifications to
+          # when an instance is in the transition state for the lifecycle hook. The notification
+          # target can be either an SQS queue or an SNS topic.
+          notification_target_arn: arn:aws:sns:ap-northeast-2:816736805842:test
+
+          # The ARN of the IAM role that allows the Auto Scaling group to publish to
+          # the specified notification target, for example, an Amazon SNS topic or an
+          # Amazon SQS queue.
+          # This is required if `notification_target_arn is not empty
+          role_arn: arn:aws:iam::816736805842:role/test-autoscaling-role
+
+
     # list of region
     # deployer will concurrently deploy across the region
     regions:

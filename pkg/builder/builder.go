@@ -104,9 +104,24 @@ type Stack struct {
 	BlockDevices          []BlockDevice         `yaml:"block_devices"`
 	Capacity              Capacity              `yaml:"capacity"`
 	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
-	Alarms                []AlarmConfigs        `yaml:alarms`
+	Alarms                []AlarmConfigs        `yaml:"alarms"`
 	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
+	LifecycleHooks        LifecycleHooks        `yaml:"lifecycle_hooks"`
 	Regions               []RegionConfig        `yaml:"regions"`
+}
+
+type LifecycleHooks struct {
+	LaunchTransition    []LifecycleHookSpecification `yaml:"launch_transition"`
+	TerminateTransition []LifecycleHookSpecification `yaml:"terminate_transition"`
+}
+
+type LifecycleHookSpecification struct {
+	DefaultResult         string `yaml:"default_result"`
+	HeartbeatTimeout      int64  `yaml:"heartbeat_timeout"`
+	LifecycleHookName     string `yaml:"lifecycle_hook_name"`
+	NotificationMetadata  string `yaml:"notification_metadata"`
+	NotificationTargetARN string `yaml:"notification_target_arn"`
+	RoleARN               string `yaml:"role_arn"`
 }
 
 type InstanceMarketOptions struct {
@@ -296,6 +311,40 @@ func (b Builder) CheckValidation() error {
 					return fmt.Errorf("device names are duplicated : %s", block.DeviceName)
 				} else {
 					dNames = append(dNames, block.DeviceName)
+				}
+			}
+		}
+
+		if &stack.LifecycleHooks != nil {
+			if len(stack.LifecycleHooks.LaunchTransition) > 0 {
+				for _, l := range stack.LifecycleHooks.LaunchTransition {
+					if len(l.NotificationTargetARN) > 0 && len(l.RoleARN) == 0 {
+						return fmt.Errorf("role_arn is needed if `notification_target_arn` is not empty : %s", l.LifecycleHookName)
+					}
+
+					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
+						return fmt.Errorf("notification_target_arn is needed if `role_arn` is not empty  : %s", l.LifecycleHookName)
+					}
+
+					if l.HeartbeatTimeout == 0 {
+						Logger.Warnf("you didn't specify the heartbeat timeout. you might have to wait too long time.")
+					}
+				}
+			}
+
+			if len(stack.LifecycleHooks.TerminateTransition) > 0 {
+				for _, l := range stack.LifecycleHooks.TerminateTransition {
+					if len(l.NotificationTargetARN) > 0 && len(l.RoleARN) == 0 {
+						return fmt.Errorf("role_arn is needed if `notification_target_arn` is not empty : %s", l.LifecycleHookName)
+					}
+
+					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
+						return fmt.Errorf("notification_target_arn is needed if `role_arn` is not empty  : %s", l.LifecycleHookName)
+					}
+
+					if l.HeartbeatTimeout == 0 {
+						Logger.Warnf("you didn't specify the heartbeat timeout. you might have to wait too long time.")
+					}
 				}
 			}
 		}
