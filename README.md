@@ -5,6 +5,8 @@ changes the autoscaling group so that you don't need to create another load bala
 `goployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
 <br><br>
 
+![goployer-demo](static/base.gif)
+
 ## # Requirements
 * You have to create a load balancer and target groups of it which goployer attach a new autoscaling group to. 
 * If you want to setup loadbalancer and target group with terraform, then please check this [devopsart workshop](https://devops-art-factory.gitbook.io/devops-workshop/terraform/terraform-resource/computing/elb-+-ec2).

@@ -5,7 +5,12 @@ EXECUTE_FILE := goployer
 format:
 	go fmt ./...
 
-build: format
+local-build: format
+	go build -o ${ARTIFACT_PATH}/local/${EXECUTE_FILE} main.go
+	mv ${ARTIFACT_PATH}/local/${EXECUTE_FILE} /usr/local/bin
+	rm -rf ${ARTIFACT_PATH}/local/${EXECUTE_FILE}
+
+build: format local-build
 	GOOS=${GOOS} go build -o ${ARTIFACT_PATH}/${EXECUTE_FILE} main.go
 
 clean:
