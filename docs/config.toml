@@ -1,4 +1,4 @@
-baseURL = "/"
+baseURL = "https://jolly-mestorf-5dd994.netlify.app/"
 title = "Goployer"
 
 enableRobotsTXT = true
