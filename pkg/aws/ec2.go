@@ -544,7 +544,14 @@ func (e EC2Client) GetVPCId(vpc string) string {
 	return *result.Vpcs[0].VpcId
 }
 
-func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string, healthcheck_grace_period int64, capacity builder.Capacity, loadbalancers, target_group_arns, termination_policies, availability_zones []*string, tags []*(autoscaling.Tag), subnets []string, mixedInstancePolicy builder.MixedInstancesPolicy) bool {
+func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string,
+	healthcheck_grace_period int64,
+	capacity builder.Capacity,
+	loadbalancers, target_group_arns, termination_policies, availability_zones []*string,
+	tags []*(autoscaling.Tag),
+	subnets []string,
+	mixedInstancePolicy builder.MixedInstancesPolicy, hooks []*autoscaling.LifecycleHookSpecification) bool {
+
 	lt := autoscaling.LaunchTemplateSpecification{
 		LaunchTemplateName: aws.String(launch_template_name),
 	}
@@ -596,6 +603,10 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 
 	} else {
 		input.LaunchTemplate = &lt
+	}
+
+	if len(hooks) > 0 {
+		input.LifecycleHookSpecificationList = hooks
 	}
 
 	_, err := e.AsClient.CreateAutoScalingGroup(input)
@@ -881,4 +892,54 @@ func (e EC2Client) EnableMetrics(asg_name string) error {
 	Logger.Info(fmt.Sprintf("Metrics monitoring of autoscaling group is enabled : %s", asg_name))
 
 	return nil
+}
+
+// Generate Lifecycle Hooks
+func (e EC2Client) GenerateLifecycleHooks(hooks builder.LifecycleHooks) []*autoscaling.LifecycleHookSpecification {
+	ret := []*autoscaling.LifecycleHookSpecification{}
+
+	if len(hooks.LaunchTransition) > 0 {
+		for _, l := range hooks.LaunchTransition {
+			lhs := createSingleLifecycleHookSpecification(l, "autoscaling:EC2_INSTANCE_LAUNCHING")
+			ret = append(ret, &lhs)
+		}
+	}
+
+	if len(hooks.TerminateTransition) > 0 {
+		for _, l := range hooks.TerminateTransition {
+			lhs := createSingleLifecycleHookSpecification(l, "autoscaling:EC2_INSTANCE_TERMINATING")
+			ret = append(ret, &lhs)
+		}
+	}
+
+	return ret
+}
+
+func createSingleLifecycleHookSpecification(l builder.LifecycleHookSpecification, transition string) autoscaling.LifecycleHookSpecification {
+	lhs := autoscaling.LifecycleHookSpecification{
+		LifecycleHookName:   aws.String(l.LifecycleHookName),
+		LifecycleTransition: aws.String(transition),
+	}
+
+	if len(l.DefaultResult) > 0 {
+		lhs.DefaultResult = aws.String(l.DefaultResult)
+	}
+
+	if l.HeartbeatTimeout > 0 {
+		lhs.HeartbeatTimeout = aws.Int64(l.HeartbeatTimeout)
+	}
+
+	if len(l.NotificationMetadata) > 0 {
+		lhs.NotificationMetadata = aws.String(l.NotificationMetadata)
+	}
+
+	if len(l.NotificationTargetARN) > 0 {
+		lhs.NotificationTargetARN = aws.String(l.NotificationTargetARN)
+	}
+
+	if len(l.RoleARN) > 0 {
+		lhs.RoleARN = aws.String(l.RoleARN)
+	}
+
+	return lhs
 }

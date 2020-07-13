@@ -149,6 +149,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		targetGroupArns := client.ELBService.GetTargetGroupARNs(targetGroups)
 		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars)
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
+		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
 
 		ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
@@ -163,6 +164,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			tags,
 			subnets,
 			b.Stack.MixedInstancesPolicy,
+			lifecycleHooksSpecificationList,
 		)
 
 		if !ret {
