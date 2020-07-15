@@ -37,19 +37,20 @@ type Builder struct {
 }
 
 type Config struct {
-	Manifest         string
-	Ami              string
-	Env              string
-	Stack            string
-	AssumeRole       string
-	Timeout          int64
-	StartTimestamp   int64
-	Region           string
-	Confirm          bool
-	SlackOff         bool
-	LogLevel         string
-	ExtraTags        string
-	AnsibleExtraVars string
+	Manifest             string
+	Ami                  string
+	Env                  string
+	Stack                string
+	AssumeRole           string
+	Timeout              int64
+	StartTimestamp       int64
+	Region               string
+	Confirm              bool
+	SlackOff             bool
+	LogLevel             string
+	ExtraTags            string
+	AnsibleExtraVars     string
+	OverrideInstanceType string
 }
 
 type YamlConfig struct {
@@ -477,23 +478,25 @@ func argumentParsing() Config {
 	logLevel := flag.String("log-level", "info", "log level")
 	extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
 	ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
+	overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
 
 	flag.Parse()
 
 	config := Config{
-		Manifest:         *manifest,
-		Ami:              *ami,
-		Env:              *env,
-		Stack:            *stack,
-		Region:           *region,
-		AssumeRole:       *assumeRole,
-		Timeout:          *timeout,
-		StartTimestamp:   time.Now().Unix(),
-		Confirm:          *confirm,
-		SlackOff:         *slackOff,
-		LogLevel:         *logLevel,
-		ExtraTags:        *extraTags,
-		AnsibleExtraVars: *ansibleExtraVars,
+		Manifest:             *manifest,
+		Ami:                  *ami,
+		Env:                  *env,
+		Stack:                *stack,
+		Region:               *region,
+		AssumeRole:           *assumeRole,
+		Timeout:              *timeout,
+		StartTimestamp:       time.Now().Unix(),
+		Confirm:              *confirm,
+		SlackOff:             *slackOff,
+		LogLevel:             *logLevel,
+		ExtraTags:            *extraTags,
+		AnsibleExtraVars:     *ansibleExtraVars,
+		OverrideInstanceType: *overrideInstanceType,
 	}
 
 	return config
