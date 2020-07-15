@@ -97,6 +97,16 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(b.Stack.BlockDevices)
 		ebsOptimized := b.Stack.EbsOptimized
 
+		// Instance Type Override
+		instanceType := region.InstanceType
+		if len(config.OverrideInstanceType) > 0 {
+			instanceType = config.OverrideInstanceType
+
+			if b.Stack.MixedInstancesPolicy.Enabled {
+				Logger.Warnf("--override-instance-type won't be applied because mixed_instances_policy is enabled")
+			}
+		}
+
 		// Launch Configuration
 		//ret := client.EC2Service.CreateNewLaunchConfiguration(
 		//	launch_configuration_name,
@@ -114,7 +124,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		ret := client.EC2Service.CreateNewLaunchTemplate(
 			launch_template_name,
 			ami,
-			region.InstanceType,
+			instanceType,
 			region.SshKey,
 			b.Stack.IamInstanceProfile,
 			userdata,
