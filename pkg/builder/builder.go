@@ -31,9 +31,10 @@ type S3Provider struct {
 }
 
 type Builder struct {
-	Config    Config    // Config from command
-	AwsConfig AWSConfig // Common Config
-	Stacks    []Stack   // Stack Config
+	Config       Config       // Config from command
+	AwsConfig    AWSConfig    // Common Config
+	MetricConfig MetricConfig // Configuration for metrics
+	Stacks       []Stack      // Stack Config
 }
 
 type Config struct {
@@ -51,6 +52,7 @@ type Config struct {
 	ExtraTags            string
 	AnsibleExtraVars     string
 	OverrideInstanceType string
+	DisableMetrics       bool
 }
 
 type YamlConfig struct {
@@ -258,6 +260,10 @@ func (b Builder) CheckValidation() error {
 
 	// check validations in each stack
 	for _, stack := range b.Stacks {
+		if stack.Stack != b.Config.Stack {
+			continue
+		}
+
 		// Check AMI
 		// Check Autoscaling and Alarm setting
 		if len(stack.Autoscaling) != 0 && len(stack.Alarms) != 0 {
@@ -393,7 +399,7 @@ timeout    : %d
 assume role        : %s
 extra tags        : %s
 ============================================================
-Stacks
+Stack
 ============================================================`
 	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout, b.Config.AssumeRole, b.Config.ExtraTags))
 
@@ -479,6 +485,7 @@ func argumentParsing() Config {
 	extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
 	ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
 	overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
+	disableMetrics := flag.Bool("disable-metrics", false, "Disable gathering metrics")
 
 	flag.Parse()
 
@@ -497,6 +504,7 @@ func argumentParsing() Config {
 		ExtraTags:            *extraTags,
 		AnsibleExtraVars:     *ansibleExtraVars,
 		OverrideInstanceType: *overrideInstanceType,
+		DisableMetrics:       *disableMetrics,
 	}
 
 	return config

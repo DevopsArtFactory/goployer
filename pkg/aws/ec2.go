@@ -638,7 +638,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 }
 
 // GenerateTags creates tag list for autoscaling group
-func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags, extraTags, ansibleExtraVars string) []*autoscaling.Tag {
+func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
 	ret := []*autoscaling.Tag{}
 
 	for _, tagKV := range tagList {
@@ -667,7 +667,7 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 	//Add stack name
 	ret = append(ret, &autoscaling.Tag{
 		Key:   aws.String("stack"),
-		Value: aws.String(stack),
+		Value: aws.String(fmt.Sprintf("%s_%s", stack, strings.ReplaceAll(region, "-", ""))),
 	})
 
 	//Add ansibleTags

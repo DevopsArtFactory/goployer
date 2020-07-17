@@ -157,7 +157,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		terminationPolicies := []*string{}
 		availabilityZones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
 		targetGroupArns := client.ELBService.GetTargetGroupARNs(targetGroups)
-		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars)
+		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars, region.Region)
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
 
@@ -184,6 +184,8 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		b.AsgNames[region.Region] = new_asg_name
 		b.PrevAsgs[region.Region] = prev_asgs
 		b.PrevInstances[region.Region] = prev_instanceIds
+
+		b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating")
 	}
 }
 
@@ -226,6 +228,9 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		isHealthy := b.Deployer.polling(region, asg, client)
 
 		if isHealthy {
+			if err := b.Collector.UpdateStatus(*asg.AutoScalingGroupName, "deployed", nil); err != nil {
+				Logger.Errorf("Update status Error, %s : %s", err.Error(), *asg.AutoScalingGroupName)
+			}
 			finished = append(finished, region.Region)
 		}
 	}
