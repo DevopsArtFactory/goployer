@@ -4,18 +4,48 @@ linkTitle = "Goployer"
 
 +++
 
-{{< blocks/cover title="Welcome to Goployer: New EC2 Deployer" image_anchor="top" height="full" color="orange" >}}
-<div class="mx-auto">
-	<a class="btn btn-lg btn-primary mr-3 mb-4" href="{{< relref "/about" >}}">
-		Learn More <i class="fas fa-arrow-alt-circle-right ml-2"></i>
-	</a>
-	<a class="btn btn-lg btn-secondary mr-3 mb-4" href="https://github.com/DevopsArtFactory/goployer" target="_blank">
-		Download <i class="fab fa-github ml-2 "></i>
-	</a>
-	<p class="lead mt-5">Deploy your service in a secure way.</p>
-	{{< blocks/link-down color="info" >}}
-</div>
-{{< /blocks/cover >}}
+<section class="main-color row td-box td-box--white position-relative td-box--gradient td-box--height-small">
+    <div class="text-color container-fluid main-container goployer-font">
+        <div class="landing-section hero">
+            <div class="row">
+                <div class="col-sm-1"></div>
+                <div class="col-sm-10" align="left">
+                    <div class="tagline row">
+                        Fast. Powerful. Simple.
+                    </div>
+                    <div class="title row" id="fadein">
+                        EC2 Deployment Tool
+                    </div>
+                    <div class="row mt-4">
+                        <div class="col-sm-2"></div>
+                        <div class="col-sm-4">
+                            <div style="margin:auto; display: flex;">
+                                <a class="splashbutton splashbutton-secondary btn" style="margin: auto"
+                                   href="{{< relref "/docs/install" >}}">
+                                    Get Goployer <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <span class="col-sm-4">
+							<div style="margin:auto; display: flex;">
+							<a class="splashbutton splashbutton-primary btn" style="margin: auto"
+                               href="{{< relref "/docs/quickstart" >}}">
+								Get Started <i class="fas fa-arrow-alt-circle-right"></i>
+							</a>
+							</div>
+						</span>
+                        <div class="col-sm-2"></div>
+                    </div>
+                    <div class="row mt-4 mb-3"></div>
+                    <div class="row mt-2" style="font-size:1.2rem">
+                        Goployer handles the whole processes of application deployment with AWS Autoscaling, Load Balancer, and EC2 instances.
+                    </div>
+                </div>
+                <div class="col-sm-1"></div>
+            </div>
+        </div>
+    </div>
+</section>
 
 
 {{% blocks/lead color="primary" %}}
@@ -38,13 +68,3 @@ We do a [Pull Request](https://github.com/DevopsArtFactory/goployer/pulls) contr
 You don't need to be worried about deployments. Just develop your application and deploy easily and comfortably.
 {{% /blocks/feature %}}
 
-
-{{< /blocks/section >}}
-
-{{< blocks/section >}}
-
-<div class="col-12">
-<h1 class="text-center">Goployer is currently maintained</h1>
-</div>
-
-{{< /blocks/section >}}

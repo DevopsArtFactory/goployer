@@ -1,25 +1,44 @@
 
 ---
-title: "Documentation"
+title: "Goployer Documentation"
 linkTitle: "Documentation"
-draft: true
 weight: 20
+layout: single
 menu:
   main:
     weight: 20
 ---
 
-{{% pageinfo %}}
-This is a placeholder page that shows you how to use this template site.
-{{% /pageinfo %}}
+Goployer is open-source deployment tool with AWS Autoscaling group. Goployer handles the whole cycle of deployment, and keep track of deployment
+histories. This enables you to focus on server settings with the userdata and goployer will deploy your application safely with manifest configuration
+ you made.
+ 
+## Features
 
+* Safe Deployment with versioning
+  * **Blue/Green Deployment** - Goployer uses **blue/green** deployment by default in order to ensure the safe deployment. Goployer will create new autoscaling group and attach it to the target group.
+  After checking all the instances of autoscaling group are healthy, then delete the previous autoscaling group.
+  * **Versioning** - In the autoscaling group name, you can find the current version easily.
+* Use most of autoscaling group feature
+  * **Autoscaling Policy** - You can create autoscaling policy with AWS CloudWatch.
+  * **Spot Instance** - You can make launch template with spot configuration.
+  * **Mixed Instance Policy** - You can use on-demand and spot instance together with MixedInstancePolicy supported by autoscaling group. Autoscaling group will control spot request on behalf of you.
+* Metric Enabled
+  * **History Management** - You can make history records to AWS DynamoDB and keep track of deployment duration.
 
-This section is where the user documentation for your project lives - all the information your users need to understand and successfully use your project. 
+## Demo
 
-For large documentation sets we recommend adding content under the headings in this section, though if some or all of them don’t apply to your project feel free to remove them or add your own. You can see an example of a smaller Docsy documentation site in the [Docsy User Guide](https://docsy.dev/docs/), which lives in the [Docsy theme repo](https://github.com/google/docsy/tree/master/userguide) if you'd like to copy its docs section. 
+![base](/images/base.gif)
 
-Other content such as marketing material, case studies, and community updates should live in the [About](/about/) and [Community](/community/) pages.
+## # How goployer works
 
-Find out how to use the Docsy theme in the [Docsy User Guide](https://docsy.dev/docs/). You can learn more about how to organize your documentation (and how we organized this site) in [Organizing Your Content](https://docsy.dev/docs/best-practices/organizing-content/).
-
+* Here's the steps that goployer executes for deployment
+1. Generate new version for current deployment.<br>
+If other autoscaling groups of sample application already existed, for example `hello-v001`, then next version will be `hello-v002`
+2. Create a new launch template. 
+3. Create autoscaling group with launch template from the previous step. A newly created autoscaling group will be automatically attached to the target groups you specified in manifest.
+4. Check all instances of all stacks are healty. Until all of them pass healthchecking, it won't go to the next step.
+5. (optional) If you add `autoscaling` in manifest, goployer creates autoscaling policies and put these to the autoscaling group. If you use `alarms` with autoscaling, then goployer will also create a cloudwatch alarm for autoscaling policy.
+6. After all stacks are deployed, then goployer tries to delete previous versions of the same application.
+   Launch templates of previous autoscaling groups are also going to be deleted.
 

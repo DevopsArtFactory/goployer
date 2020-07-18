@@ -1,0 +1,9 @@
+.scheme-container, .information-container {
+    display: none;
+}
+
+
+/*TODO remove (https://github.com/GoogleContainerTools/goployer/issues/3168)*/
+#operations-goployerService-EventLog div.opblock-section, div.execute-wrapper {
+    display: none;
+}
