@@ -1,0 +1,4 @@
+region: ap-northeast-2
+storage:
+  type: dynamodb
+  name: goployer-metrics

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ type Deployer struct {
 	AWSClients    []aws.AWSClient
 	LocalProvider builder.UserdataProvider
 	Slack         tool.Slack
+	Collector     collector.Collector
 }
 
 // getCurrentVersion returns current version for current deployment step
@@ -90,9 +92,15 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 	}
 	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
 
-	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
-	err := client.EC2Service.DeleteLaunchTemplates(target)
+	additionalAttributes, err := d.Collector.GetAdditionalMetric(target)
 	if err != nil {
+		d.Logger.Errorln(err.Error())
+		return false
+	}
+	d.Collector.UpdateStatus(target, "terminated", additionalAttributes)
+
+	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
+	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
 		d.Logger.Errorln(err.Error())
 		return false
 	}

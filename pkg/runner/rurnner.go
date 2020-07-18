@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
@@ -12,9 +13,10 @@ import (
 )
 
 type Runner struct {
-	Logger  *Logger.Logger
-	Builder builder.Builder
-	Slacker tool.Slack
+	Logger    *Logger.Logger
+	Builder   builder.Builder
+	Collector collector.Collector
+	Slacker   tool.Slack
 }
 
 var (
@@ -56,7 +58,10 @@ func Start() error {
 
 //withRunner creates runner and runs the deployment process
 func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error) error {
-	runner := NewRunner(builder)
+	runner, err := NewRunner(builder)
+	if err != nil {
+		return err
+	}
 	runner.LogFormatting(builder.Config.LogLevel)
 	if err := runner.Run(); err != nil {
 		return err
@@ -66,12 +71,20 @@ func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) err
 }
 
 //NewRunner creates a new runner
-func NewRunner(builder builder.Builder) Runner {
-	return Runner{
-		Logger:  Logger.New(),
-		Builder: builder,
-		Slacker: tool.NewSlackClient(builder.Config.SlackOff),
+func NewRunner(newBuilder builder.Builder) (Runner, error) {
+	m, err := builder.ParseMetricConfig(newBuilder.Config.DisableMetrics)
+	if err != nil {
+		return Runner{}, err
 	}
+
+	newBuilder.MetricConfig = m
+
+	return Runner{
+		Logger:    Logger.New(),
+		Builder:   newBuilder,
+		Collector: collector.NewCollector(m, newBuilder.Config.AssumeRole),
+		Slacker:   tool.NewSlackClient(newBuilder.Config.SlackOff),
+	}, nil
 }
 
 // Set log format
@@ -107,6 +120,15 @@ func (r Runner) Run() error {
 		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
 	}
 
+	if r.Builder.MetricConfig.Enabled {
+		Logger.Infof("Metric Measurement is enabled")
+
+		Logger.Debugf("check if storage exists or not")
+		if err := r.Collector.CheckStorage(); err != nil {
+			return err
+		}
+	}
+
 	Logger.Debug("create deployers for stacks")
 
 	//Prepare deployers
@@ -118,7 +140,7 @@ func (r Runner) Run() error {
 			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker)
+		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
@@ -152,7 +174,7 @@ func (r Runner) Run() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.AWSConfig, slack tool.Slack) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.AWSConfig, slack tool.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,
@@ -161,6 +183,7 @@ func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.A
 	)
 
 	deployer.Slack = slack
+	deployer.Collector = c
 
 	return deployer
 }

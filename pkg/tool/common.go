@@ -117,3 +117,13 @@ func CheckTimeout(start int64, timeout int64) bool {
 
 	return false
 }
+
+//Get KST Timestamp
+func GetKstTimestamp() time.Time {
+	now := time.Now()
+
+	loc, _ := time.LoadLocation("Asia/Seoul")
+	kst := now.In(loc)
+
+	return kst
+}

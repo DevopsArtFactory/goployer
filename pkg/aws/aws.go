@@ -20,6 +20,11 @@ type AWSClient struct {
 	SSMService        SSMClient
 }
 
+type MetricClient struct {
+	Region          string
+	DynamoDBService DynamoDBClient
+}
+
 func getAwsSession() *session.Session {
 	mySession := session.Must(session.NewSession())
 	return mySession
@@ -53,6 +58,23 @@ func BootstrapServices(region string, assume_role string) AWSClient {
 		ELBService:        NewELBV2Client(aws_session, region, creds),
 		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
 		SSMService:        NewSSMClient(aws_session, region, creds),
+	}
+
+	return client
+}
+
+func BootstrapMetricService(region string, assume_role string) MetricClient {
+	aws_session := getAwsSession()
+
+	var creds *credentials.Credentials
+	if len(assume_role) != 0 {
+		creds = stscreds.NewCredentials(aws_session, assume_role)
+	}
+
+	//Get all clients
+	client := MetricClient{
+		Region:          region,
+		DynamoDBService: NewDynamoDBClient(aws_session, region, creds),
 	}
 
 	return client
