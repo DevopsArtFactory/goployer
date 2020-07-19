@@ -23,7 +23,10 @@ func NewCollector(mc builder.MetricConfig, assumeRole string) Collector {
 	}
 }
 
-func (c Collector) CheckStorage() error {
+func (c Collector) CheckStorage(logger *Logger.Logger) error {
+	if len(c.MetricConfig.Storage.Type) <= 0 {
+		logger.Warnf("you did not specify the storage type so that default storage type will be applied : %s", builder.DEFAULT_METRIC_STORAGE_TYPE)
+	}
 	if c.MetricConfig.Storage.Type == "dynamodb" {
 		isExist, err := c.MetricClient.DynamoDBService.CheckTableExists(c.MetricConfig.Storage.Name)
 		if err != nil {
@@ -31,21 +34,21 @@ func (c Collector) CheckStorage() error {
 		}
 
 		if isExist {
-			Logger.Infof("you already had a table : %s", c.MetricConfig.Storage.Name)
+			logger.Infof("you already had a table : %s", c.MetricConfig.Storage.Name)
 		} else {
-			Logger.Infof("you don't have a table : %s", c.MetricConfig.Storage.Name)
+			logger.Infof("you don't have a table : %s", c.MetricConfig.Storage.Name)
 			if err := c.MetricClient.DynamoDBService.CreateTable(c.MetricConfig.Storage.Name); err != nil {
 				return err
 			}
 
-			Logger.Infof("new table is created : %s", c.MetricConfig.Storage.Name)
+			logger.Infof("new table is created : %s", c.MetricConfig.Storage.Name)
 		}
 	}
 
 	return nil
 }
 
-func (c Collector) StampDeployment(stack builder.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string) error {
+func (c Collector) StampDeployment(stack builder.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
 	tagsMap := map[string]string{}
 
 	for _, tag := range tags {
@@ -70,7 +73,7 @@ func (c Collector) StampDeployment(stack builder.Stack, config builder.Config, t
 	}
 	configString := string(configJson)
 
-	if err := c.MetricClient.DynamoDBService.MakeRecord(stackString, configString, tagString, asg, c.MetricConfig.Storage.Name, status); err != nil {
+	if err := c.MetricClient.DynamoDBService.MakeRecord(stackString, configString, tagString, asg, c.MetricConfig.Storage.Name, status, additionalFields); err != nil {
 		return err
 	}
 

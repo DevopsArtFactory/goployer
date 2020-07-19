@@ -272,13 +272,13 @@ stacks:
           # The ARN of the target that Amazon EC2 Auto Scaling sends notifications to
           # when an instance is in the transition state for the lifecycle hook. The notification
           # target can be either an SQS queue or an SNS topic.
-          #notification_target_arn: arn:aws:sns:ap-northeast-2:816736805842:test
+          #notification_target_arn: arn:aws:sns:ap-northeast-2:xxxxxxxx:test
 
           # The ARN of the IAM role that allows the Auto Scaling group to publish to
           # the specified notification target, for example, an Amazon SNS topic or an
           # Amazon SQS queue.
           # This is required if `notification_target_arn is not empty
-          #role_arn: arn:aws:iam::816736805842:role/test-autoscaling-role
+          #role_arn: arn:aws:iam::xxxxxxxx:role/test-autoscaling-role
 
       # Lifecycle hooks for terminating instances
       #terminate_transition:
@@ -286,8 +286,8 @@ stacks:
       #    heartbeat_timeout: 30
       #    default_result: CONTINUE
       #    notification_metadata: ""
-      #    notification_target_arn: arn:aws:sns:ap-northeast-2:816736805842:test
-      #    role_arn: arn:aws:iam::816736805842:role/test-autoscaling-role
+      #    notification_target_arn: ""
+      #    role_arn: arn:aws:iam::xxxx:role/test-autoscaling-role
 
 
     # list of region

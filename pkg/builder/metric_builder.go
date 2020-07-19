@@ -7,7 +7,8 @@ import (
 )
 
 var (
-	METRIC_YAML_PATH = "metrics.yaml"
+	METRIC_YAML_PATH            = "metrics.yaml"
+	DEFAULT_METRIC_STORAGE_TYPE = "dynamodb"
 )
 
 type MetricBuilder struct {

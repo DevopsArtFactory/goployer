@@ -41,6 +41,8 @@ If other autoscaling groups of sample application already existed, for example `
         -  ex) `--extra-tags=key1=value1,key2=value2`
     * `--ansible-extra-vars` : extra variables to be used in ansible. Will be added to tag with `ansible-extra-vars` key.
     * `--override-instance-type` : instance type you want to override when running goployer command.
+    * `--release-notes` : Release notes for deployment.
+    * `--release-notes-base64` : Release notes for deployment encoded with base64
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 * You *cannot run goployer from local environment* for security & management issue.
 ```bash

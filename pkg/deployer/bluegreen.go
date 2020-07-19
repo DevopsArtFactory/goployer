@@ -62,20 +62,25 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		asgGroups := client.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(frigga.Prefix)
 
 		//Get All Previous Autoscaling Groups and versions
-		prev_asgs := []string{}
-		prev_instanceIds := []string{}
-		prev_versions := []int{}
+		prevAsgs := []string{}
+		prevInstanceIds := []string{}
+		prevVersions := []int{}
+		var prevInstanceCount builder.Capacity
 		for _, asgGroup := range asgGroups {
-			prev_asgs = append(prev_asgs, *asgGroup.AutoScalingGroupName)
-			prev_versions = append(prev_versions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
+			prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
+			prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
 			for _, instance := range asgGroup.Instances {
-				prev_instanceIds = append(prev_instanceIds, *instance.InstanceId)
+				prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
 			}
+
+			prevInstanceCount.Desired = *asgGroup.DesiredCapacity
+			prevInstanceCount.Max = *asgGroup.MaxSize
+			prevInstanceCount.Min = *asgGroup.MinSize
 		}
-		b.Logger.Info("Previous Versions : ", strings.Join(prev_asgs, " | "))
+		b.Logger.Info("Previous Versions : ", strings.Join(prevAsgs, " | "))
 
 		// Get Current Version
-		curVersion := getCurrentVersion(prev_versions)
+		curVersion := getCurrentVersion(prevVersions)
 		b.Logger.Info("Current Version :", curVersion)
 
 		//Get AMI
@@ -106,19 +111,6 @@ func (b BlueGreen) Deploy(config builder.Config) {
 				Logger.Warnf("--override-instance-type won't be applied because mixed_instances_policy is enabled")
 			}
 		}
-
-		// Launch Configuration
-		//ret := client.EC2Service.CreateNewLaunchConfiguration(
-		//	launch_configuration_name,
-		//	ami,
-		//	b.Stack.InstanceType,
-		//	b.Stack.SshKey,
-		//	b.Stack.IamInstanceProfile,
-		//	userdata,
-		//	ebsOptimized,
-		//	securityGroups,
-		//	blockDevices,
-		//)
 
 		// LaunchTemplate
 		ret := client.EC2Service.CreateNewLaunchTemplate(
@@ -161,12 +153,22 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
 
+		var appliedCapacity builder.Capacity
+		if !config.ForceManifestCapacity && prevInstanceCount.Desired > b.Stack.Capacity.Desired {
+			appliedCapacity = prevInstanceCount
+			b.Logger.Infof("Current desired instance count is larger than the number of instances in manifest file")
+		} else {
+			appliedCapacity = b.Stack.Capacity
+		}
+
+		b.Logger.Infof("Applied instance capacity - Min: %d, Desired: %d, Max: %d", appliedCapacity.Max, appliedCapacity.Desired, appliedCapacity.Max)
+
 		ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
 			launch_template_name,
 			healthcheckType,
 			healthcheckGracePeriod,
-			b.Stack.Capacity,
+			appliedCapacity,
 			aws.MakeStringArrayToAwsStrings(loadbalancers),
 			targetGroupArns,
 			terminationPolicies,
@@ -182,10 +184,26 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		}
 
 		b.AsgNames[region.Region] = new_asg_name
-		b.PrevAsgs[region.Region] = prev_asgs
-		b.PrevInstances[region.Region] = prev_instanceIds
+		b.PrevAsgs[region.Region] = prevAsgs
+		b.PrevInstances[region.Region] = prevInstanceIds
 
-		b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating")
+		if b.Collector.MetricConfig.Enabled {
+			additionalFields := map[string]string{}
+			if len(config.ReleaseNotes) > 0 {
+				additionalFields["release-notes"] = config.ReleaseNotes
+			}
+
+			if len(config.ReleaseNotesBase64) > 0 {
+				additionalFields["release-notes-base64"] = config.ReleaseNotesBase64
+			}
+
+			if len(userdata) > 0 {
+				additionalFields["userdata"] = userdata
+			}
+
+			b.Stack.Capacity = appliedCapacity
+			b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating", additionalFields)
+		}
 	}
 }
 
@@ -228,8 +246,10 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		isHealthy := b.Deployer.polling(region, asg, client)
 
 		if isHealthy {
-			if err := b.Collector.UpdateStatus(*asg.AutoScalingGroupName, "deployed", nil); err != nil {
-				Logger.Errorf("Update status Error, %s : %s", err.Error(), *asg.AutoScalingGroupName)
+			if b.Collector.MetricConfig.Enabled {
+				if err := b.Collector.UpdateStatus(*asg.AutoScalingGroupName, "deployed", nil); err != nil {
+					Logger.Errorf("Update status Error, %s : %s", err.Error(), *asg.AutoScalingGroupName)
+				}
 			}
 			finished = append(finished, region.Region)
 		}

@@ -116,7 +116,7 @@ func (d DynamoDBClient) CreateTable(tableName string) error {
 	return nil
 }
 
-func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, tableName string, status string) error {
+func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, tableName string, status string, additionalFields map[string]string) error {
 	input := &dynamodb.PutItemInput{
 		Item: map[string]*dynamodb.AttributeValue{
 			"identifier": {
@@ -139,6 +139,12 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 			},
 		},
 		TableName: aws.String(tableName),
+	}
+
+	if additionalFields != nil && len(additionalFields) > 0 {
+		for k, v := range additionalFields {
+			input.Item[k] = &dynamodb.AttributeValue{S: aws.String(v)}
+		}
 	}
 
 	_, err := d.Client.PutItem(input)
