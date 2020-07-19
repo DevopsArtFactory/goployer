@@ -17,7 +17,7 @@ commit: format local-build
 	rm -rf ${ARTIFACT_PATH}
 	git add .
 	git commit
-	git push origin $(git branch --show-current)
+	git push origin $(shell git branch --show-current)
 
 
 clean:
