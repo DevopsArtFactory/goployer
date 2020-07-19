@@ -27,11 +27,11 @@ type Deployer struct {
 }
 
 // getCurrentVersion returns current version for current deployment step
-func getCurrentVersion(prev_versions []int) int {
-	if len(prev_versions) == 0 {
+func getCurrentVersion(prevVersions []int) int {
+	if len(prevVersions) == 0 {
 		return 0
 	}
-	return (prev_versions[len(prev_versions)-1] + 1) % 100
+	return (prevVersions[len(prevVersions)-1] + 1) % 100
 }
 
 // Polling for healthcheck
@@ -97,7 +97,9 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 		d.Logger.Errorln(err.Error())
 		return false
 	}
-	d.Collector.UpdateStatus(target, "terminated", additionalAttributes)
+	if d.Collector.MetricConfig.Enabled {
+		d.Collector.UpdateStatus(target, "terminated", additionalAttributes)
+	}
 
 	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
 	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {

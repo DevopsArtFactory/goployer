@@ -38,21 +38,24 @@ type Builder struct {
 }
 
 type Config struct {
-	Manifest             string
-	Ami                  string
-	Env                  string
-	Stack                string
-	AssumeRole           string
-	Timeout              int64
-	StartTimestamp       int64
-	Region               string
-	Confirm              bool
-	SlackOff             bool
-	LogLevel             string
-	ExtraTags            string
-	AnsibleExtraVars     string
-	OverrideInstanceType string
-	DisableMetrics       bool
+	Manifest              string
+	Ami                   string
+	Env                   string
+	Stack                 string
+	AssumeRole            string
+	Timeout               int64
+	StartTimestamp        int64
+	Region                string
+	Confirm               bool
+	SlackOff              bool
+	LogLevel              string
+	ExtraTags             string
+	AnsibleExtraVars      string
+	OverrideInstanceType  string
+	DisableMetrics        bool
+	ReleaseNotes          string
+	ReleaseNotesBase64    string
+	ForceManifestCapacity bool
 }
 
 type YamlConfig struct {
@@ -258,6 +261,16 @@ func (b Builder) CheckValidation() error {
 		return fmt.Errorf("one ami id cannot be used in different regions : %s", target_ami)
 	}
 
+	// check metric configuration file if metric feature is enabled
+	if !b.Config.DisableMetrics && !tool.FileExists(METRIC_YAML_PATH) {
+		return fmt.Errorf("no %s file exists", METRIC_YAML_PATH)
+	}
+
+	// check release notes
+	if len(b.Config.ReleaseNotes) > 0 && len(b.Config.ReleaseNotesBase64) > 0 {
+		return fmt.Errorf("you cannot specify the release-notes and release-notes-base64 at the same time")
+	}
+
 	// check validations in each stack
 	for _, stack := range b.Stacks {
 		if stack.Stack != b.Config.Stack {
@@ -383,6 +396,15 @@ func (b Builder) CheckValidation() error {
 			}
 		}
 	}
+
+	if len(b.MetricConfig.Region) <= 0 {
+		return fmt.Errorf("you do not specify the region for metrics")
+	}
+
+	if len(b.MetricConfig.Storage.Name) <= 0 {
+		return fmt.Errorf("you do not specify the name of storage for metrics")
+	}
+
 	return nil
 }
 
@@ -486,25 +508,31 @@ func argumentParsing() Config {
 	ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
 	overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
 	disableMetrics := flag.Bool("disable-metrics", false, "Disable gathering metrics")
+	releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
+	releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
+	forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
 
 	flag.Parse()
 
 	config := Config{
-		Manifest:             *manifest,
-		Ami:                  *ami,
-		Env:                  *env,
-		Stack:                *stack,
-		Region:               *region,
-		AssumeRole:           *assumeRole,
-		Timeout:              *timeout,
-		StartTimestamp:       time.Now().Unix(),
-		Confirm:              *confirm,
-		SlackOff:             *slackOff,
-		LogLevel:             *logLevel,
-		ExtraTags:            *extraTags,
-		AnsibleExtraVars:     *ansibleExtraVars,
-		OverrideInstanceType: *overrideInstanceType,
-		DisableMetrics:       *disableMetrics,
+		Manifest:              *manifest,
+		Ami:                   *ami,
+		Env:                   *env,
+		Stack:                 *stack,
+		Region:                *region,
+		AssumeRole:            *assumeRole,
+		Timeout:               *timeout,
+		StartTimestamp:        time.Now().Unix(),
+		Confirm:               *confirm,
+		SlackOff:              *slackOff,
+		LogLevel:              *logLevel,
+		ExtraTags:             *extraTags,
+		AnsibleExtraVars:      *ansibleExtraVars,
+		OverrideInstanceType:  *overrideInstanceType,
+		DisableMetrics:        *disableMetrics,
+		ReleaseNotes:          *releaseNotes,
+		ReleaseNotesBase64:    *releaseNotesBase64,
+		ForceManifestCapacity: *forceManifestCapacity,
 	}
 
 	return config

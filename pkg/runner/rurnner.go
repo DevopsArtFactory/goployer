@@ -38,20 +38,27 @@ func Start() error {
 	//}
 
 	// Create new builder
-	builder, err := builder.NewBuilder()
+	builderSt, err := builder.NewBuilder()
 	if err != nil {
 		return err
 	}
 
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics)
+	if err != nil {
+		return err
+	}
+
+	builderSt.MetricConfig = m
+
 	// Check validation of configurations
-	if err := builder.CheckValidation(); err != nil {
+	if err := builderSt.CheckValidation(); err != nil {
 		return err
 	}
 
 	// run with runner
-	return withRunner(builder, func(slacker tool.Slack) error {
+	return withRunner(builderSt, func(slacker tool.Slack) error {
 		// These are post actions after deployment
-		slacker.SendSimpleMessage(":100: Deployment is done.", builder.Config.Env)
+		slacker.SendSimpleMessage(":100: Deployment is done.", builderSt.Config.Env)
 		return nil
 	})
 }
@@ -63,6 +70,7 @@ func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) err
 		return err
 	}
 	runner.LogFormatting(builder.Config.LogLevel)
+
 	if err := runner.Run(); err != nil {
 		return err
 	}
@@ -70,19 +78,14 @@ func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) err
 	return postAction(runner.Slacker)
 }
 
+// check validation for
+
 //NewRunner creates a new runner
 func NewRunner(newBuilder builder.Builder) (Runner, error) {
-	m, err := builder.ParseMetricConfig(newBuilder.Config.DisableMetrics)
-	if err != nil {
-		return Runner{}, err
-	}
-
-	newBuilder.MetricConfig = m
-
 	return Runner{
 		Logger:    Logger.New(),
 		Builder:   newBuilder,
-		Collector: collector.NewCollector(m, newBuilder.Config.AssumeRole),
+		Collector: collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole),
 		Slacker:   tool.NewSlackClient(newBuilder.Config.SlackOff),
 	}, nil
 }
@@ -121,15 +124,15 @@ func (r Runner) Run() error {
 	}
 
 	if r.Builder.MetricConfig.Enabled {
-		Logger.Infof("Metric Measurement is enabled")
+		r.Logger.Infof("Metric Measurement is enabled")
 
-		Logger.Debugf("check if storage exists or not")
-		if err := r.Collector.CheckStorage(); err != nil {
+		r.Logger.Debugf("check if storage exists or not")
+		if err := r.Collector.CheckStorage(r.Logger); err != nil {
 			return err
 		}
 	}
 
-	Logger.Debug("create deployers for stacks")
+	r.Logger.Debug("create deployers for stacks")
 
 	//Prepare deployers
 	deployers := []deployer.DeployManager{}
