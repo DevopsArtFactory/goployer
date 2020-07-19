@@ -103,9 +103,9 @@ release-build: cross
 
 .PHONY: upload-only
 upload-only:
-	aws s3 cp $(BUILD_DIR)/ $(S3_RELEASE_PATH)/ --recursive --include "$(PROJECT)-*"
-	aws s3 cp $(BUILD_DIR)/VERSION $(S3_RELEASE_PATH)/VERSION
-	aws s3 cp $(S3_RELEASE_PATH)/* $(S3_RELEASE_LATEST) --recursive
+	aws s3 cp $(BUILD_DIR)/ $(S3_RELEASE_PATH)/ --recursive --include "$(PROJECT)-*" --acl public-read
+	aws s3 cp $(BUILD_DIR)/VERSION $(S3_RELEASE_PATH)/VERSION --acl public-read
+	aws s3 cp $(S3_RELEASE_PATH)/ $(S3_RELEASE_LATEST)/ --recursive --acl public-read
 
 .PHONY: clean
 clean:
