@@ -1,7 +1,7 @@
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= amd64
 BUILD_DIR ?= ./out
-ORG = github.com/GoogleContainerTools
+ORG = github.com/DevopsArtFactory
 PROJECT = goployer
 REPOPATH ?= $(ORG)/$(PROJECT)
 RELEASE_BUCKET ?= $(PROJECT)
