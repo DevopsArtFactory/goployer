@@ -111,7 +111,7 @@ func CheckTimeout(start int64, timeout int64) bool {
 
 	//Over timeout
 	if (now - start) > timeoutSec {
-		Logger.Error("Timeout has been exceeded : %s minutes", timeout)
+		Logger.Errorf("Timeout has been exceeded : %s minutes", timeout)
 		os.Exit(1)
 	}
 
