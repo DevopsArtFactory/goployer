@@ -22,7 +22,7 @@ Your use of this software is subject to the [Google Privacy Policy](https://poli
 {{% tab "LINUX" %}}
 The latest **stable** binary can be found here:
 
-https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-darwin-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-linux-amd64
 
 Simply download it and add it to your `PATH`. Or, copy+paste this command in your terminal:
 
@@ -33,10 +33,10 @@ sudo install goployer /usr/local/bin/
 
 We also release a **bleeding edge** build, built from the latest commit:
 
-https://storage.googleapis.com/goployer/builds/latest/goployer-linux-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64
 
 ```bash
-curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-linux-amd64 && \
+curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64 && \
 sudo install goployer /usr/local/bin/
 ```
 
@@ -57,10 +57,10 @@ sudo install goployer /usr/local/bin/
 
 We also release a **bleeding edge** build, built from the latest commit:
 
-https://storage.googleapis.com/goployer/builds/latest/goployer-darwin-amd64
+https://storage.googleapis.com/goployer/edge/latest/goployer-darwin-amd64
 
 ```bash
-curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-darwin-amd64 && \
+curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64 && \
 sudo install goployer /usr/local/bin/
 ```
 
@@ -84,7 +84,7 @@ Simply download it and place it in your `PATH` as `goployer.exe`.
 
 We also release a **bleeding edge** build, built from the latest commit:
 
-https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-windows-amd64.exe
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-windows-amd64.exe
 
 {{% /tab %}}
 
@@ -100,7 +100,7 @@ For the latest **stable** release, you can use:
 
 For the latest **bleeding edge** build:
 
-`docker run devopsart/goployer:latest goployer <command>`
+`docker run devopsart/goployer:edge goployer <command>`
 
 {{% /tab %}}
 

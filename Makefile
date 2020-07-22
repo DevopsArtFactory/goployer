@@ -3,10 +3,12 @@ GOARCH ?= amd64
 BUILD_DIR ?= ./out
 ORG = github.com/DevopsArtFactory
 PROJECT = goployer
+VERSION ?= $(shell cat version.txt)
 REPOPATH ?= $(ORG)/$(PROJECT)
 RELEASE_BUCKET ?= $(PROJECT)
 S3_RELEASE_PATH ?= s3://$(RELEASE_BUCKET)/releases/$(VERSION)
 S3_RELEASE_LATEST ?= s3://$(RELEASE_BUCKET)/releases/latest
+S3_BLEEDING_EDGE_LATEST ?= s3://$(RELEASE_BUCKET)/edge/latest
 
 GCP_ONLY ?= false
 GCP_PROJECT ?= goployer
@@ -87,8 +89,11 @@ test: $(BUILD_DIR)
 	@ ./hack/checks.sh
 	@ ./hack/linters.sh
 
+.PHONY: update-edge
+update-edge: cross $(BUILD_DIR)/VERSION upload-only
+
 .PHONY: release
-release: cross $(BUILD_DIR)/VERSION upload-only
+release: cross $(BUILD_DIR)/VERSION upload-release-only
 
 .PHONY: release-build
 release-build: cross
@@ -102,14 +107,27 @@ release-build: cross
 	aws s3 cp -r $(S3_RELEASE_PATH)/* $(S3_RELEASE_LATEST)
 
 .PHONY: upload-only
-upload-only:
+upload-only: version
+	aws s3 cp $(BUILD_DIR)/ $(S3_BLEEDING_EDGE_LATEST)/ --recursive --include "$(PROJECT)-*" --acl public-read
+
+	docker build --build-arg GOPLOYER_VERSION=edge --build-arg GOPLOYER_URL=https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64 -t devopsart/goployer:edge deploy
+	docker push devopsart/goployer:edge
+
+.PHONY: upload-release-only
+upload-release-only: version
 	aws s3 cp $(BUILD_DIR)/ $(S3_RELEASE_PATH)/ --recursive --include "$(PROJECT)-*" --acl public-read
-	aws s3 cp $(BUILD_DIR)/VERSION $(S3_RELEASE_PATH)/VERSION --acl public-read
 	aws s3 cp $(S3_RELEASE_PATH)/ $(S3_RELEASE_LATEST)/ --recursive --acl public-read
+
+	docker build --build-arg GOPLOYER_VERSION=edge --build-arg GOPLOYER_URL=https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64 -t devopsart/goployer:latest deploy
+	docker push devopsart/goployer:latest
 
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
+
+.PHONY: version
+version:
+	@echo "Current version is ${VERSION}"
 
 # utilities for goployer site - not used anywhere else
 .PHONY: preview-docs
