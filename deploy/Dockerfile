@@ -2,8 +2,8 @@
 
 # Download goployer
 FROM alpine:3.10 as download-goployer
-ENV GOPLOYER_VERSION 1.0.0
-ENV GOPLOYER_URL https://github.com/DevopsArtFactory/goployer/releases/download/${GOPLOYER_VERSION}/goployer-linux-amd64
+ARG GOPLOYER_VERSION=1.0.0
+ARG GOPLOYER_URL=https://github.com/DevopsArtFactory/goployer/releases/download/${GOPLOYER_VERSION}/goployer-linux-amd64
 RUN wget -O goployer "${GOPLOYER_URL}"
 RUN chmod +x goployer
 
