@@ -17,6 +17,7 @@ var (
 	DFEAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
 	DEFAULT_DEPLOYMENT_TIMEOUT       = 60 * time.Minute
 	DEFAULT_POLLING_INTERVAL         = 60 * time.Second
+	MIN_POLLING_INTERVAL             = 5 * time.Second
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 )
 
@@ -419,6 +420,13 @@ func (b Builder) CheckValidation() error {
 
 	if len(b.MetricConfig.Storage.Name) <= 0 {
 		return fmt.Errorf("you do not specify the name of storage for metrics")
+	}
+
+	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
+		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
+	}
+	if b.Config.PollingInterval >= b.Config.Timeout {
+		return fmt.Errorf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes())
 	}
 
 	return nil
