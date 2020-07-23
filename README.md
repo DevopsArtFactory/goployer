@@ -34,7 +34,7 @@ If other autoscaling groups of sample application already existed, for example `
     * `--region` : the ID of region to which you want to deploy instances
     * `--ami` : AMI ID
     * `--assume-role` : arn of IAM role you want to assume
-    * `--timeout` : timeout duration of total deployment process in minute. (default: 60 minutes)
+    * `--timeout` : timeout duration of total deployment process (default: 60m)
     * `--slack-off` : whether turning off slack alarm or not. (default: false)
     * `--log-level` : level of Log (debug, info, error)
     * `--extra-tags` : extra tags to set from command line. comma-delimited string(no space between tags)
@@ -43,6 +43,7 @@ If other autoscaling groups of sample application already existed, for example `
     * `--override-instance-type` : instance type you want to override when running goployer command.
     * `--release-notes` : Release notes for deployment.
     * `--release-notes-base64` : Release notes for deployment encoded with base64
+    * `--polling-interval` : Time to interval for polling health check (default 60s) 
 * If you sepcifies `--ami`, then you must have only one region in a stack or use `--region` option together.
 * You *cannot run goployer from local environment* for security & management issue.
 ```bash

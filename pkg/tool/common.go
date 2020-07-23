@@ -11,7 +11,6 @@ import (
 var (
 	NO_ERROR_MESSAGE_PASSED = "No Error Message exists"
 	INITIAL_STATUS          = "Not Found"
-	POLLING_SLEEP_TIME      = (60 * time.Second)
 )
 
 // Check if file exists
@@ -105,13 +104,13 @@ func IsStringInArray(s string, arr []string) bool {
 }
 
 //Check timeout
-func CheckTimeout(start int64, timeout int64) bool {
+func CheckTimeout(start int64, timeout time.Duration) bool {
 	now := time.Now().Unix()
-	timeoutSec := timeout * 60
+	timeoutSec := int64(timeout / time.Second)
 
 	//Over timeout
 	if (now - start) > timeoutSec {
-		Logger.Errorf("Timeout has been exceeded : %s minutes", timeout)
+		Logger.Errorf("Timeout has been exceeded : %.0f minutes", timeout.Minutes())
 		os.Exit(1)
 	}
 

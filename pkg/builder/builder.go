@@ -15,6 +15,9 @@ import (
 var (
 	NO_MANIFEST_EXISTS               = "Manifest file does not exist"
 	DFEAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
+	DEFAULT_DEPLOYMENT_TIMEOUT       = 60 * time.Minute
+	DEFAULT_POLLING_INTERVAL         = 60 * time.Second
+	MIN_POLLING_INTERVAL             = 5 * time.Second
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 )
 
@@ -43,7 +46,7 @@ type Config struct {
 	Env                   string
 	Stack                 string
 	AssumeRole            string
-	Timeout               int64
+	Timeout               time.Duration
 	StartTimestamp        int64
 	Region                string
 	Confirm               bool
@@ -56,6 +59,7 @@ type Config struct {
 	ReleaseNotes          string
 	ReleaseNotesBase64    string
 	ForceManifestCapacity bool
+	PollingInterval       time.Duration
 }
 
 type YamlConfig struct {
@@ -114,6 +118,7 @@ type Stack struct {
 	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
 	LifecycleHooks        LifecycleHooks        `yaml:"lifecycle_hooks"`
 	Regions               []RegionConfig        `yaml:"regions"`
+	PollingInterval       time.Duration			`yaml:"polling_interval"`
 }
 
 type LifecycleHooks struct {
@@ -234,11 +239,23 @@ func (b Builder) SetStacks() Builder {
 
 	b.Stacks = Stacks
 
+	var deployStack Stack
+	for _, stack := range Stacks {
+		if b.Config.Stack == stack.Stack {
+			deployStack = stack
+			break
+		}
+	}
+
 	if len(b.Config.Env) == 0 {
-		for _, stack := range Stacks {
-			if b.Config.Stack == stack.Stack {
-				b.Config.Env = stack.Env
-			}
+		b.Config.Env = deployStack.Env
+	}
+
+	if b.Config.PollingInterval == 0 {
+		if deployStack.PollingInterval > 0 {
+			b.Config.PollingInterval = deployStack.PollingInterval
+		} else {
+			b.Config.PollingInterval = DEFAULT_POLLING_INTERVAL
 		}
 	}
 
@@ -405,6 +422,13 @@ func (b Builder) CheckValidation() error {
 		return fmt.Errorf("you do not specify the name of storage for metrics")
 	}
 
+	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
+		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
+	}
+	if b.Config.PollingInterval >= b.Config.Timeout {
+		return fmt.Errorf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes())
+	}
+
 	return nil
 }
 
@@ -415,15 +439,16 @@ func (b Builder) MakeSummary(target_stack string) string {
 ============================================================
 Target Stack Deployment Information
 ============================================================
-name       : %s
-env        : %s
-timeout    : %d
-assume role        : %s
-extra tags        : %s
+name             : %s
+env              : %s
+timeout          : %.0f min
+polling-interval : %.0f sec 
+assume role      : %s
+extra tags       : %s
 ============================================================
 Stack
 ============================================================`
-	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout, b.Config.AssumeRole, b.Config.ExtraTags))
+	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout.Minutes(), b.Config.PollingInterval.Seconds(), b.Config.AssumeRole, b.Config.ExtraTags))
 
 	for _, stack := range b.Stacks {
 		if stack.Stack == target_stack {
@@ -499,7 +524,7 @@ func argumentParsing() Config {
 	env := flag.String("env", "", "The environment that is being deployed into.")
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
 	assumeRole := flag.String("assume-role", "", "The Role ARN to assume into")
-	timeout := flag.Int64("timeout", 60, "Time in minutes to wait for deploy to finish before timing out")
+	timeout := flag.Duration("timeout", DEFAULT_DEPLOYMENT_TIMEOUT, "Time to wait for deploy to finish before timing out (default 60m)")
 	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
 	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
 	slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
@@ -511,6 +536,7 @@ func argumentParsing() Config {
 	releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
 	releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
 	forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
+	pollingInterval := flag.Duration("polling-interval", 0, "Time to interval for polling health check (default 60s)")
 
 	flag.Parse()
 
@@ -533,6 +559,7 @@ func argumentParsing() Config {
 		ReleaseNotes:          *releaseNotes,
 		ReleaseNotesBase64:    *releaseNotesBase64,
 		ForceManifestCapacity: *forceManifestCapacity,
+		PollingInterval:       *pollingInterval,
 	}
 
 	return config
