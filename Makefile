@@ -90,13 +90,13 @@ test: $(BUILD_DIR)
 	@ ./hack/linters.sh
 
 .PHONY: update-edge
-update-edge: cross $(BUILD_DIR)/VERSION upload-only
+update-edge: format cross $(BUILD_DIR)/VERSION upload-only
 
 .PHONY: release
-release: cross $(BUILD_DIR)/VERSION upload-release-only
+release: format cross $(BUILD_DIR)/VERSION upload-release-only
 
 .PHONY: release-build
-release-build: cross
+release-build: format cross
 	docker build \
 		-f deploy/goployer/Dockerfile \
 		--target release \
@@ -128,6 +128,10 @@ clean:
 .PHONY: version
 version:
 	@echo "Current version is ${VERSION}"
+
+.PHONY: format
+format:
+	go fmt ./...
 
 # utilities for goployer site - not used anywhere else
 .PHONY: preview-docs
