@@ -231,7 +231,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config)
 			healthy = true
 		} else {
 			Logger.Info("All stacks are not healthy... Please waiting to be deployed...")
-			time.Sleep(tool.POLLING_SLEEP_TIME)
+			time.Sleep(config.PollingInterval)
 		}
 	}
 }
@@ -275,7 +275,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 			done = true
 		} else {
 			Logger.Info("All stacks are not ready to be terminated... Please waiting...")
-			time.Sleep(tool.POLLING_SLEEP_TIME)
+			time.Sleep(config.PollingInterval)
 		}
 	}
 }

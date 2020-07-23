@@ -45,6 +45,8 @@ tags:
 stacks:
   - stack: artd
 
+    polling_interval: 30s
+
     # account alias
     account: dev
 
