@@ -71,13 +71,43 @@ stacks:
     # instance_market_options is for spot usage
     # You only can choose spot as market_type.
     # If you want to set customized stop options, then please write spot_options correctly.
-    instance_market_options:
-      market_type: spot
-      spot_options:
-        block_duration_minutes: 180
-        instance_interruption_behavior: terminate # terminate / stop / hibernate
-        max_price: 0.2
-        spot_instance_type: one-time # one-time or persistent
+    #instance_market_options:
+    #  market_type: spot
+    #  spot_options:
+    #    block_duration_minutes: 180
+    #    instance_interruption_behavior: terminate # terminate / stop / hibernate
+    #    max_price: 0.
+    #    spot_instance_type: one-time # one-time or persistent
+
+
+    # MixedInstancesPolicy
+    # You can set autoscaling mixedInstancePolicy to use on demand and spot instances together.
+    # if mixed_instance_policy is set, then `instance_market_options` will be ignored.
+    mixed_instances_policy:
+      enabled: false
+
+      # instance type list to override the instance types in launch template.
+      override_instance_types:
+        - c5.large
+        - c5.xlarge
+
+      # Proportion of on-demand instances.
+      # By default, this value  will be 100 which means no spot instance.
+      on_demand_percentage: 20
+
+      # spot_allocation_strategy means in what strategy you want to allocate spot instances.
+      # options could be either `lowest-price` or `capacity-optimized`.
+      # by default, `low-price` strategy will be applied.
+      spot_allocation_strategy: lowest-price
+
+      # The number of spot instances pool.
+      # This will be set among instance types in `override` fields
+      # This will be valid only if the `spot_allocation_strategy` is low-price.
+      spot_instance_pools: 3
+
+      # Spot price.
+      # By default, on-demand price will be automatically applied.
+      spot_max_price: 0.3
 
     # block_devices is the list of ebs volumes you can use for ec2
     # device_name is required
@@ -116,7 +146,7 @@ stacks:
       - region: ap-northeast-2
 
         # instance type
-        instance_type: m5.large
+        instance_type: t3.medium
 
         # ssh_key for instances
         ssh_key: test-master-key

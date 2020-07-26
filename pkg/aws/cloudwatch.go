@@ -3,12 +3,15 @@ package aws
 import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	Logger "github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
 type CloudWatchClient struct {
@@ -89,4 +92,109 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.A
 	Logger.Info(fmt.Sprintf("New metric alarm is created : %s / asg : %s", alarm.Name, asg_name))
 
 	return nil
+}
+
+// GetRequestStatics returns statistics for terminating autoscaling group
+func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, terminatedDate time.Time, period int64, logger *Logger.Logger) (map[string]map[string]float64, error) {
+	ret := map[string]map[string]float64{}
+
+	if len(tgs) > 0 {
+		for _, tg := range tgs {
+			tgName := (*tg)[strings.LastIndex(*tg, ":")+1:]
+
+			appliedPeriod := tool.HOURTOSEC
+			sum := tool.DAYTOSEC
+			vSum := float64(0)
+
+			isFinished := false
+			for !isFinished {
+				id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
+				logger.Debugf("Metric id : %s", id)
+
+				endTime := tool.GetBaseTime(startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)).Add(-1 * time.Second)
+				logger.Debugf("End Time : %s", endTime)
+				if endTime.Sub(terminatedDate) > 0 {
+					logger.Debugf("Terminated Date is earlier than End Date")
+					endTime = terminatedDate
+				}
+				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
+
+				v, s, err := c.GetOneDayStatistics(tgName, startTime, endTime, appliedPeriod, id)
+				if err != nil {
+					return nil, err
+				}
+
+				ret[tgName] = v
+				vSum += s
+
+				startTime = startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)
+				sum += appliedPeriod
+
+				if period-sum <= 0 {
+					isFinished = true
+				}
+			}
+
+			ret[tgName]["total"] = vSum
+		}
+	}
+
+	return ret, nil
+}
+
+// GetOneDayStatistics returns all stats of one day
+func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time.Time, period int64, id string) (map[string]float64, float64, error) {
+
+	input := &cloudwatch.GetMetricDataInput{
+		StartTime: aws.Time(startTime.UTC()),
+		EndTime:   aws.Time(endTime.UTC()),
+	}
+
+	var mdq []*cloudwatch.MetricDataQuery
+	mdq = append(mdq, &cloudwatch.MetricDataQuery{
+		Id:         aws.String(id),
+		ReturnData: aws.Bool(false),
+		MetricStat: &cloudwatch.MetricStat{
+			Metric: &cloudwatch.Metric{
+				Dimensions: []*cloudwatch.Dimension{
+					{
+						Name:  aws.String("TargetGroup"),
+						Value: aws.String(tg),
+					},
+				},
+				MetricName: aws.String("RequestCountPerTarget"),
+				Namespace:  aws.String("AWS/ApplicationELB"),
+			},
+			Period: aws.Int64(period),
+			Stat:   aws.String("Sum"),
+		},
+	})
+
+	mdq = append(mdq, &cloudwatch.MetricDataQuery{
+		Expression: aws.String(id),
+		Id:         aws.String(fmt.Sprintf("%s%s", "t", id)),
+		Label:      aws.String("RequestSum"),
+	})
+
+	input.MetricDataQueries = mdq
+
+	result, err := c.Client.GetMetricData(input)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// If no result exists, then set it to zero
+	if len(result.MetricDataResults) == 0 {
+		return nil, 0, nil
+	}
+
+	ret := map[string]float64{}
+	sum := float64(0)
+	for i, t := range result.MetricDataResults[0].Timestamps {
+		val := *result.MetricDataResults[0].Values[i]
+		ret[fmt.Sprintf("%s", t.Format(time.RFC3339))] = val
+		sum += val
+	}
+
+	return ret, sum, nil
 }

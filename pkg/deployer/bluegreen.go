@@ -161,7 +161,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			appliedCapacity = b.Stack.Capacity
 		}
 
-		b.Logger.Infof("Applied instance capacity - Min: %d, Desired: %d, Max: %d", appliedCapacity.Max, appliedCapacity.Desired, appliedCapacity.Max)
+		b.Logger.Infof("Applied instance capacity - Min: %d, Desired: %d, Max: %d", appliedCapacity.Min, appliedCapacity.Desired, appliedCapacity.Max)
 
 		ret = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
@@ -278,7 +278,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		return nil
 	}
 
-	//Apply Autosacling Policies
+	//Apply AutoScaling Policies
 	for _, region := range b.Stack.Regions {
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
@@ -473,4 +473,46 @@ func checkRegionExist(target string, regions []builder.RegionConfig) bool {
 	}
 
 	return regionExists
+}
+
+// Gather the whole metrics from deployer
+func (b BlueGreen) GatherMetrics(config builder.Config) error {
+	if config.DisableMetrics {
+		return nil
+	}
+
+	if len(config.Region) > 0 {
+		if !checkRegionExist(config.Region, b.Stack.Regions) {
+			return nil
+		}
+	}
+
+	for _, region := range b.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		b.Logger.Infof("[%s]The number of previous autoscaling groups for gathering metrics is %d", region.Region, len(b.PrevAsgs[region.Region]))
+
+		//select client
+		client, err := selectClientFromList(b.AWSClients, region.Region)
+		if err != nil {
+			tool.ErrorLogging(err.Error())
+		}
+
+		if len(b.PrevAsgs[region.Region]) > 0 {
+			for _, asg := range b.PrevAsgs[region.Region] {
+				b.Logger.Debugf("Start gathering metrics about autoscaling group : %s", asg)
+				err := b.Deployer.GatherMetrics(client, asg)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			b.Logger.Debugf("No previous versions to gather metrics : %s\n", region.Region)
+		}
+	}
+
+	return nil
 }
