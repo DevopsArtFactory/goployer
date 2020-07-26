@@ -118,7 +118,7 @@ type Stack struct {
 	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
 	LifecycleHooks        LifecycleHooks        `yaml:"lifecycle_hooks"`
 	Regions               []RegionConfig        `yaml:"regions"`
-	PollingInterval       time.Duration			`yaml:"polling_interval"`
+	PollingInterval       time.Duration         `yaml:"polling_interval"`
 }
 
 type LifecycleHooks struct {

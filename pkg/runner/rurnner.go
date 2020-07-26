@@ -59,6 +59,7 @@ func Start() error {
 	return withRunner(builderSt, func(slacker tool.Slack) error {
 		// These are post actions after deployment
 		slacker.SendSimpleMessage(":100: Deployment is done.", builderSt.Config.Env)
+
 		return nil
 	})
 }
@@ -157,21 +158,34 @@ func (r Runner) Run() error {
 
 	// Attach scaling policy
 	for _, deployer := range deployers {
-		deployer.FinishAdditionalWork(r.Builder.Config)
+		if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
 	}
 
 	// Trigger Lifecycle Callbacks
 	for _, deployer := range deployers {
-		deployer.TriggerLifecycleCallbacks(r.Builder.Config)
+		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
 	}
 
 	// Clear previous Version
 	for _, deployer := range deployers {
-		deployer.CleanPreviousVersion(r.Builder.Config)
+		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
 	}
 
 	// Checking all previous version before delete asg
 	cleanChecking(deployers, r.Builder.Config)
+
+	// gather metrics of previous version
+	for _, deployer := range deployers {
+		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
+	}
 
 	return nil
 }

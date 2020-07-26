@@ -31,7 +31,7 @@ func getCurrentVersion(prevVersions []int) int {
 	if len(prevVersions) == 0 {
 		return 0
 	}
-	return (prevVersions[len(prevVersions)-1] + 1) % 100
+	return (prevVersions[len(prevVersions)-1] + 1) % 1000
 }
 
 // Polling for healthcheck
@@ -72,7 +72,7 @@ func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, c
 func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 	asgInfo := client.EC2Service.GetMatchingAutoscalingGroup(target)
 	if asgInfo == nil {
-		Logger.Info("Already deleted autoscaling group : ", target)
+		d.Logger.Info("Already deleted autoscaling group : ", target)
 		return true
 	}
 
@@ -85,21 +85,19 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 	}
 	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target), d.Stack.Env)
 
+	d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
+	if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
+		d.Logger.Errorf(err.Error())
+		return false
+	}
+	d.Logger.Debugf("update status of %s is finished", target)
+
 	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
 	ok := client.EC2Service.DeleteAutoscalingSet(target)
 	if !ok {
 		return false
 	}
 	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
-
-	additionalAttributes, err := d.Collector.GetAdditionalMetric(target)
-	if err != nil {
-		d.Logger.Errorln(err.Error())
-		return false
-	}
-	if d.Collector.MetricConfig.Enabled {
-		d.Collector.UpdateStatus(target, "terminated", additionalAttributes)
-	}
 
 	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
 	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
@@ -155,4 +153,23 @@ func selectClientFromList(awsClients []aws.AWSClient, region string) (aws.AWSCli
 		}
 	}
 	return aws.AWSClient{}, errors.New("No AWS Client is selected")
+}
+
+// CheckTerminating checks if all of instances are terminated well
+func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
+	targetGroups, err := client.EC2Service.GetTargetGroups(target)
+	if err != nil {
+		return err
+	}
+
+	metricData, err := d.Collector.GetAdditionalMetric(target, targetGroups, d.Logger)
+	if err != nil {
+		return err
+	}
+
+	if err := d.Collector.UpdateStatistics(target, metricData); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -21,8 +21,9 @@ type AWSClient struct {
 }
 
 type MetricClient struct {
-	Region          string
-	DynamoDBService DynamoDBClient
+	Region            string
+	DynamoDBService   DynamoDBClient
+	CloudWatchService CloudWatchClient
 }
 
 func getAwsSession() *session.Session {
@@ -73,8 +74,9 @@ func BootstrapMetricService(region string, assume_role string) MetricClient {
 
 	//Get all clients
 	client := MetricClient{
-		Region:          region,
-		DynamoDBService: NewDynamoDBClient(aws_session, region, creds),
+		Region:            region,
+		DynamoDBService:   NewDynamoDBClient(aws_session, region, creds),
+		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
 	}
 
 	return client

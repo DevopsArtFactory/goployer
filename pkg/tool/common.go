@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"fmt"
 	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
@@ -11,6 +12,8 @@ import (
 var (
 	NO_ERROR_MESSAGE_PASSED = "No Error Message exists"
 	INITIAL_STATUS          = "Not Found"
+	DAYTOSEC                = int64(86400)
+	HOURTOSEC               = int64(3600)
 )
 
 // Check if file exists
@@ -118,11 +121,21 @@ func CheckTimeout(start int64, timeout time.Duration) bool {
 }
 
 //Get KST Timestamp
-func GetKstTimestamp() time.Time {
+func GetBaseTimeWithTimestamp(timezone string) time.Time {
 	now := time.Now()
 
-	loc, _ := time.LoadLocation("Asia/Seoul")
-	kst := now.In(loc)
+	loc, _ := time.LoadLocation(timezone)
+	return now.In(loc)
+}
 
-	return kst
+func GetBaseTime(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+func GetBaseStartTime(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, t.Location()).Add(1 * time.Hour)
+}
+
+func GetTimePrefix(t time.Time) string {
+	return fmt.Sprintf("%d%02d%02d", t.Year(), t.Month(), t.Day())
 }
