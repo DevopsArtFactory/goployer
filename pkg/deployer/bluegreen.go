@@ -443,7 +443,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 
 		ok_count := 0
 		for _, target := range targets {
-			ok := b.Deployer.CheckTerminating(client, target)
+			ok := b.Deployer.CheckTerminating(client, target, config.DisableMetrics)
 			if ok {
 				Logger.Info("finished : ", target)
 				ok_count++

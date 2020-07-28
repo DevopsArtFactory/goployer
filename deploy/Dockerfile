@@ -8,7 +8,7 @@ RUN wget -O goployer "${GOPLOYER_URL}"
 RUN chmod +x goployer
 
 
-FROM amazonlinux:latest as runtime_deps
+FROM amazonlinux:latest as runtime_image
 
 RUN yum update -y && \
     yum install -y \
@@ -21,6 +21,6 @@ RUN yum update -y && \
 COPY --from=docker:18.09.6 /usr/local/bin/docker /usr/local/bin/
 COPY --from=download-goployer goployer /usr/local/bin/
 
-FROM runtime_deps
+FROM runtime_image
 COPY --from=golang:1.14 /usr/local/go /usr/local/go
 ENV PATH /usr/local/go/bin:/root/go/bin:$PATH
