@@ -2,9 +2,9 @@
 `goployer` is an application you can use for EC2 deployment. You can deploy in a blue/green mode. goployer only
 changes the autoscaling group so that you don't need to create another load balancer or manually attach autoscaling group to target group.
 <br><br>
-`goployer` is still **in development** and we need the feedback from you for faster improvements. Any feedback from any channel is welcome.
-<br><br>
 
+
+## Demo
 ![goployer-demo](static/base.gif)
 
 ## # Requirements

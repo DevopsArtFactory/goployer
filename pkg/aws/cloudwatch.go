@@ -114,7 +114,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				endTime := tool.GetBaseTime(startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)).Add(-1 * time.Second)
 				logger.Debugf("End Time : %s", endTime)
 				if endTime.Sub(terminatedDate) > 0 {
-					logger.Debugf("Terminated Date is earlier than End Date")
+					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
 					endTime = terminatedDate
 				}
 				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)

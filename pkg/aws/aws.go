@@ -26,7 +26,12 @@ type MetricClient struct {
 	CloudWatchService CloudWatchClient
 }
 
-func getAwsSession() *session.Session {
+type ManifestClient struct {
+	Region    string
+	S3Service S3Client
+}
+
+func GetAwsSession() *session.Session {
 	mySession := session.Must(session.NewSession())
 	return mySession
 }
@@ -45,7 +50,7 @@ func MakeStringArrayToAwsStrings(arr []string) []*string {
 }
 
 func BootstrapServices(region string, assume_role string) AWSClient {
-	aws_session := getAwsSession()
+	aws_session := GetAwsSession()
 
 	var creds *credentials.Credentials
 	if len(assume_role) != 0 {
@@ -65,7 +70,7 @@ func BootstrapServices(region string, assume_role string) AWSClient {
 }
 
 func BootstrapMetricService(region string, assume_role string) MetricClient {
-	aws_session := getAwsSession()
+	aws_session := GetAwsSession()
 
 	var creds *credentials.Credentials
 	if len(assume_role) != 0 {
@@ -77,6 +82,23 @@ func BootstrapMetricService(region string, assume_role string) MetricClient {
 		Region:            region,
 		DynamoDBService:   NewDynamoDBClient(aws_session, region, creds),
 		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
+	}
+
+	return client
+}
+
+func BootstrapManifestService(region string, assume_role string) ManifestClient {
+	aws_session := GetAwsSession()
+
+	var creds *credentials.Credentials
+	if len(assume_role) != 0 {
+		creds = stscreds.NewCredentials(aws_session, assume_role)
+	}
+
+	//Get all clients
+	client := ManifestClient{
+		Region:    region,
+		S3Service: NewS3Client(aws_session, region, creds),
 	}
 
 	return client
