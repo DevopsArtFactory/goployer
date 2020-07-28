@@ -35,161 +35,6 @@ type S3Provider struct {
 	Path string
 }
 
-type Builder struct {
-	Config       Config       // Config from command
-	AwsConfig    AWSConfig    // Common Config
-	MetricConfig MetricConfig // Configuration for metrics
-	Stacks       []Stack      // Stack Config
-}
-
-type Config struct {
-	Manifest              string        `json:"manifest"`
-	ManifestS3Region      string        `json:"manifest_s3_region"`
-	Ami                   string        `json:"ami"`
-	Env                   string        `json:"env"`
-	Stack                 string        `json:"stack"`
-	AssumeRole            string        `json:"assume_role"`
-	Timeout               time.Duration `json:"timeout"`
-	StartTimestamp        int64
-	Region                string `json:"region"`
-	Confirm               bool
-	SlackOff              bool          `json:"slack_off"`
-	LogLevel              string        `json:"log_level"`
-	ExtraTags             string        `json:"extra_tags"`
-	AnsibleExtraVars      string        `json:"ansible_extra_vars"`
-	OverrideInstanceType  string        `json:"override_instance_type"`
-	DisableMetrics        bool          `json:"disable_metrics"`
-	ReleaseNotes          string        `json:"release_notes"`
-	ReleaseNotesBase64    string        `json:"release_notes_base64"`
-	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
-	PollingInterval       time.Duration `json:"polling_interval"`
-}
-
-type YamlConfig struct {
-	Name     string   `yaml:"name"`
-	Userdata Userdata `yaml:"userdata"`
-	Tags     []string `yaml:"tags"`
-	Stacks   []Stack  `yaml:"stacks"`
-}
-
-type AWSConfig struct {
-	Name     string
-	Userdata Userdata
-	Tags     []string
-}
-
-type Userdata struct {
-	Type string `yaml:"type"`
-	Path string `yaml:"path"`
-}
-
-type ScalePolicy struct {
-	Name              string `yaml:"name"`
-	AdjustmentType    string `yaml:"adjustment_type"`
-	ScalingAdjustment int64  `yaml:"scaling_adjustment"`
-	Cooldown          int64  `yaml:"cooldown"`
-}
-
-type AlarmConfigs struct {
-	Name              string
-	Namespace         string
-	Metric            string
-	Statistic         string
-	Comparison        string
-	Threshold         float64
-	Period            int64
-	EvaluationPeriods int64    `yaml:"evaluation_periods"`
-	AlarmActions      []string `yaml:"alarm_actions"`
-}
-
-type Stack struct {
-	Stack                 string                `yaml:"stack"`
-	Account               string                `yaml:"account"`
-	Env                   string                `yaml:"env"`
-	ReplacementType       string                `yaml:"replacement_type"`
-	Userdata              Userdata              `yaml:"userdata"`
-	IamInstanceProfile    string                `yaml:"iam_instance_profile"`
-	AnsibleTags           string                `yaml:"ansible_tags"`
-	AssumeRole            string                `yaml:"assume_role"`
-	EbsOptimized          bool                  `yaml:"ebs_optimized"`
-	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
-	MixedInstancesPolicy  MixedInstancesPolicy  `yaml:"mixed_instances_policy,omitempty"`
-	BlockDevices          []BlockDevice         `yaml:"block_devices"`
-	Capacity              Capacity              `yaml:"capacity"`
-	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
-	Alarms                []AlarmConfigs        `yaml:"alarms"`
-	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
-	LifecycleHooks        LifecycleHooks        `yaml:"lifecycle_hooks"`
-	Regions               []RegionConfig        `yaml:"regions"`
-	PollingInterval       time.Duration         `yaml:"polling_interval"`
-}
-
-type LifecycleHooks struct {
-	LaunchTransition    []LifecycleHookSpecification `yaml:"launch_transition"`
-	TerminateTransition []LifecycleHookSpecification `yaml:"terminate_transition"`
-}
-
-type LifecycleHookSpecification struct {
-	DefaultResult         string `yaml:"default_result"`
-	HeartbeatTimeout      int64  `yaml:"heartbeat_timeout"`
-	LifecycleHookName     string `yaml:"lifecycle_hook_name"`
-	NotificationMetadata  string `yaml:"notification_metadata"`
-	NotificationTargetARN string `yaml:"notification_target_arn"`
-	RoleARN               string `yaml:"role_arn"`
-}
-
-type InstanceMarketOptions struct {
-	MarketType  string      `yaml:"market_type"`
-	SpotOptions SpotOptions `yaml:"spot_options"`
-}
-
-type MixedInstancesPolicy struct {
-	Enabled                bool     `yaml:"enabled"`
-	Override               []string `yaml:"override_instance_types"`
-	OnDemandPercentage     int64    `yaml:"on_demand_percentage"`
-	SpotAllocationStrategy string   `yaml:"spot_allocation_strategy"`
-	SpotInstancePools      int64    `yaml:"spot_instance_pools"`
-	SpotMaxPrice           string   `yaml:"spot_max_price,omitempty"`
-}
-
-type SpotOptions struct {
-	BlockDurationMinutes         int64  `yaml:"block_duration_minutes"`
-	InstanceInterruptionBehavior string `yaml:"instance_interruption_behavior"`
-	MaxPrice                     string `yaml:"max_price"`
-	SpotInstanceType             string `yaml:"spot_instance_type"`
-}
-
-type BlockDevice struct {
-	DeviceName string `yaml:"device_name"`
-	VolumeSize int64  `yaml:"volume_size"`
-	VolumeType string `yaml:"volume_type"`
-}
-
-type LifecycleCallbacks struct {
-	PreTerminatePastClusters []string `yaml:"pre_terminate_past_clusters"`
-}
-
-type RegionConfig struct {
-	Region                 string   `yaml:"region"`
-	UsePublicSubnets       bool     `yaml:"use_public_subnets"`
-	InstanceType           string   `yaml:"instance_type"`
-	SshKey                 string   `yaml:"ssh_key"`
-	AmiId                  string   `yaml:"ami_id"`
-	VPC                    string   `yaml:"vpc"`
-	SecurityGroups         []string `yaml:"security_groups"`
-	HealthcheckLB          string   `yaml:"healthcheck_load_balancer"`
-	HealthcheckTargetGroup string   `yaml:"healthcheck_target_group"`
-	TargetGroups           []string `yaml:"target_groups"`
-	LoadBalancers          []string `yaml:"loadbalancers"`
-	AvailabilityZones      []string `yaml:"availability_zones"`
-}
-
-type Capacity struct {
-	Min     int64 `yaml:"min"`
-	Max     int64 `yaml:"max"`
-	Desired int64 `yaml:"desired"`
-}
-
 func (l LocalProvider) Provide() string {
 	if l.Path == "" {
 		tool.ErrorLogging("Please specify userdata script path")
@@ -322,12 +167,14 @@ func (b Builder) CheckValidation() error {
 	}
 
 	// Check Configuration about metrics
-	if len(b.MetricConfig.Region) <= 0 {
-		return fmt.Errorf("you do not specify the region for metrics")
-	}
+	if ! b.Config.DisableMetrics {
+		if len(b.MetricConfig.Region) <= 0 {
+			return fmt.Errorf("you do not specify the region for metrics")
+		}
 
-	if len(b.MetricConfig.Storage.Name) <= 0 {
-		return fmt.Errorf("you do not specify the name of storage for metrics")
+		if len(b.MetricConfig.Storage.Name) <= 0 {
+			return fmt.Errorf("you do not specify the name of storage for metrics")
+		}
 	}
 
 	// check validations in each stack

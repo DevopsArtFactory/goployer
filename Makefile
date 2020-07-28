@@ -133,11 +133,16 @@ version:
 format:
 	go fmt ./...
 
+
+.PHONY: generate-schema
+generate-schemas:
+	go run ./hack/schemas/main.go
+
 # utilities for goployer site - not used anywhere else
+.PHONY: preview-docs-draft
+preview-docs-draft:
+	./deploy/docs/preview-docs.sh hugo serve -D --bind=0.0.0.0 --ignoreCache
+
 .PHONY: preview-docs
 preview-docs:
-	./deploy/docs/local-preview.sh hugo serve -D --bind=0.0.0.0 --ignoreCache
-
-.PHONY: build-docs-preview
-build-docs-preview:
-	./deploy/docs/local-preview.sh hugo --baseURL=https://goployer.dev
+	./deploy/docs/preview-docs.sh hugo serve --bind=0.0.0.0 --ignoreCache

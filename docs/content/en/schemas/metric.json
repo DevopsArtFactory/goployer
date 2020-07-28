@@ -1,0 +1,73 @@
+{
+  "anyOf": [
+    {
+      "$ref": "#/definitions/MetricConfig"
+    }
+  ],
+  "type": "object",
+  "definitions": {
+    "MetricConfig": {
+      "properties": {
+        "metrics": {
+          "$ref": "#/definitions/Metrics",
+          "description": "Configuration of metrics",
+          "x-intellij-html-description": "Configuration of metrics"
+        },
+        "region": {
+          "type": "string",
+          "description": "Base region for gathering metrics",
+          "x-intellij-html-description": "Base region for gathering metrics"
+        },
+        "storage": {
+          "$ref": "#/definitions/Storage",
+          "description": "configuration for storing metric data",
+          "x-intellij-html-description": "configuration for storing metric data"
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "region",
+        "storage",
+        "metrics"
+      ],
+      "description": "Metric Builder Configurations",
+      "x-intellij-html-description": "Metric Builder Configurations"
+    },
+    "Metrics": {
+      "properties": {
+        "base_timezone": {
+          "type": "string",
+          "description": "Timezone of metrics",
+          "x-intellij-html-description": "Timezone of metrics"
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "base_timezone"
+      ],
+      "description": "Configurations of metrics",
+      "x-intellij-html-description": "Configurations of metrics"
+    },
+    "Storage": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "of storage",
+          "x-intellij-html-description": "of storage"
+        },
+        "type": {
+          "type": "string",
+          "description": "of storage",
+          "x-intellij-html-description": "of storage"
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "type",
+        "name"
+      ],
+      "description": "configurations",
+      "x-intellij-html-description": "configurations"
+    }
+  }
+}

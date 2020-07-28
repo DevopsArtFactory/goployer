@@ -11,26 +11,6 @@ var (
 	DEFAULT_METRIC_STORAGE_TYPE = "dynamodb"
 )
 
-type MetricBuilder struct {
-	MetricConfig MetricConfig
-}
-
-type MetricConfig struct {
-	Enabled bool
-	Region  string  `yaml:"region"`
-	Storage Storage `yaml:"storage"`
-	Metrics Metrics `yaml:"metrics"`
-}
-
-type Storage struct {
-	Type string `yaml:"type"`
-	Name string `yaml:"name"`
-}
-
-type Metrics struct {
-	BaseTimezone string `yaml:"base_timezone"`
-}
-
 func ParseMetricConfig(disabledMetrics bool) (MetricConfig, error) {
 	if disabledMetrics {
 		return MetricConfig{Enabled: false}, nil

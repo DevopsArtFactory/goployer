@@ -1,7 +1,7 @@
 ---
 title: "Quickstart"
 linkTitle: "Quickstart"
-weight: 2
+weight: 3
 description: >
   You can easily start to use goployer.
 ---
@@ -15,125 +15,134 @@ Goployer is a deployment tool which means you are going to `deploy the applicati
 In this quickstart, you will:
 
 * Install goployer,
-* Download a sample go app,
-* Use `goployer dev` to build and deploy your app every time your code changes,
-* Use `goployer run` to build and deploy your app once, similar to a CI/CD pipeline
+* Make manifest file for deployment
+* Run goployer to deploy the application
 
 ## Before you begin
 
 * [Install Goployer]({{< relref "/docs/install" >}})
-* [Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
+* [Setup base infrastructure]({{< relref "/docs/baseinfrastructure" >}})
 
 {{< alert title="Note">}}
-goployer will build the app using the Docker daemon hosted inside minikube. 
-If you want to deploy against a different Kubernetes cluster, e.g. Kind, GKE clusters, you will have to install Docker to build this app.
+Goployer will create AWS resources like Launch Template, Autoscaling group, DynamoDB, CloudWatch Alarm etc. 
+So you need to have the right permissions to make these resources in your AWS credentials.
 {{</alert>}}
 
-## Downloading the sample app
+## Preparing manifest and metric file
 
 1. Clone the goployer repository:
-
     ```bash
-    git clone https://github.com/GoogleContainerTools/goployer
+    git clone https://github.com/DevopsArtFactory/goployer
     ```
 
-1. Change to the `examples/getting-started` in goployer directory.
+1. Change to the `examples` directory in goployer directory.
 
     ```bash
-    cd goployer/examples/getting-started
+    cd goployer/examples
+    ```
+   
+1. Modify configurations in the file `manifests/basic-example.yaml` to your application.
+
+    ```bash
+    vim manifests/basic-example.yaml
+    ```
+   
+1. Modify configurations in the file `metrics/metrics.yaml` .
+* metrics.yaml file should be in the root directory where you run goployer command
+
+    ```bash
+    vim metrics/metrics.yaml
+    ```
+   
+1. In the `example` directory, you can run goployer.
+* If you don't want to use metrics feature(Step 4), then use `--disable-metrics=true` 
+
+    ```bash
+   goployer --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
     ```
 
-## `goployer dev`: continuous build & deploy on code changes
-
-Run `goployer dev` to build and deploy your app continuously.
-You should see some outputs similar to the following entries:
+## Logging   
 
 ```
-Listing files to watch...
- - goployer-example
-Generating tags...
- - goployer-example -> goployer-example:v1.1.0-113-g4649f2c16
-Checking cache...
- - goployer-example: Not found. Building
-Found [docker-desktop] context, using local docker daemon.
-Building [goployer-example]...
-Sending build context to Docker daemon  3.072kB
-Step 1/6 : FROM golang:1.12.9-alpine3.10 as builder
- ---> e0d646523991
-Step 2/6 : COPY main.go .
- ---> Using cache
- ---> e4788ffa88e7
-Step 3/6 : RUN go build -o /app main.go
- ---> Using cache
- ---> 686396d9e9cc
-Step 4/6 : FROM alpine:3.10
- ---> 965ea09ff2eb
-Step 5/6 : CMD ["./app"]
- ---> Using cache
- ---> be0603b9d79e
-Step 6/6 : COPY --from=builder /app .
- ---> Using cache
- ---> c827aa5a4b12
-Successfully built c827aa5a4b12
-Successfully tagged goployer-example:v1.1.0-113-g4649f2c16
-Tags used in deployment:
- - goployer-example -> goployer-example:c827aa5a4b12e707163842b803d666eda11b8ec20c7a480198960cfdcb251042
-   local images can't be referenced by digest. They are tagged and referenced by a unique ID instead
-Starting deploy...
- - pod/getting-started created
-Watching for changes...
-[getting-started] Hello world!
-[getting-started] Hello world!
-[getting-started] Hello world!
+$ goployer --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+INFO[0000] Beginning deployment: hello                  
 
+============================================================
+Target Stack Deployment Information
+============================================================
+name             : hello
+env              : dev
+timeout          : 60 min
+polling-interval : 60 sec 
+assume role      : 
+extra tags       : 
+============================================================
+Stack
+============================================================
+[ artd ]
+Account                 : dev
+Environment             : dev
+IAM Instance Profile    : app-hello-profile
+Ansible tags            : all 
+Capacity                : {Min:1 Max:2 Desired:1}
+MixedInstancesPolicy
+- Enabled                       : false
+- Override                      : [c5.large c5.xlarge]
+- OnDemandPercentage            : 20
+- SpotAllocationStrategy        : lowest-price
+- SpotInstancePools             : 3
+- SpotMaxPrice                  : 0.3
+        
+============================================================
+WARN[0000] no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ] 
+DEBU[0000] create deployers for stacks                  
+INFO[0000] Deploy Mode is BlueGreen                     
+INFO[0000] Previous Versions : hello-dev_apnortheast2-v007 
+INFO[0000] Current Version :8                           
+INFO[0000] Successfully create new launch template : hello-dev_apnortheast2-v008-1595954238 
+INFO[0001] Applied instance capacity - Min: 1, Desired: 1, Max: 2 
+INFO[0002] Successfully create new autoscaling group : hello-dev_apnortheast2-v008 
+DEBU[0002] Start Timestamp: 1595954238, timeout: 1h0m0s 
+DEBU[0002] Healthchecking for region starts : ap-northeast-2 
+INFO[0002] Healthy count does not meet the requirement(hello-dev_apnortheast2-v008) : 0/1 
+INFO[0002] All stacks are not healthy... Please waiting to be deployed... 
+
+(...skip...)
+
+INFO[0124] {InstanceId:i-0b9187b2c4bc68a16 LifecycleState:InService TargetStatus:healthy HealthStatus:Healthy Healthy:true} 
+INFO[0124] Healthy Count for hello-dev_apnortheast2-v009 : 1/1 
+INFO[0124] All stacks are healthy                       
+INFO[0124] Attaching autoscaling policies : ap-northeast-2 
+INFO[0124] Metrics monitoring of autoscaling group is enabled : hello-dev_apnortheast2-v009 
+INFO[0124] New metric alarm is created : scale_up_on_util / asg : hello-dev_apnortheast2-v009 
+INFO[0124] New metric alarm is created : scale_down_on_util / asg : hello-dev_apnortheast2-v009 
+DEBU[0124] run lifecycle callbacks before termination : [i-099f40b492a6a2da5] 
+DEBU[0125] Delete Mode is BlueGreen                     
+INFO[0125] [ap-northeast-2]The number of previous versions to delete is 2 
+DEBU[0125] [Resizing to 0] target autoscaling group : hello-dev_apnortheast2-v007 
+INFO[0125] Modifying the size of autoscaling group to 0 : hello-dev_apnortheast2-v007(artd) 
+DEBU[0125] [Resizing to 0] target autoscaling group : hello-dev_apnortheast2-v008 
+INFO[0125] Modifying the size of autoscaling group to 0 : hello-dev_apnortheast2-v008(artd) 
+INFO[0125] Termination Checking for artd starts...      
+INFO[0125] Checking Termination stack for region starts : ap-northeast-2 
+INFO[0125] Waiting for instance termination in asg hello-dev_apnortheast2-v007 
+DEBU[0125] Start deleting autoscaling group : hello-dev_apnortheast2-v007 
+DEBU[0125] Autoscaling group is deleted : hello-dev_apnortheast2-v007 
+DEBU[0125] Start deleting launch templates in hello-dev_apnortheast2-v007 
+DEBU[0126] Launch templates are deleted in hello-dev_apnortheast2-v007 
+INFO[0126] finished : hello-dev_apnortheast2-v007       
+INFO[0126] Waiting for instance termination in asg hello-dev_apnortheast2-v008 
+INFO[0126] 1 instance found : hello-dev_apnortheast2-v008 
+INFO[0126] All stacks are not ready to be terminated... Please waiting... 
+
+(...skip...)
+
+INFO[0307] Waiting for instance termination in asg hello-dev_apnortheast2-v008 
+DEBU[0307] Start deleting autoscaling group : hello-dev_apnortheast2-v008 
+DEBU[0307] Autoscaling group is deleted : hello-dev_apnortheast2-v008 
+DEBU[0307] Start deleting launch templates in hello-dev_apnortheast2-v008 
+DEBU[0307] Launch templates are deleted in hello-dev_apnortheast2-v008 
+INFO[0307] finished : hello-dev_apnortheast2-v008       
+INFO[0307] All stacks are terminated!!        
 ```
 
-`goployer dev` watches your local source code and executes your goployer pipeline
-every time a change is detected. `goployer.yaml` provides specifications of the
-workflow - in this example, the pipeline is
-
-* Building a Docker image from the source using the Dockerfile
-* Tagging the Docker image with the `sha256` hash of its contents
-* Updating the Kubernetes manifest, `k8s-pod.yaml`, to use the image built previously
-* Deploying the Kubernetes manifest using `kubectl apply -f`
-* Streaming the logs back from the deployed app
-
-Let's re-trigger the workflow just by a single code change!
-Update `main.go` as follows:
-
-```go
-package main
-
-import (
-	"fmt"
-	"time"
-)
-
-func main() {
-	for {
-		fmt.Println("Hello goployer!")
-		time.Sleep(time.Second * 1)
-	}
-}
-```
-
-When you save the file, goployer will see this change and repeat the workflow described in
-`goployer.yaml`, rebuilding and redeploying your application. Once the pipeline
-is completed, you should see the changes reflected in the output in the terminal:
-
-```
-[getting-started] Hello goployer!
-```
-
-<span style="font-size: 36pt">✨</span>
-
-## `goployer run`: build & deploy once 
-
-If you prefer building and deploying once at a time, run `goployer run`.
-goployer will perform the workflow described in `goployer.yaml` exactly once.
-
-## What's next
-
-
-:mega: **Please fill out our [quick 5-question survey](https://forms.gle/BMTbGQXLWSdn7vEs6)** to tell us how satisfied you are with goployer, and what improvements we should make. Thank you! :dancers:

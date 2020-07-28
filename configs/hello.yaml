@@ -2,7 +2,7 @@
 name: hello
 userdata:
   type: local
-  path: scripts/userdata.sh
+  path: examples/scripts/userdata.sh
 
 autoscaling: &autoscaling_policy
   - name: scale_up
@@ -137,7 +137,7 @@ stacks:
 
     # lifecycle callbacks
     lifecycle_callbacks:
-      pre_terminate_past_clusters:
+      pre_terminate_past_cluster:
         - service hello stop
 
     # list of region
@@ -276,7 +276,7 @@ stacks:
 
     # lifecycle callbacks
     lifecycle_callbacks:
-      pre_terminate_past_clusters:
+      pre_terminate_past_cluster:
         - echo test
         - service hello stop
 

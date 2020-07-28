@@ -69,7 +69,7 @@ func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, c
 }
 
 // CheckTerminating checks if all of instances are terminated well
-func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
+func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableMetrics bool) bool {
 	asgInfo := client.EC2Service.GetMatchingAutoscalingGroup(target)
 	if asgInfo == nil {
 		d.Logger.Info("Already deleted autoscaling group : ", target)
@@ -85,12 +85,14 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string) bool {
 	}
 	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target), d.Stack.Env)
 
-	d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
-	if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
-		d.Logger.Errorf(err.Error())
-		return false
+	if !disableMetrics {
+		d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
+		if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
+			d.Logger.Errorf(err.Error())
+			return false
+		}
+		d.Logger.Debugf("update status of %s is finished", target)
 	}
-	d.Logger.Debugf("update status of %s is finished", target)
 
 	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
 	ok := client.EC2Service.DeleteAutoscalingSet(target)
