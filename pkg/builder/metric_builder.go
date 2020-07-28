@@ -19,11 +19,16 @@ type MetricConfig struct {
 	Enabled bool
 	Region  string  `yaml:"region"`
 	Storage Storage `yaml:"storage"`
+	Metrics Metrics `yaml:"metrics"`
 }
 
 type Storage struct {
 	Type string `yaml:"type"`
 	Name string `yaml:"name"`
+}
+
+type Metrics struct {
+	BaseTimezone string `yaml:"base_timezone"`
 }
 
 func ParseMetricConfig(disabledMetrics bool) (MetricConfig, error) {
@@ -42,6 +47,10 @@ func ParseMetricConfig(disabledMetrics bool) (MetricConfig, error) {
 	if err != nil {
 		Logger.Errorf(err.Error())
 		return metricConfig, err
+	}
+
+	if len(metricConfig.Metrics.BaseTimezone) <= 0 {
+		metricConfig.Metrics.BaseTimezone = "UTC"
 	}
 
 	return metricConfig, nil

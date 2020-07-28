@@ -15,8 +15,8 @@ import (
 var (
 	hashKey            = "identifier"
 	statusTimeStampKey = map[string]string{
-		"deployed":   "deployed_date_kst",
-		"terminated": "terminated_date_kst",
+		"deployed":   "deployed_date",
+		"terminated": "terminated_date",
 	}
 	DEFAULT_READ_THROUGHPUT  = int64(5)
 	DEFAULT_WRITE_THROUGHPUT = int64(5)
@@ -116,7 +116,7 @@ func (d DynamoDBClient) CreateTable(tableName string) error {
 	return nil
 }
 
-func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, tableName string, status string, additionalFields map[string]string) error {
+func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, tableName string, status, timezone string, additionalFields map[string]string) error {
 	input := &dynamodb.PutItemInput{
 		Item: map[string]*dynamodb.AttributeValue{
 			"identifier": {
@@ -131,8 +131,8 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 			"config": {
 				S: aws.String(config),
 			},
-			"start_date_kst": {
-				S: aws.String(tool.GetKstTimestamp().Format(time.RFC3339)),
+			"start_date": {
+				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
 			},
 			"tag": {
 				S: aws.String(tags),
@@ -181,7 +181,7 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 	return nil
 }
 
-func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, status string, updateFields map[string]string) error {
+func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, status, timezone string, updateFields map[string]interface{}) error {
 	baseEx := "SET #S = :status, #T = :timestamp"
 
 	input := &dynamodb.UpdateItemInput{
@@ -194,7 +194,7 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 				S: aws.String(status),
 			},
 			":timestamp": {
-				S: aws.String(tool.GetKstTimestamp().Format(time.RFC3339)),
+				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
 			},
 		},
 		Key: map[string]*dynamodb.AttributeValue{
@@ -211,10 +211,16 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 		for k, v := range updateFields {
 			ex = fmt.Sprintf("%s, #%s = :%s", ex, k, k)
 			input.UpdateExpression = aws.String(ex)
-			input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
-				S: aws.String(v),
-			}
 			input.ExpressionAttributeNames[fmt.Sprintf("#%s", k)] = aws.String(k)
+			if k != "requestSum" {
+				input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
+					S: aws.String(v.(string)),
+				}
+			} else {
+				input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
+					N: aws.String(fmt.Sprintf("%f", v.(float64))),
+				}
+			}
 		}
 	}
 
@@ -286,4 +292,89 @@ func (d DynamoDBClient) GetSingleItem(asg, tableName string) (map[string]*dynamo
 	}
 
 	return result.Item, err
+}
+
+func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string, updateFields map[string]interface{}) error {
+	baseEx := "SET #T = :statisticsRecordTime"
+
+	input := &dynamodb.UpdateItemInput{
+		ExpressionAttributeNames: map[string]*string{
+			"#T": aws.String("statistics_record_time"),
+		},
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":statisticsRecordTime": {
+				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
+			},
+		},
+		Key: map[string]*dynamodb.AttributeValue{
+			hashKey: {
+				S: aws.String(asg),
+			},
+		},
+		TableName:        aws.String(tableName),
+		UpdateExpression: aws.String(baseEx),
+	}
+
+	if updateFields != nil && len(updateFields) > 0 {
+		ex := baseEx
+		for k, v := range updateFields {
+			ex = fmt.Sprintf("%s, #%s = :%s", ex, k, k)
+			input.UpdateExpression = aws.String(ex)
+			input.ExpressionAttributeNames[fmt.Sprintf("#%s", k)] = aws.String(k)
+			if k != "stat" {
+				input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
+					S: aws.String(v.(string)),
+				}
+			} else {
+				// stat data
+				statData := v.(map[string]map[string]float64)
+				refined := map[string]*dynamodb.AttributeValue{}
+				for tg, vv := range statData {
+					temp := map[string]*dynamodb.AttributeValue{}
+					for id, vvv := range vv {
+						temp[id] = &dynamodb.AttributeValue{
+							N: aws.String(fmt.Sprintf("%f", vvv)),
+						}
+					}
+					refined[tg] = &dynamodb.AttributeValue{
+						M: temp,
+					}
+				}
+				input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
+					M: refined,
+				}
+			}
+		}
+	}
+
+	_, err := d.Client.UpdateItem(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case dynamodb.ErrCodeConditionalCheckFailedException:
+				fmt.Println(dynamodb.ErrCodeConditionalCheckFailedException, aerr.Error())
+			case dynamodb.ErrCodeProvisionedThroughputExceededException:
+				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
+			case dynamodb.ErrCodeResourceNotFoundException:
+				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
+			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
+				fmt.Println(dynamodb.ErrCodeItemCollectionSizeLimitExceededException, aerr.Error())
+			case dynamodb.ErrCodeTransactionConflictException:
+				fmt.Println(dynamodb.ErrCodeTransactionConflictException, aerr.Error())
+			case dynamodb.ErrCodeRequestLimitExceeded:
+				fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
+			case dynamodb.ErrCodeInternalServerError:
+				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
+			default:
+				fmt.Println(aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			fmt.Println(err.Error())
+		}
+		return err
+	}
+
+	return nil
 }

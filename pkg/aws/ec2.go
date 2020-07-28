@@ -943,3 +943,28 @@ func createSingleLifecycleHookSpecification(l builder.LifecycleHookSpecification
 
 	return lhs
 }
+
+// GetTargetGroup returns list of target group ARN of autoscaling group
+func (e EC2Client) GetTargetGroups(asgName string) ([]*string, error) {
+	input := &autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: []*string{
+			aws.String(asgName),
+		},
+	}
+
+	result, err := e.AsClient.DescribeAutoScalingGroups(input)
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []*string
+	for _, a := range result.AutoScalingGroups {
+		ret = a.TargetGroupARNs
+	}
+
+	if len(ret) == 0 {
+		return ret, fmt.Errorf("this autoscaling group does not belong to any target group")
+	}
+
+	return ret, nil
+}
