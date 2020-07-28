@@ -1,0 +1,21 @@
+{
+  "config": {
+    "manifest": "s3://goployer/manifest/hello.yaml",
+    "manifest_s3_region": "ap-northeast-2",
+    "ami": "",
+    "env": "",
+    "stack": "artd",
+    "assume_role": "",
+    "region": "ap-northeast-2",
+    "slack_off": true,
+    "log_level": "debug",
+    "extra_tags": "",
+    "ansible_extra_vars": "",
+    "override_instance_type": "t3.small",
+    "disable_metrics": false,
+    "release_notes": "test",
+    "release_notes_base64": "",
+    "force_manifest_capacity": false,
+    "polling_interval": 60
+  }
+}

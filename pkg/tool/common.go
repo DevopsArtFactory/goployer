@@ -2,7 +2,6 @@ package tool
 
 import (
 	"fmt"
-	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"reflect"
@@ -107,17 +106,16 @@ func IsStringInArray(s string, arr []string) bool {
 }
 
 //Check timeout
-func CheckTimeout(start int64, timeout time.Duration) bool {
+func CheckTimeout(start int64, timeout time.Duration) (bool, error) {
 	now := time.Now().Unix()
 	timeoutSec := int64(timeout / time.Second)
 
 	//Over timeout
 	if (now - start) > timeoutSec {
-		Logger.Errorf("Timeout has been exceeded : %.0f minutes", timeout.Minutes())
-		os.Exit(1)
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 func GetBaseTimeWithTimestamp(timezone string) time.Time {

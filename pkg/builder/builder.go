@@ -4,12 +4,13 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
-	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"strings"
 	"time"
+
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
+	Logger "github.com/sirupsen/logrus"
 )
 
 var (
@@ -18,6 +19,7 @@ var (
 	DEFAULT_DEPLOYMENT_TIMEOUT       = 60 * time.Minute
 	DEFAULT_POLLING_INTERVAL         = 60 * time.Second
 	MIN_POLLING_INTERVAL             = 5 * time.Second
+	S3_PREFIX                        = "s3://"
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 )
 
@@ -41,25 +43,26 @@ type Builder struct {
 }
 
 type Config struct {
-	Manifest              string
-	Ami                   string
-	Env                   string
-	Stack                 string
-	AssumeRole            string
-	Timeout               time.Duration
+	Manifest              string        `json:"manifest"`
+	ManifestS3Region      string        `json:"manifest_s3_region"`
+	Ami                   string        `json:"ami"`
+	Env                   string        `json:"env"`
+	Stack                 string        `json:"stack"`
+	AssumeRole            string        `json:"assume_role"`
+	Timeout               time.Duration `json:"timeout"`
 	StartTimestamp        int64
-	Region                string
+	Region                string `json:"region"`
 	Confirm               bool
-	SlackOff              bool
-	LogLevel              string
-	ExtraTags             string
-	AnsibleExtraVars      string
-	OverrideInstanceType  string
-	DisableMetrics        bool
-	ReleaseNotes          string
-	ReleaseNotesBase64    string
-	ForceManifestCapacity bool
-	PollingInterval       time.Duration
+	SlackOff              bool          `json:"slack_off"`
+	LogLevel              string        `json:"log_level"`
+	ExtraTags             string        `json:"extra_tags"`
+	AnsibleExtraVars      string        `json:"ansible_extra_vars"`
+	OverrideInstanceType  string        `json:"override_instance_type"`
+	DisableMetrics        bool          `json:"disable_metrics"`
+	ReleaseNotes          string        `json:"release_notes"`
+	ReleaseNotesBase64    string        `json:"release_notes_base64"`
+	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
+	PollingInterval       time.Duration `json:"polling_interval"`
 }
 
 type YamlConfig struct {
@@ -207,40 +210,61 @@ func (s S3Provider) Provide() string {
 	return ""
 }
 
-func NewBuilder() (Builder, error) {
+func NewBuilder(config *Config) (Builder, error) {
 	builder := Builder{}
 
-	// Parsing Argument
-	config := argumentParsing()
+	// parsing argument
+	if config == nil {
+		c := argumentParsing()
+		config = &c
+	}
 
-	//Check manifest file
-	if len(config.Manifest) == 0 || !tool.FileExists(config.Manifest) {
+	// check manifest file
+	if len(config.Manifest) <= 0 {
+		return builder, fmt.Errorf("you should specify manifest file")
+	}
+
+	if strings.HasPrefix(config.Manifest, S3_PREFIX) && len(config.ManifestS3Region) <= 0 {
+		return builder, fmt.Errorf("you have to specify region of s3 bucket: --manifest-s3-region")
+	}
+
+	if len(config.Manifest) <= 0 || (!strings.HasPrefix(config.Manifest, S3_PREFIX) && !tool.FileExists(config.Manifest)) {
 		return builder, fmt.Errorf(NO_MANIFEST_EXISTS)
 	}
 
-	// Set config
-	builder.Config = config
+	// set config
+	builder.Config = *config
 
-	return builder.SetStacks(), nil
+	return builder, nil
+}
+
+func (b Builder) SetManifestConfig() Builder {
+	awsConfig, stacks := ParsingManifestFile(b.Config.Manifest)
+	b.AwsConfig = awsConfig
+
+	return b.SetStacks(stacks)
+}
+
+func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
+	awsConfig, stacks := buildStructFromYaml(fileBytes)
+	b.AwsConfig = awsConfig
+
+	return b.SetStacks(stacks)
 }
 
 // SetStacks set stack information
-func (b Builder) SetStacks() Builder {
-
-	awsConfig, Stacks := parsingManifestFile(b.Config.Manifest)
-
-	b.AwsConfig = awsConfig
+func (b Builder) SetStacks(stacks []Stack) Builder {
 
 	if len(b.Config.AssumeRole) > 0 {
-		for i, _ := range Stacks {
-			Stacks[i].AssumeRole = b.Config.AssumeRole
+		for i, _ := range stacks {
+			stacks[i].AssumeRole = b.Config.AssumeRole
 		}
 	}
 
-	b.Stacks = Stacks
+	b.Stacks = stacks
 
 	var deployStack Stack
-	for _, stack := range Stacks {
+	for _, stack := range stacks {
 		if b.Config.Stack == stack.Stack {
 			deployStack = stack
 			break
@@ -267,12 +291,13 @@ func (b Builder) CheckValidation() error {
 	target_ami := b.Config.Ami
 	target_region := b.Config.Region
 
-	// Check stack
+	// check configurations
+	// check stack
 	if len(b.Config.Stack) == 0 {
 		return fmt.Errorf("you should choose at least one stack.")
 	}
 
-	// Global AMI check
+	// global AMI check
 	if len(target_region) == 0 && len(target_ami) != 0 && strings.HasPrefix(target_ami, "ami-") {
 		// One ami id cannot be used in different regions
 		return fmt.Errorf("one ami id cannot be used in different regions : %s", target_ami)
@@ -286,6 +311,23 @@ func (b Builder) CheckValidation() error {
 	// check release notes
 	if len(b.Config.ReleaseNotes) > 0 && len(b.Config.ReleaseNotesBase64) > 0 {
 		return fmt.Errorf("you cannot specify the release-notes and release-notes-base64 at the same time")
+	}
+
+	// check polling interval
+	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
+		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
+	}
+	if b.Config.PollingInterval >= b.Config.Timeout {
+		return fmt.Errorf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes())
+	}
+
+	// Check Configuration about metrics
+	if len(b.MetricConfig.Region) <= 0 {
+		return fmt.Errorf("you do not specify the region for metrics")
+	}
+
+	if len(b.MetricConfig.Storage.Name) <= 0 {
+		return fmt.Errorf("you do not specify the name of storage for metrics")
 	}
 
 	// check validations in each stack
@@ -414,21 +456,6 @@ func (b Builder) CheckValidation() error {
 		}
 	}
 
-	if len(b.MetricConfig.Region) <= 0 {
-		return fmt.Errorf("you do not specify the region for metrics")
-	}
-
-	if len(b.MetricConfig.Storage.Name) <= 0 {
-		return fmt.Errorf("you do not specify the name of storage for metrics")
-	}
-
-	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
-		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
-	}
-	if b.Config.PollingInterval >= b.Config.Timeout {
-		return fmt.Errorf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes())
-	}
-
 	return nil
 }
 
@@ -493,15 +520,23 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func parsingManifestFile(manifest string) (AWSConfig, []Stack) {
-	yamlConfig := YamlConfig{}
-	yamlFile, err := ioutil.ReadFile(manifest)
+func ParsingManifestFile(manifest string) (AWSConfig, []Stack) {
+	var yamlFile []byte
+	var err error
+
+	yamlFile, err = ioutil.ReadFile(manifest)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
 		return AWSConfig{}, nil
 	}
 
-	err = yaml.Unmarshal(yamlFile, &yamlConfig)
+	return buildStructFromYaml(yamlFile)
+}
+
+func buildStructFromYaml(yamlFile []byte) (AWSConfig, []Stack) {
+
+	yamlConfig := YamlConfig{}
+	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
 		tool.FatalError(err)
 	}
@@ -520,6 +555,7 @@ func parsingManifestFile(manifest string) (AWSConfig, []Stack) {
 // Parsing Config from command
 func argumentParsing() Config {
 	manifest := flag.String("manifest", "", "The manifest configuration file to use.")
+	manifestS3Region := flag.String("manifest-s3-region", "", "Region of bucket containing the manifest configuration file to use.")
 	ami := flag.String("ami", "", "The AMI to use for the servers.")
 	env := flag.String("env", "", "The environment that is being deployed into.")
 	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
@@ -536,19 +572,19 @@ func argumentParsing() Config {
 	releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
 	releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
 	forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
-	pollingInterval := flag.Duration("polling-interval", 0, "Time to interval for polling health check (default 60s)")
+	pollingInterval := flag.Duration("polling-interval", DEFAULT_POLLING_INTERVAL, "Time to interval for polling health check (default 60s)")
 
 	flag.Parse()
 
 	config := Config{
 		Manifest:              *manifest,
+		ManifestS3Region:      *manifestS3Region,
 		Ami:                   *ami,
 		Env:                   *env,
 		Stack:                 *stack,
 		Region:                *region,
 		AssumeRole:            *assumeRole,
 		Timeout:               *timeout,
-		StartTimestamp:        time.Now().Unix(),
 		Confirm:               *confirm,
 		SlackOff:              *slackOff,
 		LogLevel:              *logLevel,
@@ -562,7 +598,7 @@ func argumentParsing() Config {
 		PollingInterval:       *pollingInterval,
 	}
 
-	return config
+	return RefineConfig(config)
 }
 
 // Set Userdata provider
@@ -584,4 +620,19 @@ func SetUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataP
 	return LocalProvider{
 		Path: userdata.Path,
 	}
+}
+
+// RefineConfig refines the values for clear setting
+func RefineConfig(config Config) Config {
+	if config.Timeout < time.Minute {
+		config.Timeout = config.Timeout * time.Minute
+	}
+
+	if config.PollingInterval < time.Second {
+		config.PollingInterval = config.PollingInterval * time.Second
+	}
+
+	config.StartTimestamp = time.Now().Unix()
+
+	return config
 }

@@ -2,11 +2,13 @@ package runner
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
+	"strings"
 	"time"
 
 	"os"
@@ -30,26 +32,67 @@ var (
 	}
 )
 
-//Start function is the starting point of all processes.
-func Start() error {
-	// Check OS first
-	//if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-	//	return errors.New("you cannot run from local command.")
-	//}
-
+func SetupBuilder() (builder.Builder, error) {
 	// Create new builder
-	builderSt, err := builder.NewBuilder()
+	builderSt, err := builder.NewBuilder(nil)
 	if err != nil {
-		return err
+		return builder.Builder{}, err
+	}
+
+	builderSt, err = setManifestToBuilder(builderSt)
+	if err != nil {
+		return builder.Builder{}, err
 	}
 
 	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics)
 	if err != nil {
-		return err
+		return builder.Builder{}, err
 	}
 
 	builderSt.MetricConfig = m
 
+	return builderSt, nil
+}
+
+func ServerSetup(config builder.Config) (builder.Builder, error) {
+	// Create new builder
+	builderSt, err := builder.NewBuilder(&config)
+	if err != nil {
+		return builder.Builder{}, err
+	}
+
+	builderSt, err = setManifestToBuilder(builderSt)
+	if err != nil {
+		return builder.Builder{}, err
+	}
+
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics)
+	if err != nil {
+		return builder.Builder{}, err
+	}
+
+	builderSt.MetricConfig = m
+
+	return builderSt, nil
+}
+
+func setManifestToBuilder(builderSt builder.Builder) (builder.Builder, error) {
+	if !strings.HasPrefix(builderSt.Config.Manifest, builder.S3_PREFIX) {
+		builderSt = builderSt.SetManifestConfig()
+	} else {
+		s := aws.BootstrapManifestService(builderSt.Config.ManifestS3Region, "")
+		fileBytes, err := s.S3Service.GetManifest(filterS3Path(builderSt.Config.Manifest))
+		if err != nil {
+			return builder.Builder{}, err
+		}
+		builderSt = builderSt.SetManifestConfigWithS3(fileBytes)
+	}
+
+	return builderSt, nil
+}
+
+//Start function is the starting point of all processes.
+func Start(builderSt builder.Builder) error {
 	// Check validation of configurations
 	if err := builderSt.CheckValidation(); err != nil {
 		return err
@@ -65,12 +108,12 @@ func Start() error {
 }
 
 //withRunner creates runner and runs the deployment process
-func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) error) error {
-	runner, err := NewRunner(builder)
+func withRunner(builderSt builder.Builder, postAction func(slacker tool.Slack) error) error {
+	runner, err := NewRunner(builderSt)
 	if err != nil {
 		return err
 	}
-	runner.LogFormatting(builder.Config.LogLevel)
+	runner.LogFormatting(builderSt.Config.LogLevel)
 
 	if err := runner.Run(); err != nil {
 		return err
@@ -78,8 +121,6 @@ func withRunner(builder builder.Builder, postAction func(slacker tool.Slack) err
 
 	return postAction(runner.Slacker)
 }
-
-// check validation for
 
 //NewRunner creates a new runner
 func NewRunner(newBuilder builder.Builder) (Runner, error) {
@@ -154,7 +195,9 @@ func (r Runner) Run() error {
 	}
 
 	// healthcheck
-	doHealthchecking(deployers, r.Builder.Config)
+	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
+		return err
+	}
 
 	// Attach scaling policy
 	for _, deployer := range deployers {
@@ -206,7 +249,7 @@ func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.A
 }
 
 // doHealthchecking checks if newly deployed autoscaling group is healthy
-func doHealthchecking(deployers []deployer.DeployManager, config builder.Config) {
+func doHealthchecking(deployers []deployer.DeployManager, config builder.Config, logger *Logger.Logger) error {
 	healthyStackList := []string{}
 	healthy := false
 
@@ -215,7 +258,11 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config)
 	for !healthy {
 		count := 0
 
-		tool.CheckTimeout(config.StartTimestamp, config.Timeout)
+		logger.Debugf("Start Timestamp: %d, timeout: %s", config.StartTimestamp, config.Timeout)
+		isTimeout, _ := tool.CheckTimeout(config.StartTimestamp, config.Timeout)
+		if isTimeout {
+			return fmt.Errorf("Timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
+		}
 
 		for _, deployer := range deployers {
 			if tool.IsStringInArray(deployer.GetStackName(), healthyStackList) {
@@ -248,6 +295,8 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config)
 			time.Sleep(config.PollingInterval)
 		}
 	}
+
+	return nil
 }
 
 // cleanChecking cleans old autoscaling groups
@@ -292,4 +341,11 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 			time.Sleep(config.PollingInterval)
 		}
 	}
+}
+
+func filterS3Path(path string) (string, string) {
+	path = strings.ReplaceAll(path, builder.S3_PREFIX, "")
+	split := strings.Split(path, "/")
+
+	return split[0], strings.Join(split[1:], "/")
 }

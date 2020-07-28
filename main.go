@@ -8,8 +8,15 @@ import (
 
 func main() {
 	//Create new builder
-	if err := runner.Start(); err != nil {
-		Logger.Error(err.Error())
+	builderSt, err := runner.SetupBuilder()
+	if err != nil {
+		Logger.Errorf(err.Error())
+		os.Exit(1)
+	}
+
+	//Start runner
+	if err := runner.Start(builderSt); err != nil {
+		Logger.Errorf(err.Error())
 		os.Exit(1)
 	}
 }

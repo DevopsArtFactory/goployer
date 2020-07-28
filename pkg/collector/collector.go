@@ -140,16 +140,20 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 		}
 
 		startDate = tool.GetBaseStartTime(startDate)
+		if curr.Sub(startDate) < 0 {
+			logger.Debugf("current: %s, terminated: %s", curr, startDate)
 
-		logger.Debugf("StartDate : %s\n", startDate)
+		} else {
+			logger.Debugf("StartDate : %s\n", startDate)
 
-		targetRequest, err := c.MetricClient.CloudWatchService.GetRequestStatistics(tgs, startDate, curr, period, logger)
-		if err != nil {
-			return ret, err
+			targetRequest, err := c.MetricClient.CloudWatchService.GetRequestStatistics(tgs, startDate, curr, period, logger)
+			if err != nil {
+				return ret, err
+			}
+
+			ret["stat"] = targetRequest
+			ret["timezone"] = c.MetricConfig.Metrics.BaseTimezone
 		}
-
-		ret["stat"] = targetRequest
-		ret["timezone"] = c.MetricConfig.Metrics.BaseTimezone
 	}
 
 	return ret, nil
