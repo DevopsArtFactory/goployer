@@ -120,7 +120,6 @@ func CheckTimeout(start int64, timeout time.Duration) bool {
 	return false
 }
 
-//Get KST Timestamp
 func GetBaseTimeWithTimestamp(timezone string) time.Time {
 	now := time.Now()
 
