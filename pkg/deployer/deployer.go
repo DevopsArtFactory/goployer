@@ -154,7 +154,7 @@ func selectClientFromList(awsClients []aws.AWSClient, region string) (aws.AWSCli
 			return c, nil
 		}
 	}
-	return aws.AWSClient{}, errors.New("No AWS Client is selected")
+	return aws.AWSClient{}, errors.New("no AWS Client is selected")
 }
 
 // CheckTerminating checks if all of instances are terminated well
@@ -164,14 +164,17 @@ func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
 		return err
 	}
 
+	d.Logger.Debugf("start retrieving additional metrics")
 	metricData, err := d.Collector.GetAdditionalMetric(target, targetGroups, d.Logger)
 	if err != nil {
 		return err
 	}
 
+	d.Logger.Debugf("start updating additional metrics to DynamoDB")
 	if err := d.Collector.UpdateStatistics(target, metricData); err != nil {
 		return err
 	}
+	d.Logger.Debugf("finish updating additional metrics to DynamoDB")
 
 	return nil
 }
