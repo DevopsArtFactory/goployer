@@ -10,7 +10,7 @@ type MetricConfig struct {
 	Enabled bool
 
 	// Base region for gathering metrics
-	Region  string  `yaml:"region"`
+	Region string `yaml:"region"`
 
 	// Storage configuration for storing metric data
 	Storage Storage `yaml:"storage"`

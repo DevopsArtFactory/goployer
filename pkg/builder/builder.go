@@ -167,7 +167,7 @@ func (b Builder) CheckValidation() error {
 	}
 
 	// Check Configuration about metrics
-	if ! b.Config.DisableMetrics {
+	if !b.Config.DisableMetrics {
 		if len(b.MetricConfig.Region) <= 0 {
 			return fmt.Errorf("you do not specify the region for metrics")
 		}
