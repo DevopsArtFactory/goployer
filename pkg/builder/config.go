@@ -2,21 +2,21 @@ package builder
 
 import "time"
 
-type Builder struct {  // Do not add comments for this struct
+type Builder struct { // Do not add comments for this struct
 	// Config from command
-	Config       Config
+	Config Config
 
 	// AWS related Configuration
-	AwsConfig    AWSConfig
+	AwsConfig AWSConfig
 
 	// Configuration for metrics
 	MetricConfig MetricConfig
 
 	// Stack configuration
-	Stacks       []Stack
+	Stacks []Stack
 }
 
-type Config struct {  // Do not add comments for this struct
+type Config struct { // Do not add comments for this struct
 	Manifest              string        `json:"manifest"`
 	ManifestS3Region      string        `json:"manifest_s3_region"`
 	Ami                   string        `json:"ami"`
@@ -24,7 +24,7 @@ type Config struct {  // Do not add comments for this struct
 	Stack                 string        `json:"stack"`
 	AssumeRole            string        `json:"assume_role"`
 	Timeout               time.Duration `json:"timeout"`
-	Region                string `json:"region"`
+	Region                string        `json:"region"`
 	SlackOff              bool          `json:"slack_off"`
 	LogLevel              string        `json:"log_level"`
 	ExtraTags             string        `json:"extra_tags"`
@@ -42,16 +42,16 @@ type Config struct {  // Do not add comments for this struct
 //Yaml configuration from manifest file
 type YamlConfig struct {
 	// Application Name
-	Name     string   `yaml:"name"`
+	Name string `yaml:"name"`
 
 	// Configuration about userdata file
 	Userdata Userdata `yaml:"userdata"`
 
 	// Autoscaling tag list. This is attached to EC2 instance
-	Tags     []string `yaml:"tags"`
+	Tags []string `yaml:"tags"`
 
 	// List of stack configuration
-	Stacks   []Stack  `yaml:"stacks"`
+	Stacks []Stack `yaml:"stacks"`
 }
 
 type AWSConfig struct {
@@ -68,71 +68,71 @@ type Userdata struct {
 	// Path of userdata file
 	Path string `yaml:"path"`
 }
+
 // Stack configuration
 type Stack struct {
 	// Name of stack
-	Stack                 string                `yaml:"stack"`
+	Stack string `yaml:"stack"`
 
 	// Name of AWS Account
-	Account               string                `yaml:"account"`
+	Account string `yaml:"account"`
 
 	// Environment of stack
-	Env                   string                `yaml:"env"`
+	Env string `yaml:"env"`
 
 	// Type of Replacement for deployment
-	ReplacementType       string                `yaml:"replacement_type"`
+	ReplacementType string `yaml:"replacement_type"`
 
 	// Userdata configuration for stack deployment
-	Userdata              Userdata              `yaml:"userdata"`
+	Userdata Userdata `yaml:"userdata"`
 
 	// AWS IAM instance profile.
-	IamInstanceProfile    string                `yaml:"iam_instance_profile"`
+	IamInstanceProfile string `yaml:"iam_instance_profile"`
 
 	// Tags about ansible
-	AnsibleTags           string                `yaml:"ansible_tags"`
+	AnsibleTags string `yaml:"ansible_tags"`
 
 	// IAM Role ARN for assume role
-	AssumeRole            string                `yaml:"assume_role"`
+	AssumeRole string `yaml:"assume_role"`
 
 	// Polling interval when health checking
-	PollingInterval       time.Duration         `yaml:"polling_interval"`
+	PollingInterval time.Duration `yaml:"polling_interval"`
 
 	// Whether using EBS Optimized option or not
-	EbsOptimized          bool                  `yaml:"ebs_optimized"`
+	EbsOptimized bool `yaml:"ebs_optimized"`
 
 	// Instance market options like spot
 	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
 
 	// MixedInstancePolicy of autoscaling group
-	MixedInstancesPolicy  MixedInstancesPolicy  `yaml:"mixed_instances_policy,omitempty"`
+	MixedInstancesPolicy MixedInstancesPolicy `yaml:"mixed_instances_policy,omitempty"`
 
 	// EBS Block Devices for EC2 Instance
-	BlockDevices          []BlockDevice         `yaml:"block_devices"`
+	BlockDevices []BlockDevice `yaml:"block_devices"`
 
 	// Autoscaling Capacity
-	Capacity              Capacity              `yaml:"capacity"`
+	Capacity Capacity `yaml:"capacity"`
 
 	// Autoscaling Policy according to the metrics
-	Autoscaling           []ScalePolicy         `yaml:"autoscaling"`
+	Autoscaling []ScalePolicy `yaml:"autoscaling"`
 
 	// CloudWatch alarm for autoscaling action
-	Alarms                []AlarmConfigs        `yaml:"alarms"`
+	Alarms []AlarmConfigs `yaml:"alarms"`
 
 	// List of commands which will be run before terminating instances
-	LifecycleCallbacks    LifecycleCallbacks    `yaml:"lifecycle_callbacks"`
+	LifecycleCallbacks LifecycleCallbacks `yaml:"lifecycle_callbacks"`
 
 	// Lifecycle hooks of autoscaling group
-	LifecycleHooks        LifecycleHooks        `yaml:"lifecycle_hooks"`
+	LifecycleHooks LifecycleHooks `yaml:"lifecycle_hooks"`
 
 	// List of region configurations
-	Regions               []RegionConfig        `yaml:"regions"`
-
+	Regions []RegionConfig `yaml:"regions"`
 }
 
 // Instance Market Options Configuration
 type InstanceMarketOptions struct {
 	// Type of market for EC2 instance
-	MarketType  string      `yaml:"market_type"`
+	MarketType string `yaml:"market_type"`
 
 	// Options for spot instance
 	SpotOptions SpotOptions `yaml:"spot_options"`
@@ -141,37 +141,37 @@ type InstanceMarketOptions struct {
 // MixedInstancesPolicy of autoscaling group
 type MixedInstancesPolicy struct {
 	// Whether or not to use mixedInstancesPolicy
-	Enabled                bool     `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 
 	// List of EC2 instance types for spot instance
-	Override               []string `yaml:"override_instance_types"`
+	Override []string `yaml:"override_instance_types"`
 
 	// Percentage of On Demand instance
-	OnDemandPercentage     int64    `yaml:"on_demand_percentage"`
+	OnDemandPercentage int64 `yaml:"on_demand_percentage"`
 
 	// Allocation strategy for spot instances
-	SpotAllocationStrategy string   `yaml:"spot_allocation_strategy"`
+	SpotAllocationStrategy string `yaml:"spot_allocation_strategy"`
 
 	// The number of pools of instance type for spot instances
-	SpotInstancePools      int64    `yaml:"spot_instance_pools"`
+	SpotInstancePools int64 `yaml:"spot_instance_pools"`
 
 	// Maximum number of spot
-	SpotMaxPrice           string   `yaml:"spot_max_price,omitempty"`
+	SpotMaxPrice string `yaml:"spot_max_price,omitempty"`
 }
 
 // Spot configurations
 type SpotOptions struct {
 	// BlockDurationMinutes menas How long you want to use spot instance for sure
-	BlockDurationMinutes         int64  `yaml:"block_duration_minutes"`
+	BlockDurationMinutes int64 `yaml:"block_duration_minutes"`
 
 	// Behavior when spot instance is interrupted
 	InstanceInterruptionBehavior string `yaml:"instance_interruption_behavior"`
 
 	// Maximum price of spot instance
-	MaxPrice                     string `yaml:"max_price"`
+	MaxPrice string `yaml:"max_price"`
 
 	// Spot instance type
-	SpotInstanceType             string `yaml:"spot_instance_type"`
+	SpotInstanceType string `yaml:"spot_instance_type"`
 }
 
 // EBS Block device configuration
@@ -180,7 +180,7 @@ type BlockDevice struct {
 	DeviceName string `yaml:"device_name"`
 
 	// Size of volume
-	VolumeSize int64  `yaml:"volume_size"`
+	VolumeSize int64 `yaml:"volume_size"`
 
 	// Type of volume (gp2, io1, st1, sc1)
 	VolumeType string `yaml:"volume_type"`
@@ -195,106 +195,105 @@ type LifecycleCallbacks struct {
 // Policy of scaling policy
 type ScalePolicy struct {
 	// Name of scaling policy
-	Name              string `yaml:"name"`
+	Name string `yaml:"name"`
 
 	// Type of adjustment for autoscaling
 	// https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html
-	AdjustmentType    string `yaml:"adjustment_type"`
+	AdjustmentType string `yaml:"adjustment_type"`
 
 	// Amount of adjustment for scaling
-	ScalingAdjustment int64  `yaml:"scaling_adjustment"`
+	ScalingAdjustment int64 `yaml:"scaling_adjustment"`
 
 	// Cooldown time between scaling actions
-	Cooldown          int64  `yaml:"cooldown"`
+	Cooldown int64 `yaml:"cooldown"`
 }
 
 // Configuration of CloudWatch alarm used with scaling policy
 type AlarmConfigs struct {
 	// Name of alarm
-	Name              string
+	Name string
 
 	// Namespace of metrics
-	Namespace         string
+	Namespace string
 
 	// Metrics type for scaling
-	Metric            string
+	Metric string
 
 	// Type of statistics for metrics
-	Statistic         string
+	Statistic string
 
 	// Comparsion operator for triggering alarm
-	Comparison        string
+	Comparison string
 
 	// Threshold of alarm trigger
-	Threshold         float64
+	Threshold float64
 
 	// Period for metrics
-	Period            int64
+	Period int64
 
 	// The number of periods for evaluation
-	EvaluationPeriods int64    `yaml:"evaluation_periods"`
+	EvaluationPeriods int64 `yaml:"evaluation_periods"`
 
 	// List of actions when alarm is triggered
 	// Element of this list should be defined with scaling_policy
-	AlarmActions      []string `yaml:"alarm_actions"`
+	AlarmActions []string `yaml:"alarm_actions"`
 }
 
 // Region configuration
 type RegionConfig struct {
 	// Region name
-	Region                 string   `yaml:"region"`
+	Region string `yaml:"region"`
 
 	// Whether or not to use public subnets
-	UsePublicSubnets       bool     `yaml:"use_public_subnets"`
+	UsePublicSubnets bool `yaml:"use_public_subnets"`
 
 	// Type of EC2 instance
-	InstanceType           string   `yaml:"instance_type"`
+	InstanceType string `yaml:"instance_type"`
 
 	// Key name of SSH access
-	SshKey                 string   `yaml:"ssh_key"`
+	SshKey string `yaml:"ssh_key"`
 
 	// Amazon AMI ID
-	AmiId                  string   `yaml:"ami_id"`
+	AmiId string `yaml:"ami_id"`
 
 	// Name of VPC
-	VPC                    string   `yaml:"vpc"`
+	VPC string `yaml:"vpc"`
 
 	// List of security group name
-	SecurityGroups         []string `yaml:"security_groups"`
+	SecurityGroups []string `yaml:"security_groups"`
 
 	// Load balancer name for healthcheck
-	HealthcheckLB          string   `yaml:"healthcheck_load_balancer"`
+	HealthcheckLB string `yaml:"healthcheck_load_balancer"`
 
 	// Target group name for healthcheck
-	HealthcheckTargetGroup string   `yaml:"healthcheck_target_group"`
+	HealthcheckTargetGroup string `yaml:"healthcheck_target_group"`
 
 	// Target group list of load balancer
-	TargetGroups           []string `yaml:"target_groups"`
+	TargetGroups []string `yaml:"target_groups"`
 
 	// List of  load balancers
-	LoadBalancers          []string `yaml:"loadbalancers"`
+	LoadBalancers []string `yaml:"loadbalancers"`
 
 	// Availability zones for autoscaling group
-	AvailabilityZones      []string `yaml:"availability_zones"`
+	AvailabilityZones []string `yaml:"availability_zones"`
 }
 
 // Instance capacity of autoscaling group
 type Capacity struct {
 	// Minimum number of instances
-	Min     int64 `yaml:"min"`
+	Min int64 `yaml:"min"`
 
 	// Maximum number of instances
-	Max     int64 `yaml:"max"`
+	Max int64 `yaml:"max"`
 
 	// Desired number of instances
 	Desired int64 `yaml:"desired"`
 }
 
-
 // Lifecycle Hooks
 type LifecycleHooks struct {
 	// Launch Transition configuration - triggered before starting instance
-	LaunchTransition    []LifecycleHookSpecification `yaml:"launch_transition"`
+	LaunchTransition []LifecycleHookSpecification `yaml:"launch_transition"`
 
 	// Terminate Transition configuration - triggered before terminating instance
 	TerminateTransition []LifecycleHookSpecification `yaml:"terminate_transition"`
@@ -303,20 +302,20 @@ type LifecycleHooks struct {
 // Lifecycle Hook Specification
 type LifecycleHookSpecification struct {
 	// Name of lifecycle hook
-	LifecycleHookName     string `yaml:"lifecycle_hook_name"`
+	LifecycleHookName string `yaml:"lifecycle_hook_name"`
 
 	// Default result of lifecycle hook
-	DefaultResult         string `yaml:"default_result"`
+	DefaultResult string `yaml:"default_result"`
 
 	// Heartbeat timeout of lifecycle hook
-	HeartbeatTimeout      int64  `yaml:"heartbeat_timeout"`
+	HeartbeatTimeout int64 `yaml:"heartbeat_timeout"`
 
 	// Notification Metadata of lifecycle hook
-	NotificationMetadata  string `yaml:"notification_metadata"`
+	NotificationMetadata string `yaml:"notification_metadata"`
 
 	// Notification Target ARN like AWS Simple Notification Service
 	NotificationTargetARN string `yaml:"notification_target_arn"`
 
 	// IAM Role ARN for notification
-	RoleARN               string `yaml:"role_arn"`
+	RoleARN string `yaml:"role_arn"`
 }

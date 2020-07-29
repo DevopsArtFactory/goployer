@@ -60,7 +60,7 @@ type Definition struct {
 	tags    string
 }
 
-func main()  {
+func main() {
 	if _, err := generateSchemas(".", false, "config", "schema"); err != nil {
 		fmt.Errorf(err.Error())
 	}
@@ -72,8 +72,8 @@ func main()  {
 
 func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bool, error) {
 
-	input :=  filepath.Join(root, "pkg", "builder", inputFile + ".go")
-	output :=  filepath.Join(root, "docs", "content", "en", "schemas", outputFile + ".json")
+	input := filepath.Join(root, "pkg", "builder", inputFile+".go")
+	output := filepath.Join(root, "docs", "content", "en", "schemas", outputFile+".json")
 
 	generator := Generator{}
 
@@ -95,7 +95,7 @@ func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bo
 
 	current = bytes.Replace(current, []byte("\r\n"), []byte("\n"), -1)
 
-	if ! dryRun {
+	if !dryRun {
 		if err := ioutil.WriteFile(output, buf, os.ModePerm); err != nil {
 			return false, fmt.Errorf("unable to write schema %q: %w", output, err)
 		}
@@ -105,7 +105,6 @@ func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bo
 
 	return same, nil
 }
-
 
 func (g Generator) Apply(input string) ([]byte, error) {
 	fset := token.NewFileSet()
@@ -125,7 +124,7 @@ func (g Generator) Apply(input string) ([]byte, error) {
 
 		for _, spec := range declaration.Specs {
 			ts, ok := spec.(*ast.TypeSpec)
-			if ! ok {
+			if !ok {
 				continue
 			}
 
@@ -231,8 +230,6 @@ func (g Generator) Apply(input string) ([]byte, error) {
 	for _, ref := range inlines {
 		delete(definitions, ref)
 	}
-
-
 
 	schema := Schema{
 		Definition: &Definition{
@@ -385,7 +382,6 @@ func setTypeOrRef(def *Definition, typeName string) {
 		def.Ref = defPrefix + typeName
 	}
 }
-
 
 func yamlFieldName(field *ast.Field) string {
 	tag := strings.Replace(field.Tag.Value, "`", "", -1)
