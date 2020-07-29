@@ -127,7 +127,7 @@ func NewRunner(newBuilder builder.Builder) (Runner, error) {
 	return Runner{
 		Logger:    Logger.New(),
 		Builder:   newBuilder,
-		Collector: collector.NewCollector(newBuilder.MetricConfig, ""),
+		Collector: collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole),
 		Slacker:   tool.NewSlackClient(newBuilder.Config.SlackOff),
 	}, nil
 }

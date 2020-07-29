@@ -80,7 +80,7 @@ func BootstrapMetricService(region string, assume_role string) MetricClient {
 	//Get all clients
 	client := MetricClient{
 		Region:            region,
-		DynamoDBService:   NewDynamoDBClient(aws_session, region, creds),
+		DynamoDBService:   NewDynamoDBClient(aws_session, region, nil),
 		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
 	}
 
