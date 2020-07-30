@@ -1,7 +1,7 @@
 ---
 title: "Setup Base Infrastructure"
 linkTitle: "Setup Base Infrastructure"
-weight: 2
+weight: 20
 description: >
     Setting up base AWS infra
 ---
