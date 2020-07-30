@@ -15,7 +15,7 @@ import (
 
 var (
 	NO_MANIFEST_EXISTS               = "Manifest file does not exist"
-	DFEAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
+	DEFAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
 	DEFAULT_DEPLOYMENT_TIMEOUT       = 60 * time.Minute
 	DEFAULT_POLLING_INTERVAL         = 60 * time.Second
 	MIN_POLLING_INTERVAL             = 5 * time.Second
@@ -139,18 +139,12 @@ func (b Builder) CheckValidation() error {
 	// check configurations
 	// check stack
 	if len(b.Config.Stack) == 0 {
-		return fmt.Errorf("you should choose at least one stack.")
+		return fmt.Errorf("you should choose at least one stack")
 	}
 
 	// global AMI check
 	if len(target_region) == 0 && len(target_ami) != 0 && strings.HasPrefix(target_ami, "ami-") {
-		// One ami id cannot be used in different regions
-		return fmt.Errorf("one ami id cannot be used in different regions : %s", target_ami)
-	}
-
-	// check metric configuration file if metric feature is enabled
-	if !b.Config.DisableMetrics && !tool.FileExists(METRIC_YAML_PATH) {
-		return fmt.Errorf("no %s file exists", METRIC_YAML_PATH)
+		return fmt.Errorf("ami id cannot be used in different regions : %s", target_ami)
 	}
 
 	// check release notes
@@ -162,6 +156,7 @@ func (b Builder) CheckValidation() error {
 	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
 		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
 	}
+
 	if b.Config.PollingInterval >= b.Config.Timeout {
 		return fmt.Errorf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes())
 	}
@@ -174,6 +169,10 @@ func (b Builder) CheckValidation() error {
 
 		if len(b.MetricConfig.Storage.Name) <= 0 {
 			return fmt.Errorf("you do not specify the name of storage for metrics")
+		}
+
+		if !tool.FileExists(METRIC_YAML_PATH) {
+			return fmt.Errorf("no %s file exists", METRIC_YAML_PATH)
 		}
 	}
 
@@ -189,11 +188,14 @@ func (b Builder) CheckValidation() error {
 			policies := []string{}
 			for _, scaling := range stack.Autoscaling {
 				if len(scaling.Name) == 0 {
-					return fmt.Errorf("autoscaling policy doesn't have a name.")
+					return fmt.Errorf("autoscaling policy doesn't have a name")
 				}
 				policies = append(policies, scaling.Name)
 			}
 			for _, alarm := range stack.Alarms {
+				if len(alarm.Name) == 0 {
+					return fmt.Errorf("cloudwatch alarm doesn't have a name")
+				}
 				for _, action := range alarm.AlarmActions {
 					if !tool.IsStringInArray(action, policies) {
 						return fmt.Errorf("no scaling action exists : %s", action)
@@ -213,7 +215,7 @@ func (b Builder) CheckValidation() error {
 			}
 
 			if stack.InstanceMarketOptions.SpotOptions.SpotInstanceType == "persistent" && stack.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior == "terminate" {
-				return fmt.Errorf("persistent type is not allowed with termiante behavior.")
+				return fmt.Errorf("persistent type is not allowed with terminate behavior")
 			}
 		}
 
@@ -222,7 +224,7 @@ func (b Builder) CheckValidation() error {
 			dNames := []string{}
 			for _, block := range stack.BlockDevices {
 				if len(block.DeviceName) == 0 {
-					return fmt.Errorf("name of device is required.")
+					return fmt.Errorf("name of device is required")
 				}
 
 				if !tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
@@ -245,11 +247,11 @@ func (b Builder) CheckValidation() error {
 			if len(stack.LifecycleHooks.LaunchTransition) > 0 {
 				for _, l := range stack.LifecycleHooks.LaunchTransition {
 					if len(l.NotificationTargetARN) > 0 && len(l.RoleARN) == 0 {
-						return fmt.Errorf("role_arn is needed if `notification_target_arn` is not empty : %s", l.LifecycleHookName)
+						return fmt.Errorf("role_arn is needed if notification_target_arn is not empty : %s", l.LifecycleHookName)
 					}
 
 					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
-						return fmt.Errorf("notification_target_arn is needed if `role_arn` is not empty  : %s", l.LifecycleHookName)
+						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty : %s", l.LifecycleHookName)
 					}
 
 					if l.HeartbeatTimeout == 0 {
@@ -261,11 +263,11 @@ func (b Builder) CheckValidation() error {
 			if len(stack.LifecycleHooks.TerminateTransition) > 0 {
 				for _, l := range stack.LifecycleHooks.TerminateTransition {
 					if len(l.NotificationTargetARN) > 0 && len(l.RoleARN) == 0 {
-						return fmt.Errorf("role_arn is needed if `notification_target_arn` is not empty : %s", l.LifecycleHookName)
+						return fmt.Errorf("role_arn is needed if notification_target_arn is not empty : %s", l.LifecycleHookName)
 					}
 
 					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
-						return fmt.Errorf("notification_target_arn is needed if `role_arn` is not empty  : %s", l.LifecycleHookName)
+						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty  : %s", l.LifecycleHookName)
 					}
 
 					if l.HeartbeatTimeout == 0 {
@@ -278,19 +280,19 @@ func (b Builder) CheckValidation() error {
 		for _, region := range stack.Regions {
 			//Check ami id
 			if len(target_ami) == 0 && len(region.AmiId) == 0 {
-				return fmt.Errorf("you have to specify at least one ami id.")
+				return fmt.Errorf("you have to specify at least one ami id")
 			}
 
 			//Check instance type
 			if len(region.InstanceType) == 0 {
-				return fmt.Errorf("you have to specify the instance type.")
+				return fmt.Errorf("you have to specify the instance type")
 			}
 		}
 
 		// check mixed instances policy
 		if stack.MixedInstancesPolicy.Enabled {
 			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) == 0 {
-				stack.MixedInstancesPolicy.SpotAllocationStrategy = DFEAULT_SPOT_ALLOCATION_STRATEGY
+				stack.MixedInstancesPolicy.SpotAllocationStrategy = DEFAULT_SPOT_ALLOCATION_STRATEGY
 			}
 
 			if stack.MixedInstancesPolicy.SpotAllocationStrategy != "lowest-price" && stack.MixedInstancesPolicy.SpotInstancePools > 0 {

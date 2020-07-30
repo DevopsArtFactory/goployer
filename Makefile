@@ -21,6 +21,7 @@ GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -pat
 
 VERSION_PACKAGE = $(REPOPATH)/pkg/goployer/version
 COMMIT = $(shell git rev-parse HEAD)
+TEST_PACKAGES = ./pkg/... ./hack/...
 
 ifeq "$(strip $(VERSION))" ""
  override VERSION = $(shell git describe --always --tags --dirty)
@@ -83,12 +84,6 @@ $(BUILD_DIR)/VERSION: $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-.PHONY: test
-test: $(BUILD_DIR)
-	@ ./hack/gotest.sh -count=1 -race -short -timeout=90s $(GOPLOYER_TEST_PACKAGES)
-	@ ./hack/checks.sh
-	@ ./hack/linters.sh
-
 .PHONY: update-edge
 update-edge: format cross $(BUILD_DIR)/VERSION upload-only
 
@@ -146,3 +141,13 @@ preview-docs-draft:
 .PHONY: preview-docs
 preview-docs:
 	./deploy/docs/preview-docs.sh hugo serve --bind=0.0.0.0 --ignoreCache
+
+.PHONY: test
+test:
+	@ go test -count=1 -v -race -short -timeout=90s $(TEST_PACKAGES)
+
+.PHONY: coverage
+coverage: $(BUILD_DIR)
+	@ go test -count=1 -race -cover -short -timeout=90s -coverprofile=out/coverage.txt -coverpkg="./pkg/...,./hack..." $(TEST_PACKAGES)
+	@- curl -s https://codecov.io/bash > $(BUILD_DIR)/upload_coverage && bash $(BUILD_DIR)/upload_coverage
+
