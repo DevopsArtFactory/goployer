@@ -220,7 +220,7 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(config.Region) > 0 {
-		if !checkRegionExist(config.Region, b.Stack.Regions) {
+		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			validCount = 0
 		}
 	}
@@ -274,7 +274,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		return nil
 	}
 
-	if len(config.Region) > 0 && !checkRegionExist(config.Region, b.Stack.Regions) {
+	if len(config.Region) > 0 && !CheckRegionExist(config.Region, b.Stack.Regions) {
 		return nil
 	}
 
@@ -328,7 +328,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 	}
 
 	if len(config.Region) > 0 {
-		if !checkRegionExist(config.Region, b.Stack.Regions) {
+		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			b.Logger.Debugf("region [ %s ] is not in the stack [ %s ].", config.Region, b.Stack.Stack)
 			return nil
 		}
@@ -363,7 +363,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 	b.Logger.Debug("Delete Mode is " + b.Mode)
 
 	if len(config.Region) > 0 {
-		if !checkRegionExist(config.Region, b.Stack.Regions) {
+		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			return nil
 		}
 	}
@@ -382,12 +382,11 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			tool.ErrorLogging(err.Error())
 		}
 
+		// First make autoscaling group size to 0
 		if len(b.PrevAsgs[region.Region]) > 0 {
 			for _, asg := range b.PrevAsgs[region.Region] {
 				b.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
-				// First make autoscaling group size to 0
-				err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg)
-				if err != nil {
+				if err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg); err != nil {
 					return err
 				}
 			}
@@ -412,7 +411,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(config.Region) > 0 {
-		if !checkRegionExist(config.Region, b.Stack.Regions) {
+		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			validCount = 0
 		}
 	}
@@ -462,8 +461,8 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	return map[string]bool{stack_name: false}
 }
 
-//checkRegionExist checks if target region is really in regions described in manifest file
-func checkRegionExist(target string, regions []builder.RegionConfig) bool {
+// CheckRegionExist checks if target region is really in regions described in manifest file
+func CheckRegionExist(target string, regions []builder.RegionConfig) bool {
 	regionExists := false
 	for _, region := range regions {
 		if region.Region == target {
@@ -482,7 +481,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 	}
 
 	if len(config.Region) > 0 {
-		if !checkRegionExist(config.Region, b.Stack.Regions) {
+		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			return nil
 		}
 	}
@@ -502,14 +501,21 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 		}
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
+			var errors []error
 			for _, asg := range b.PrevAsgs[region.Region] {
 				b.Logger.Debugf("Start gathering metrics about autoscaling group : %s", asg)
 				err := b.Deployer.GatherMetrics(client, asg)
 				if err != nil {
-					return err
+					errors = append(errors, err)
 				}
-
 				b.Logger.Debugf("Finish gathering metrics about autoscaling group %s.", asg)
+			}
+
+			if len(errors) > 0 {
+				for _, e := range errors {
+					b.Logger.Errorf(e.Error())
+				}
+				return fmt.Errorf("error occurred on gathering metrics")
 			}
 		} else {
 			b.Logger.Debugf("No previous versions to gather metrics : %s\n", region.Region)

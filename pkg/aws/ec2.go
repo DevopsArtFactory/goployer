@@ -799,7 +799,7 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 }
 
 // Update Autoscaling Group size
-func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) error {
+func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired, retry int64) (error, int64) {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
 		MaxSize:              aws.Int64(max),
@@ -807,28 +807,14 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired int64) e
 		DesiredCapacity:      aws.Int64(desired),
 	}
 
+	Logger.Info(input)
+
 	_, err := e.AsClient.UpdateAutoScalingGroup(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeScalingActivityInProgressFault:
-				Logger.Errorln(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		return err
+		return err, retry - 1
 	}
 
-	return nil
+	return nil, 0
 }
 
 //CreateScalingPolicy creates scaling policy

@@ -9,6 +9,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
+	"time"
 )
 
 // Deployer per stack
@@ -115,10 +116,23 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 func (d Deployer) ResizingAutoScalingGroupToZero(client aws.AWSClient, stack, asg string) error {
 	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s(%s)", asg, stack))
 	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s/%s", asg, stack), d.Stack.Env)
-	err := client.EC2Service.UpdateAutoScalingGroup(asg, 0, 0, 0)
-	if err != nil {
-		d.Logger.Errorln(err.Error())
-		return err
+
+	retry := int64(3)
+	var err error
+	for {
+		err, retry = client.EC2Service.UpdateAutoScalingGroup(asg, 0, 0, 0, retry)
+		if err != nil {
+			if retry > 0 {
+				d.Logger.Debugf("error occurred and remained retry count is %d", retry)
+				time.Sleep(time.Duration(1+(2-retry)) * time.Second)
+			} else {
+				return err
+			}
+		}
+
+		if err == nil {
+			break
+		}
 	}
 
 	return nil

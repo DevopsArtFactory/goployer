@@ -1,0 +1,46 @@
+#!/bin/bash
+set -e
+
+BUILD_DIR="build"
+TEST_DIR="test"
+URL="https://hello.devops-art-factory.com"
+
+stacks=("artd" "artd-spot" "artd-mixed")
+
+if [[ ! -d $BUILD_DIR ]]; then
+    echo "creating new directory [ $BUILD_DIR ]"
+    mkdir -p $BUILD_DIR
+fi
+
+# process local test
+make test
+
+# build goployer
+GOOS=darwin CGO_ENABLED=1 go build -o ./$BUILD_DIR/goployer main.go
+if [[ $? -ne 0 ]];then
+    echo "error occurred when building binary file"
+    exit 1
+fi
+
+# api test
+for stack in "${stacks[@]}"; do
+    ./$BUILD_DIR/goployer --manifest=$TEST_DIR/test_manifest.yaml --stack=$stack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=30s
+    if [[ $? -eq 0 ]]; then
+        echo "$stack is deployed"
+        for ((i=1;i<=10;i++)); do
+            curl -s $URL > /dev/null
+            if [[ $? -ne 0 ]]; then
+                echo "error occurred"
+                exit 1
+            fi
+            echo "done $stack $i"
+            sleep 1
+        done
+        echo "healthcheck is done"
+    fi
+    sleep 30
+done
+
+echo "api test is done"
+rm -rf $BUILD_DIR
+

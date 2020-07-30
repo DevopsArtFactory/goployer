@@ -11,13 +11,13 @@ var (
 	DEFAULT_METRIC_STORAGE_TYPE = "dynamodb"
 )
 
-func ParseMetricConfig(disabledMetrics bool) (MetricConfig, error) {
+func ParseMetricConfig(disabledMetrics bool, filename string) (MetricConfig, error) {
 	if disabledMetrics {
 		return MetricConfig{Enabled: false}, nil
 	}
 
 	metricConfig := MetricConfig{Enabled: true}
-	yamlFile, err := ioutil.ReadFile(METRIC_YAML_PATH)
+	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
 		return metricConfig, err
