@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	MONTH       = float64(2592000)
-	enableStats = true
-	yearNow = 2020
+	MONTH        = float64(2592000)
+	enableStats  = true
+	yearNow      = 2020
 	minTimestamp = time.Date(yearNow, time.January, 1, 0, 0, 0, 0, time.UTC)
 )
 
@@ -131,7 +131,7 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 	}
 
 	var period int64
-	if len(tgs) > 0 && (startDate.Sub(minTimestamp) > 0)  &&  enableStats {
+	if len(tgs) > 0 && (startDate.Sub(minTimestamp) > 0) && enableStats {
 		// if baseTimeDuration is over a month which is the maximum duration of cloudwatch
 		// fix the time to one month
 		if baseTimeDuration > MONTH {

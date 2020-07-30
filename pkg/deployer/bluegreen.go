@@ -509,13 +509,12 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 					return err
 				}
 
-				b.Logger.Debugf("Finish gathering metrics about autoscaling group %s.",  asg)
+				b.Logger.Debugf("Finish gathering metrics about autoscaling group %s.", asg)
 			}
 		} else {
 			b.Logger.Debugf("No previous versions to gather metrics : %s\n", region.Region)
 		}
 	}
-
 
 	return nil
 }
