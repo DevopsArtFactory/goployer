@@ -1,67 +1,64 @@
 ---
-title: "Quickstart"
-linkTitle: "Quickstart"
-weight: 30
+title: "실습하기"
+linkTitle: "실습하기"
+weight: 3
 description: >
-  You can easily start to use goployer.
+  본 페이지를 통해 손쉽게 실습을 진행하실 수 있습니다.
 ---
-Follow this tutorial to learn about Goployer on AWS Environment with autoscaling group and deploy the sample application
-with goployer.
+본 가이드를 따라하시면서 어떻게 Goployer를 활용하여 AWS 환경에 어플리케이션을 배포할 수 있는지 익히실 수 있습니다.
 
-{{< alert title="Important Notice">}}
-Goployer is a deployment tool which means you are going to `deploy the application with EC2 instance`. So **cost for AWS resources could be charged**! 
+{{< alert title="필독 사항">}}
+Goployer는 어플리케이션 배포 툴로 `AWS의 다양한 리소스를 생성`합니다. 따라서 **AWS 비용이 발생할 수 있습니다.**
 {{</alert>}}
 
-In this quickstart, you will:
+본 가이드에서 여러분은 아래의 과정을 실습할 예정입니다.
 
-* Install goployer,
-* Make manifest file for deployment
-* Run goployer to deploy the application
+* Goployer를 설치합니다.
+* 배포를 위한 매니페스트 파일을 생성합니다.
+* Goployer를 통해 어플리케이션을 배포합니다.
 
-## Before you begin
+## 시작하기 전 준비사항
 
-* [Install Goployer]({{< relref "/docs/install" >}})
-* [Setup base infrastructure]({{< relref "/docs/baseinfrastructure" >}})
+* [Goployer 설치하기]({{< relref "/docs/install" >}})
+* [기본 인프라 세팅]({{< relref "/docs/baseinfrastructure" >}})
 
-{{< alert title="Note">}}
-Goployer will create AWS resources like Launch Template, Autoscaling group, DynamoDB, CloudWatch Alarm etc. 
-So you need to have the right permissions to make these resources in your AWS credentials.
+{{< alert title="주의">}}
+Goployer는 AWS Launch Template, Autoscaling Group, DynamoDB, CloudWatch Alarm 등 다양한 AWS 리소스를 생성합니다. 
+<br>따라서 이에 필요한 **IAM 권한을 가지고 있어야 합니다.**
 {{</alert>}}
 
-## Preparing manifest and metric file
+## 매니페스트 및 매트릭 관련 파일 작업
 
-1. Clone the goployer repository:
+1. Goployer 레포지토리를 다운로드 합니다:
     ```bash
     git clone https://github.com/DevopsArtFactory/goployer
     ```
 
-1. Change to the `examples` directory in goployer directory.
+1. `examples` 폴더로 들어갑니다.
 
     ```bash
     cd goployer/examples
     ```
    
-1. Modify configurations in the file `manifests/basic-example.yaml` to your application.
+1. `manifests/basic-example.yaml` 파일을 열어 설정을 변경합니다.
 
     ```bash
     vim manifests/basic-example.yaml
     ```
    
-1. Modify configurations in the file `metrics/metrics.yaml` .
-* metrics.yaml file should be in the root directory where you run goployer command
-
+1. `metrics/metrics.yaml` 파일을 수정합니다.
+* metrics.yaml 파일은 반드시 goployer가 실행되는 루트 디렉토리에 있어야 합니다.
     ```bash
     vim metrics/metrics.yaml
     ```
    
-1. In the `examples` directory, you can run goployer.
-* If you don't want to use metrics feature(Step 4), then use `--disable-metrics=true` 
-
+1. `examples` 폴더로 가서 Goployer를 실행합니다.
+* 4번에서 세팅한 Metric 기능을 사용하고 싶지 않으신 경우에는, 명령어 실행 시 `--disable-metrics=true` 을 사용하시기 바랍니다.
     ```bash
    goployer --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
     ```
 
-## Logging   
+## 로그 확인   
 
 ```
 $ goployer --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
