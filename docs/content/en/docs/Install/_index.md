@@ -57,6 +57,7 @@ goployer is also kept up to date on a few central package managers:
 ### Homebrew
 
 ```bash
+brew tap devopsartfactory/devopsart
 brew install goployer
 ```
 

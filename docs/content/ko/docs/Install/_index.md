@@ -57,6 +57,7 @@ Goployer는 몇몇 패키지 관리자를 통해서도 다운로드 받으실 �
 ### Homebrew
 
 ```bash
+brew tap devopsartfactory/devopsart
 brew install goployer
 ```
 
