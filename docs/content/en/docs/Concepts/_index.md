@@ -1,7 +1,7 @@
 ---
 title: "Concepts"
 linkTitle: "Concepts"
-weight: 4
+weight: 40
 description: >
     Understanding concept of goployer is so important
 ---

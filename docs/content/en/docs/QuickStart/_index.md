@@ -1,7 +1,7 @@
 ---
 title: "Quickstart"
 linkTitle: "Quickstart"
-weight: 3
+weight: 30
 description: >
   You can easily start to use goployer.
 ---

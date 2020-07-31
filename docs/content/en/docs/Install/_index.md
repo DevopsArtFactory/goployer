@@ -1,7 +1,7 @@
 ---
 title: "Install goployer"
 linkTitle: "Install goployer"
-weight: 1
+weight: 10
 description: >
   Here's where your user finds out if your project is for them.
 ---
