@@ -10,10 +10,10 @@ linkTitle = "Goployer"
                 <div class="col-sm-1 col-lg-4"></div>
                 <div class="col-sm-10 col-lg-5" align="left">
                     <div class="tagline row">
-                        Fast. Powerful. Simple.
+                        빠르고. 강력하고. 사용하기 간단한.
                     </div>
                     <div class="title row" id="fadein">
-                       AWS Deployment Tool
+                       AWS 배포 도구
                     </div>
                     <div class="row mt-4">
                         <div class="col-sm-2"></div>
@@ -21,7 +21,7 @@ linkTitle = "Goployer"
                             <div style="margin:auto; display: flex;">
                                 <a class="splashbutton splashbutton-secondary btn" style="margin: auto"
                                    href="{{< relref "/docs/install" >}}">
-                                    Get Goployer <i class="fas fa-download"></i>
+                                    Goployer 설치 <i class="fas fa-download"></i>
                                 </a>
                             </div>
                         </div>
@@ -29,7 +29,7 @@ linkTitle = "Goployer"
 							<div style="margin:auto; display: flex;">
 							<a class="splashbutton splashbutton-primary btn" style="margin: auto"
                                href="{{< relref "/docs/quickstart" >}}">
-								Get Started <i class="fas fa-arrow-alt-circle-right"></i>
+								시작하기 <i class="fas fa-arrow-alt-circle-right"></i>
 							</a>
 							</div>
 						</span>
@@ -37,7 +37,7 @@ linkTitle = "Goployer"
                     </div>
                     <div class="row mt-4 mb-3"></div>
                     <div class="row mt-2" style="font-size:1.2rem">
-                        Goployer handles the whole processes of application deployment with AWS Autoscaling, Load Balancer, and EC2 instances.
+                        Goployer는 AWS 오토스케일링, 로드 밸런싱을 활용하여 전체 배포 프로세스를 관리합니다.
                     </div>
                 </div>
                 <div class="col-sm-1 col-lg-4"></div>
@@ -46,26 +46,25 @@ linkTitle = "Goployer"
     </div>
 </section>
 
-
 {{% blocks/lead color="primary" %}}
-Goployer controls the whole process of deploying instances with **AWS autoscaling group**. It creates new autoscaling group with new version,attaches it to the target group of ELB
-and terminates the previous autoscaling groups.
+Goployer는 AWS 오토스케일링을 활용한 인스턴스 배포 전체 프로세스를 통제합니다. Goployer는 새로운 버전의 오토스케일링 그룹을 생성하고, 먼저 로드밸런서의 타겟그룹에 붙입니다. 해당 인스턴스들이 전부 정상임이 확인되면, 그 때 이전 버전의 오토스케일링 그룹들을 삭제합니다.
 {{% /blocks/lead %}}
 
 {{< blocks/section color="dark" >}}
-{{% blocks/feature icon="fa-lightbulb" title="Production Level !" %}}
-Goployer provides most of features of deployment method with autoscaling group. You can use it in production environment.
+{{% blocks/feature icon="fa-lightbulb" title="프로덕션 수준" %}}
+Goployer는 오토스케일링을 활용한 배포에 있어서 대부분의 기능을 제공합니다. <br>
+충분한 테스트 후에는 프로덕션 수준에서 사용 가능합니다.
 {{% /blocks/feature %}}
 
-{{% blocks/feature icon="fab fa-github" title="Contributions welcome!" url="https://github.com/DevopsArtFactory/goployer" %}}
-We do a [Pull Request](https://github.com/DevopsArtFactory/goployer/pulls) contributions workflow on **GitHub**. New users are always welcome!
+{{% blocks/feature icon="fab fa-github" title="오픈소스 참여 장려" url="https://github.com/DevopsArtFactory/goployer" %}}
+깃허브를 통해 [Pull Request](https://github.com/DevopsArtFactory/goployer/pulls)를 받고 있습니다.<br>
+어떠한 의견이라도 저희는 환영입니다
 {{% /blocks/feature %}}
 
-
-{{% blocks/feature icon="fa fa-fighter-jet" title="Booster your application" %}}
-You don't need to be worried about deployments. Just develop your application and deploy easily and comfortably.
+{{% blocks/feature icon="fa fa-fighter-jet" title="어플리케이션 개발 집중" %}}
+더 이상 배포 과정은 신경쓰실 필요가 없습니다.<br>
+개발에 집중하시고 배포는 Goployer로 하시면 됩니다.
 {{% /blocks/feature %}}
-
 
 {{< blocks/testimonial-section >}}
 <div class="col-lg-4 mb-5 mb-lg-0 text-center"></div>
@@ -80,4 +79,3 @@ You don't need to be worried about deployments. Just develop your application an
 <div class="col-lg-4 mb-5 mb-lg-0 text-center"></div>
 
 {{< /blocks/testimonial-section >}}
-
