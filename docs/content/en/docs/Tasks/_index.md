@@ -2,7 +2,7 @@
 ---
 title: "Core Tasks"
 linkTitle: "Core Tasks"
-weight: 6
+weight: 60
 date: 2017-01-05
 draft: true
 description: >

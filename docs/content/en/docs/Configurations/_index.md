@@ -2,7 +2,7 @@
 ---
 title: "Configurations"
 linkTitle: "Configurations"
-weight: 8
+weight: 80
 draft: true
 date: 2017-01-05
 description: >

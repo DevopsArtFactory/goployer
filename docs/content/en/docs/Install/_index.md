@@ -1,22 +1,10 @@
 ---
 title: "Install goployer"
 linkTitle: "Install goployer"
-weight: 1
+weight: 10
 description: >
-  Here's where your user finds out if your project is for them.
+   Here's where you can install goployer
 ---
-
-
-{{< alert title="Note" >}}
-
-To keep goployer up to date, update checks are made to Google servers to see if a new version of
-goployer is available.
-
-
-Your use of this software is subject to the [Google Privacy Policy](https://policies.google.com/privacy)
-
-{{< /alert >}}
-
 
 {{% tabs %}}
 {{% tab "LINUX" %}}
@@ -31,7 +19,7 @@ curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/releases/late
 sudo install goployer /usr/local/bin/
 ```
 
-We also release a **bleeding edge** build, built from the latest commit:
+We also release a **edge** build, built from the latest commit:
 
 https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64
 
@@ -55,7 +43,7 @@ curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/releases/late
 sudo install goployer /usr/local/bin/
 ```
 
-We also release a **bleeding edge** build, built from the latest commit:
+We also release a **edge** build, built from the latest commit:
 
 https://storage.googleapis.com/goployer/edge/latest/goployer-darwin-amd64
 
@@ -82,7 +70,7 @@ https://goployer.s3.ap-northeast-2.amazonaws.com/releases/latest/goployer-window
 
 Simply download it and place it in your `PATH` as `goployer.exe`.
 
-We also release a **bleeding edge** build, built from the latest commit:
+We also release a **edge** build, built from the latest commit:
 
 https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-windows-amd64.exe
 
@@ -98,7 +86,7 @@ For the latest **stable** release, you can use:
 
 ### Bleeding edge binary
 
-For the latest **bleeding edge** build:
+For the latest **edge** build:
 
 `docker run devopsart/goployer:edge goployer <command>`
 

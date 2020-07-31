@@ -1,5 +1,5 @@
 ---
-title: Community
+title: 커뮤니티
 draft: true
 menu:
   main:

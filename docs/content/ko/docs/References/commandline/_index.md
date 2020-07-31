@@ -1,18 +1,16 @@
 ---
-title: "CLI Argument"
-linkTitle: "CLI Argument"
+title: "명령어 인자"
+linkTitle: "명령어 인자"
 weight: 10
 ---
-Goployer has **only one command** until now. <br>
-*Later, goployer could support few command line for better usage.*
+현재 Goployer는 배포명령어 밖에 없습니다.<br>
+*나중에, Goployer에 다양한 명령어가 추가될 예정입니다.*
 <br>
 
-Total Deployment Process:
-* [goployer](#argument) - to run goployer
+전체 배포 과정 실행:
+* [goployer](#argument) - 배포 실행
 
-
-
-## Examples
+## 예시
 ```
 
 Examples:
@@ -51,5 +49,5 @@ Examples:
   * `--polling-interval` : Time to interval for polling health check (default 60s) 
 <br>
 
-## Further information
-* If you specifies `--ami`, then you must have only one region in a stack or use `--region` option together.
+## 추가 정보
+* 만약 `--ami`를 명시한 경우에는 stack에 하나의 리전만 있거나 `--region`을 통해 리전을 명시해주어야 합니다.
