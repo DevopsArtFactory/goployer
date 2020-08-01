@@ -186,6 +186,7 @@ stacks:
         # The target group in the healthcheck_target_group should be included here.
         target_groups:
           - hello-artdapne2-ext
+
   - stack: artp
 
     # account alias

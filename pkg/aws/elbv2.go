@@ -39,9 +39,9 @@ func getElbClientFn(session *session.Session, region string, creds *credentials.
 }
 
 // GetTargetGroupARNs returns arn list of target groups
-func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
+func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) ([]*string, error) {
 	if len(target_groups) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	input := &elbv2.DescribeTargetGroupsInput{
@@ -50,21 +50,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 
 	result, err := e.Client.DescribeTargetGroups(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case elbv2.ErrCodeLoadBalancerNotFoundException:
-				Logger.Errorln(elbv2.ErrCodeLoadBalancerNotFoundException, aerr.Error())
-			case elbv2.ErrCodeTargetGroupNotFoundException:
-				Logger.Errorln(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		os.Exit(1)
+		return nil, err
 	}
 
 	ret := []*string{}
@@ -72,7 +58,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) []*string {
 		ret = append(ret, group.TargetGroupArn)
 	}
 
-	return ret
+	return ret, nil
 }
 
 // GetHostInTarget gets host instance

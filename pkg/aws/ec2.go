@@ -550,7 +550,8 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 	loadbalancers, target_group_arns, termination_policies, availability_zones []*string,
 	tags []*(autoscaling.Tag),
 	subnets []string,
-	mixedInstancePolicy builder.MixedInstancesPolicy, hooks []*autoscaling.LifecycleHookSpecification) bool {
+	mixedInstancePolicy builder.MixedInstancesPolicy,
+	hooks []*autoscaling.LifecycleHookSpecification) bool {
 
 	lt := autoscaling.LaunchTemplateSpecification{
 		LaunchTemplateName: aws.String(launch_template_name),
@@ -569,11 +570,11 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 		VPCZoneIdentifier:      aws.String(strings.Join(subnets, ",")),
 	}
 
-	if *loadbalancers[0] != "" {
+	if len(loadbalancers) > 0 {
 		input.LoadBalancerNames = loadbalancers
 	}
 
-	if *target_group_arns[0] != "" {
+	if len(target_group_arns) > 0 {
 		input.TargetGroupARNs = target_group_arns
 	}
 
@@ -946,10 +947,6 @@ func (e EC2Client) GetTargetGroups(asgName string) ([]*string, error) {
 	var ret []*string
 	for _, a := range result.AutoScalingGroups {
 		ret = a.TargetGroupARNs
-	}
-
-	if len(ret) == 0 {
-		return ret, fmt.Errorf("this autoscaling group does not belong to any target group")
 	}
 
 	return ret, nil
