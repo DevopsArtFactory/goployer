@@ -90,6 +90,9 @@ update-edge: format cross $(BUILD_DIR)/VERSION upload-only
 .PHONY: release
 release: format cross $(BUILD_DIR)/VERSION upload-release-only
 
+.PHONY: build
+build: format cross $(BUILD_DIR)/VERSIO
+
 .PHONY: release-build
 release-build: format cross
 	docker build \
@@ -128,7 +131,6 @@ version:
 format:
 	go fmt ./...
 
-
 .PHONY: generate-schema
 generate-schemas:
 	go run ./hack/schemas/main.go
@@ -145,6 +147,10 @@ preview-docs:
 .PHONY: test
 test:
 	@ go test -count=1 -v -race -short -timeout=90s $(TEST_PACKAGES)
+
+.PHONY: build-test
+build-test:
+	./hack/apitest.sh
 
 .PHONY: coverage
 coverage: $(BUILD_DIR)

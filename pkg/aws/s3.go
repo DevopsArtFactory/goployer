@@ -37,6 +37,9 @@ func (s S3Client) GetManifest(bucket, key string) ([]byte, error) {
 	}
 
 	body, err := ioutil.ReadAll(result.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	return body, nil
 }

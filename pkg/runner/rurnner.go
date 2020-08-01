@@ -44,7 +44,7 @@ func SetupBuilder() (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics)
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, builder.METRIC_YAML_PATH)
 	if err != nil {
 		return builder.Builder{}, err
 	}
@@ -66,7 +66,7 @@ func ServerSetup(config builder.Config) (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics)
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, builder.METRIC_YAML_PATH)
 	if err != nil {
 		return builder.Builder{}, err
 	}
@@ -81,7 +81,7 @@ func setManifestToBuilder(builderSt builder.Builder) (builder.Builder, error) {
 		builderSt = builderSt.SetManifestConfig()
 	} else {
 		s := aws.BootstrapManifestService(builderSt.Config.ManifestS3Region, "")
-		fileBytes, err := s.S3Service.GetManifest(filterS3Path(builderSt.Config.Manifest))
+		fileBytes, err := s.S3Service.GetManifest(FilterS3Path(builderSt.Config.Manifest))
 		if err != nil {
 			return builder.Builder{}, err
 		}
@@ -343,7 +343,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 	}
 }
 
-func filterS3Path(path string) (string, string) {
+func FilterS3Path(path string) (string, string) {
 	path = strings.ReplaceAll(path, builder.S3_PREFIX, "")
 	split := strings.Split(path, "/")
 

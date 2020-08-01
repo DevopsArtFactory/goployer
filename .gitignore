@@ -1,6 +1,4 @@
 .idea
-./configs/*
-website
 base-infrastructure
 bin
 out

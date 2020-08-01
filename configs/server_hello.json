@@ -17,5 +17,6 @@
     "release_notes_base64": "",
     "force_manifest_capacity": false,
     "polling_interval": 60
-  }
+  },
+  "log_path": "/Users/gslee/goployerlog.log"
 }

@@ -3,6 +3,9 @@ package builder
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/go-test/deep"
 )
 
 func TestCheckValidationConfig(t *testing.T) {
@@ -244,5 +247,39 @@ func TestCheckValidationStack(t *testing.T) {
 
 	if err := b.CheckValidation(); err != nil {
 		t.Errorf("validation failed: no error")
+	}
+}
+
+func TestRefineConfig(t *testing.T) {
+	type TestData struct {
+		input  Config
+		output Config
+	}
+
+	testData := []TestData{
+		{
+			input: Config{
+				Timeout: 5,
+			},
+			output: Config{
+				Timeout: 5 * time.Minute,
+			},
+		},
+		{
+			input: Config{
+				PollingInterval: 5,
+			},
+			output: Config{
+				PollingInterval: 5 * time.Second,
+			},
+		},
+	}
+
+	for _, td := range testData {
+		r := RefineConfig(td.input)
+		td.output.StartTimestamp = r.StartTimestamp
+		if diff := deep.Equal(r, td.output); diff != nil {
+			t.Error(diff)
+		}
 	}
 }
