@@ -103,7 +103,6 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 			tgName := (*tg)[strings.LastIndex(*tg, ":")+1:]
 
 			appliedPeriod := tool.HOURTOSEC
-			sum := tool.DAYTOSEC
 			vSum := float64(0)
 
 			isFinished := false
@@ -113,7 +112,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 
 				endTime := tool.GetBaseTime(startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)).Add(-1 * time.Second)
 				logger.Debugf("End Time : %s", endTime)
-				if endTime.Sub(terminatedDate) > 0 {
+				if CheckMetricTimeValidation(terminatedDate, endTime) {
 					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
 					endTime = terminatedDate
 				}
@@ -128,11 +127,11 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				vSum += s
 
 				startTime = startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)
-				sum += appliedPeriod
 
-				if period-sum <= 0 {
+				if ! CheckMetricTimeValidation(startTime, endTime) {
 					isFinished = true
 				}
+
 			}
 
 			ret[tgName]["total"] = vSum
@@ -197,4 +196,8 @@ func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time
 	}
 
 	return ret, sum, nil
+}
+
+func CheckMetricTimeValidation(startTime time.Time, endTime time.Time) bool {
+	return endTime.Sub(startTime) > 0
 }
