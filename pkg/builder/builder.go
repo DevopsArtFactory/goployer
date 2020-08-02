@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"strings"
@@ -403,48 +404,48 @@ func buildStructFromYaml(yamlFile []byte) (AWSConfig, []Stack) {
 
 // Parsing Config from command
 func argumentParsing() Config {
-	manifest := flag.String("manifest", "", "The manifest configuration file to use.")
-	manifestS3Region := flag.String("manifest-s3-region", "", "Region of bucket containing the manifest configuration file to use.")
-	ami := flag.String("ami", "", "The AMI to use for the servers.")
-	env := flag.String("env", "", "The environment that is being deployed into.")
-	stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
-	assumeRole := flag.String("assume-role", "", "The Role ARN to assume into")
-	timeout := flag.Duration("timeout", DEFAULT_DEPLOYMENT_TIMEOUT, "Time to wait for deploy to finish before timing out (default 60m)")
-	region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
-	confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
-	slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
-	logLevel := flag.String("log-level", "info", "log level")
-	extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
-	ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
-	overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
-	disableMetrics := flag.Bool("disable-metrics", false, "Disable gathering metrics")
-	releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
-	releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
-	forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
-	pollingInterval := flag.Duration("polling-interval", DEFAULT_POLLING_INTERVAL, "Time to interval for polling health check (default 60s)")
+	//manifest := flag.String("manifest", "", "The manifest configuration file to use.")
+	//manifestS3Region := flag.String("manifest-s3-region", "", "Region of bucket containing the manifest configuration file to use.")
+	//ami := flag.String("ami", "", "The AMI to use for the servers.")
+	//env := flag.String("env", "", "The environment that is being deployed into.")
+	//stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
+	//assumeRole := flag.String("assume-role", "", "The Role ARN to assume into")
+	//timeout := flag.Duration("timeout", DEFAULT_DEPLOYMENT_TIMEOUT, "Time to wait for deploy to finish before timing out (default 60m)")
+	//region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
+	//confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
+	//slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
+	//logLevel := flag.String("log-level", "info", "log level")
+	//extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
+	//ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
+	//overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
+	//disableMetrics := flag.Bool("disable-metrics", false, "Disable gathering metrics")
+	//releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
+	//releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
+	//forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
+	//pollingInterval := flag.Duration("polling-interval", DEFAULT_POLLING_INTERVAL, "Time to interval for polling health check (default 60s)")
 
 	flag.Parse()
 
 	config := Config{
-		Manifest:              *manifest,
-		ManifestS3Region:      *manifestS3Region,
-		Ami:                   *ami,
-		Env:                   *env,
-		Stack:                 *stack,
-		Region:                *region,
-		AssumeRole:            *assumeRole,
-		Timeout:               *timeout,
-		Confirm:               *confirm,
-		SlackOff:              *slackOff,
-		LogLevel:              *logLevel,
-		ExtraTags:             *extraTags,
-		AnsibleExtraVars:      *ansibleExtraVars,
-		OverrideInstanceType:  *overrideInstanceType,
-		DisableMetrics:        *disableMetrics,
-		ReleaseNotes:          *releaseNotes,
-		ReleaseNotesBase64:    *releaseNotesBase64,
-		ForceManifestCapacity: *forceManifestCapacity,
-		PollingInterval:       *pollingInterval,
+		Manifest:              viper.GetString("manifest"),
+		ManifestS3Region:      viper.GetString("manifest-s3-region"),
+		Ami:                   viper.GetString("ami"),
+		Env:                   viper.GetString("env"),
+		Stack:                 viper.GetString("stack"),
+		Region:                viper.GetString("region"),
+		AssumeRole:            viper.GetString("assume-role"),
+		Timeout:               viper.GetDuration("timeout"),
+		Confirm:               false,
+		SlackOff:              viper.GetBool("slack-off"),
+		LogLevel:              viper.GetString("log-level"),
+		ExtraTags:             viper.GetString("extra-tags"),
+		AnsibleExtraVars:      viper.GetString("ansible-extra-vars"),
+		OverrideInstanceType:  viper.GetString("override-instance-type"),
+		DisableMetrics:        viper.GetBool("disable-metrics"),
+		ReleaseNotes:          viper.GetString("release-notes"),
+		ReleaseNotesBase64:    viper.GetString("release-notes-base64"),
+		ForceManifestCapacity: viper.GetBool("force-manifest-capacity"),
+		PollingInterval:       viper.GetDuration("polling-interval"),
 	}
 
 	return RefineConfig(config)

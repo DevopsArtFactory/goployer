@@ -9,18 +9,18 @@ func TestCheckMetricTimeValidation(t *testing.T) {
 	baseTime := time.Now()
 	testData := []map[string]interface{}{
 		{
-			"start": baseTime.Add(-1 * time.Second),
-			"end": baseTime.Add(1 * time.Second),
+			"start":    baseTime.Add(-1 * time.Second),
+			"end":      baseTime.Add(1 * time.Second),
 			"expected": true,
 		},
 		{
-			"start": baseTime.Add(-1 * time.Second),
-			"end": baseTime.Add(-2 * time.Second),
+			"start":    baseTime.Add(-1 * time.Second),
+			"end":      baseTime.Add(-2 * time.Second),
 			"expected": false,
 		},
 		{
-			"start": baseTime.Add(1 * time.Second),
-			"end": baseTime.Add(1 * time.Second),
+			"start":    baseTime.Add(1 * time.Second),
+			"end":      baseTime.Add(1 * time.Second),
 			"expected": false,
 		},
 	}

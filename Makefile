@@ -1,6 +1,7 @@
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= amd64
 BUILD_DIR ?= ./out
+COMMAND_PKG ?= cmd
 ORG = github.com/DevopsArtFactory
 PROJECT = goployer
 VERSION ?= $(shell cat version.txt)
@@ -14,7 +15,7 @@ GCP_ONLY ?= false
 GCP_PROJECT ?= goployer
 
 SUPPORTED_PLATFORMS = linux-amd64 darwin-amd64 windows-amd64.exe linux-arm64
-BUILD_PACKAGE = $(REPOPATH)
+BUILD_PACKAGE = $(REPOPATH)/$(COMMAND_PKG)/$(PROJECT)
 
 GOPLOYER_TEST_PACKAGES = ./pkg/goployer/... ./cmd/... ./hack/... ./pkg/webhook/...
 GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./pkg/diag/*")
@@ -91,7 +92,7 @@ update-edge: format cross $(BUILD_DIR)/VERSION upload-only
 release: format cross $(BUILD_DIR)/VERSION upload-release-only
 
 .PHONY: build
-build: format cross $(BUILD_DIR)/VERSIO
+build: format cross $(BUILD_DIR)/VERSION
 
 .PHONY: release-build
 release-build: format cross

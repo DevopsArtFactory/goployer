@@ -128,7 +128,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 
 				startTime = startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)
 
-				if ! CheckMetricTimeValidation(startTime, endTime) {
+				if !CheckMetricTimeValidation(startTime, endTime) {
 					isFinished = true
 				}
 
