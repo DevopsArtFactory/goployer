@@ -20,14 +20,16 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfi
 	}
 	return BlueGreen{
 		Deployer{
-			Mode:          mode,
-			Logger:        logger,
-			AwsConfig:     awsConfig,
-			AWSClients:    awsClients,
-			AsgNames:      map[string]string{},
-			PrevAsgs:      map[string][]string{},
-			PrevInstances: map[string][]string{},
-			Stack:         stack,
+			Mode:              mode,
+			Logger:            logger,
+			AwsConfig:         awsConfig,
+			AWSClients:        awsClients,
+			AsgNames:          map[string]string{},
+			PrevAsgs:          map[string][]string{},
+			PrevInstances:     map[string][]string{},
+			PrevInstanceCount: map[string]builder.Capacity{},
+			PrevVersions:      map[string][]int{},
+			Stack:             stack,
 		},
 	}
 }
@@ -49,38 +51,38 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			continue
 		}
 
-		//Setup frigga with prefix
-		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
-
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			return err
 		}
 
-		// Get All Autoscaling Groups
-		asgGroups := client.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(frigga.Prefix)
+		////Setup frigga with prefix
+		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
 
-		//Get All Previous Autoscaling Groups and versions
-		prevAsgs := []string{}
-		prevInstanceIds := []string{}
-		prevVersions := []int{}
-		var prevInstanceCount builder.Capacity
-		for _, asgGroup := range asgGroups {
-			prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
-			prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
-			for _, instance := range asgGroup.Instances {
-				prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
-			}
-
-			prevInstanceCount.Desired = *asgGroup.DesiredCapacity
-			prevInstanceCount.Max = *asgGroup.MaxSize
-			prevInstanceCount.Min = *asgGroup.MinSize
-		}
-		b.Logger.Info("Previous Versions : ", strings.Join(prevAsgs, " | "))
+		//// Get All Autoscaling Groups
+		//asgGroups := client.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(frigga.Prefix)
+		//
+		////Get All Previous Autoscaling Groups and versions
+		//prevAsgs := []string{}
+		//prevInstanceIds := []string{}
+		//prevVersions := []int{}
+		//var prevInstanceCount builder.Capacity
+		//for _, asgGroup := range asgGroups {
+		//	prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
+		//	prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
+		//	for _, instance := range asgGroup.Instances {
+		//		prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
+		//	}
+		//
+		//	prevInstanceCount.Desired = *asgGroup.DesiredCapacity
+		//	prevInstanceCount.Max = *asgGroup.MaxSize
+		//	prevInstanceCount.Min = *asgGroup.MinSize
+		//}
+		//b.Logger.Info("Previous Versions : ", strings.Join(prevAsgs, " | "))
 
 		// Get Current Version
-		curVersion := getCurrentVersion(prevVersions)
+		curVersion := getCurrentVersion(b.PrevVersions[region.Region])
 		b.Logger.Info("Current Version :", curVersion)
 
 		//Get AMI
@@ -157,8 +159,8 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		}
 
 		var appliedCapacity builder.Capacity
-		if !config.ForceManifestCapacity && prevInstanceCount.Desired > b.Stack.Capacity.Desired {
-			appliedCapacity = prevInstanceCount
+		if !config.ForceManifestCapacity && b.PrevInstanceCount[region.Region].Desired > b.Stack.Capacity.Desired {
+			appliedCapacity = b.PrevInstanceCount[region.Region]
 			b.Logger.Infof("Current desired instance count is larger than the number of instances in manifest file")
 		} else {
 			appliedCapacity = b.Stack.Capacity
@@ -183,12 +185,10 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		)
 
 		if !ret {
-			tool.ErrorLogging("Unknown error happened creating new autoscaling group.")
+			return fmt.Errorf("Unknown error happened creating new autoscaling group.")
 		}
 
 		b.AsgNames[region.Region] = new_asg_name
-		b.PrevAsgs[region.Region] = prevAsgs
-		b.PrevInstances[region.Region] = prevInstanceIds
 
 		if b.Collector.MetricConfig.Enabled {
 			additionalFields := map[string]string{}
@@ -528,6 +528,57 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 		} else {
 			b.Logger.Debugf("No previous versions to gather metrics : %s\n", region.Region)
 		}
+	}
+
+	return nil
+}
+
+// Deploy function
+func (b BlueGreen) CheckPrevious(config builder.Config) error {
+	// Make Frigga
+	frigga := tool.Frigga{}
+	for _, region := range b.Stack.Regions {
+		//Region check
+		//If region id is passed from command line, then deployer will deploy in that region only.
+		if config.Region != "" && config.Region != region.Region {
+			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		//Setup frigga with prefix
+		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
+
+		//select client
+		client, err := selectClientFromList(b.AWSClients, region.Region)
+		if err != nil {
+			return err
+		}
+
+		// Get All Autoscaling Groups
+		asgGroups := client.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(frigga.Prefix)
+
+		//Get All Previous Autoscaling Groups and versions
+		prevAsgs := []string{}
+		prevInstanceIds := []string{}
+		prevVersions := []int{}
+		var prevInstanceCount builder.Capacity
+		for _, asgGroup := range asgGroups {
+			prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
+			prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
+			for _, instance := range asgGroup.Instances {
+				prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
+			}
+
+			prevInstanceCount.Desired = *asgGroup.DesiredCapacity
+			prevInstanceCount.Max = *asgGroup.MaxSize
+			prevInstanceCount.Min = *asgGroup.MinSize
+		}
+		b.Logger.Info("Previous Versions : ", strings.Join(prevAsgs, " | "))
+
+		b.PrevAsgs[region.Region] = prevAsgs
+		b.PrevInstances[region.Region] = prevInstanceIds
+		b.PrevVersions[region.Region] = prevVersions
+		b.PrevInstanceCount[region.Region] = prevInstanceCount
 	}
 
 	return nil

@@ -1,9 +1,11 @@
 package tool
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,8 @@ var (
 	INITIAL_STATUS          = "Not Found"
 	DAYTOSEC                = int64(86400)
 	HOURTOSEC               = int64(3600)
+	allowedAnswerYes        = []string{"y", "yes"}
+	allowedAnswerNo         = []string{"n", "no"}
 )
 
 // Check if file exists
@@ -79,4 +83,24 @@ func GetBaseStartTime(t time.Time) time.Time {
 
 func GetTimePrefix(t time.Time) string {
 	return fmt.Sprintf("%d%02d%02d", t.Year(), t.Month(), t.Day())
+}
+
+func AskContinue() bool {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Printf("Are you sure? (y, n)")
+	for scanner.Scan() {
+		input := strings.ToLower(scanner.Text())
+
+		if IsStringInArray(input, allowedAnswerNo) {
+			return false
+		}
+
+		if IsStringInArray(input, allowedAnswerYes) {
+			return true
+		}
+
+		break
+	}
+
+	return false
 }

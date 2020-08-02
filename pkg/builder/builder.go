@@ -298,7 +298,7 @@ func (b Builder) CheckValidation() error {
 				return fmt.Errorf("you have to choose one target group as healthcheck_target_group")
 			}
 
-			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup != "" && !tool.IsStringInArray(region.HealthcheckTargetGroup, region.TargetGroups){
+			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup != "" && !tool.IsStringInArray(region.HealthcheckTargetGroup, region.TargetGroups) {
 				return fmt.Errorf("you have to choose the healthcheck_target_group from the target_groups")
 			}
 		}

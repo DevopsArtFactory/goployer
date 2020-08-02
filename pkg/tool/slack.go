@@ -43,7 +43,10 @@ func (s Slack) SendSimpleMessage(message string, env string) error {
 	if !s.ValidClient() {
 		return nil
 	}
-	color := colorMapping[env]
+	color, ok := colorMapping[env]
+	if !ok {
+		color = "#ff0000"
+	}
 	attachment := slack.Attachment{
 		Text:  message,
 		Color: color,

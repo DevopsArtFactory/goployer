@@ -2,23 +2,25 @@ package runner
 
 import (
 	"fmt"
+	"os"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
-	"strings"
-	"time"
-
-	"os"
 )
 
 type Runner struct {
-	Logger    *Logger.Logger
-	Builder   builder.Builder
-	Collector collector.Collector
-	Slacker   tool.Slack
+	Logger     *Logger.Logger
+	Builder    builder.Builder
+	Collector  collector.Collector
+	Slacker    tool.Slack
+	FuncMapper map[string]func() error
 }
 
 var (
@@ -92,30 +94,38 @@ func setManifestToBuilder(builderSt builder.Builder) (builder.Builder, error) {
 }
 
 //Start function is the starting point of all processes.
-func Start(builderSt builder.Builder) error {
+func Start(builderSt builder.Builder, mode string) error {
 	// Check validation of configurations
 	if err := builderSt.CheckValidation(); err != nil {
 		return err
 	}
 
 	// run with runner
-	return withRunner(builderSt, func(slacker tool.Slack) error {
-		// These are post actions after deployment
-		slacker.SendSimpleMessage(":100: Deployment is done.", builderSt.Config.Env)
+	return withRunner(builderSt, mode, func(slacker tool.Slack) error {
+		if !builderSt.Config.SlackOff {
+			// These are post actions after deployment
+			if mode == "deploy" {
+				slacker.SendSimpleMessage(":100: Deployment is done.", builderSt.Config.Env)
+			}
+
+			if mode == "delete" {
+				slacker.SendSimpleMessage(":100: Delete process is done.", "")
+			}
+		}
 
 		return nil
 	})
 }
 
 //withRunner creates runner and runs the deployment process
-func withRunner(builderSt builder.Builder, postAction func(slacker tool.Slack) error) error {
+func withRunner(builderSt builder.Builder, mode string, postAction func(slacker tool.Slack) error) error {
 	runner, err := NewRunner(builderSt)
 	if err != nil {
 		return err
 	}
 	runner.LogFormatting(builderSt.Config.LogLevel)
 
-	if err := runner.Run(); err != nil {
+	if err := runner.Run(mode); err != nil {
 		return err
 	}
 
@@ -124,12 +134,19 @@ func withRunner(builderSt builder.Builder, postAction func(slacker tool.Slack) e
 
 //NewRunner creates a new runner
 func NewRunner(newBuilder builder.Builder) (Runner, error) {
-	return Runner{
+	newRunner := Runner{
 		Logger:    Logger.New(),
 		Builder:   newBuilder,
 		Collector: collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole),
 		Slacker:   tool.NewSlackClient(newBuilder.Config.SlackOff),
-	}, nil
+	}
+
+	newRunner.FuncMapper = map[string]func() error{
+		"deploy": newRunner.Deploy,
+		"delete": newRunner.Delete,
+	}
+
+	return newRunner, nil
 }
 
 // Set log format
@@ -140,7 +157,15 @@ func (r Runner) LogFormatting(logLevel string) {
 }
 
 // Run executes all required steps for deployments
-func (r Runner) Run() error {
+func (r Runner) Run(mode string) error {
+	f, ok := r.FuncMapper[mode]
+	if !ok {
+		return fmt.Errorf("no function exists to run for %s", mode)
+	}
+	return f()
+}
+
+func (r Runner) Deploy() error {
 	defer func() {
 		if err := recover(); err != nil {
 			Logger.Error(err)
@@ -166,10 +191,7 @@ func (r Runner) Run() error {
 	}
 
 	if r.Builder.MetricConfig.Enabled {
-		r.Logger.Infof("Metric Measurement is enabled")
-
-		r.Logger.Debugf("check if storage exists or not")
-		if err := r.Collector.CheckStorage(r.Logger); err != nil {
+		if err := r.CheckEnabledMetrics(); err != nil {
 			return err
 		}
 	}
@@ -189,6 +211,13 @@ func (r Runner) Run() error {
 		deployers = append(deployers, d)
 	}
 
+	// Check Previous Version
+	for _, deployer := range deployers {
+		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+			return err
+		}
+	}
+
 	// Deploy
 	for _, deployer := range deployers {
 		if err := deployer.Deploy(r.Builder.Config); err != nil {
@@ -204,6 +233,79 @@ func (r Runner) Run() error {
 	// Attach scaling policy
 	for _, deployer := range deployers {
 		if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
+	}
+
+	// Trigger Lifecycle Callbacks
+	for _, deployer := range deployers {
+		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
+	}
+
+	// Clear previous Version
+	for _, deployer := range deployers {
+		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
+	}
+
+	// Checking all previous version before delete asg
+	cleanChecking(deployers, r.Builder.Config)
+
+	// gather metrics of previous version
+	for _, deployer := range deployers {
+		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+			r.Logger.Errorf(err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (r Runner) Delete() error {
+	defer func() {
+		if err := recover(); err != nil {
+			Logger.Error(err)
+			os.Exit(1)
+		}
+	}()
+
+	// From local os, you need to ensure that delete command is intended
+	if runtime.GOOS == "darwin" {
+		if tool.AskContinue() {
+			r.Logger.Infof("you agreed to delete applications")
+		} else {
+			return fmt.Errorf("you declined to run delete command")
+		}
+	}
+
+	//Send Beginning Message
+	r.Logger.Info("Beginning delete process: ", r.Builder.AwsConfig.Name)
+	r.Builder.Config.SlackOff = true
+
+	if r.Builder.MetricConfig.Enabled {
+		if err := r.CheckEnabledMetrics(); err != nil {
+			return err
+		}
+	}
+
+	r.Logger.Debug("create deployers for stacks to delete")
+
+	deployers := []deployer.DeployManager{}
+	for _, stack := range r.Builder.Stacks {
+		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
+			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
+			continue
+		}
+		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
+		deployers = append(deployers, d)
+	}
+
+	// Check Previous Version
+	for _, deployer := range deployers {
+		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
 			r.Logger.Errorf(err.Error())
 		}
 	}
@@ -349,6 +451,17 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 			time.Sleep(config.PollingInterval)
 		}
 	}
+}
+
+func (r Runner) CheckEnabledMetrics() error {
+	r.Logger.Infof("Metric Measurement is enabled")
+
+	r.Logger.Debugf("check if storage exists or not")
+	if err := r.Collector.CheckStorage(r.Logger); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func FilterS3Path(path string) (string, string) {

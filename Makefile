@@ -48,6 +48,7 @@ GO_LDFLAGS_linux =" $(GO_LDFLAGS)  -extldflags \"$(LDFLAGS_linux)\""
 
 # Build for local development.
 $(BUILD_DIR)/$(PROJECT): $(GO_FILES) $(BUILD_DIR)
+	@echo
 	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=1 go build -tags $(GO_BUILD_TAGS_$(GOOS)) -ldflags $(GO_LDFLAGS_$(GOOS)) -o $@ $(BUILD_PACKAGE)
 
 .PHONY: install
@@ -149,8 +150,8 @@ preview-docs:
 test:
 	@ go test -count=1 -v -race -short -timeout=90s $(TEST_PACKAGES)
 
-.PHONY: build-test
-build-test:
+.PHONY: api-test
+api-test:
 	./hack/apitest.sh
 
 .PHONY: coverage

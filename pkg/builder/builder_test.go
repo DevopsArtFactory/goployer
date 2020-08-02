@@ -230,7 +230,6 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].Regions[0].InstanceType = "t3.large"
 
-
 	b.Stacks[0].Regions[0].HealthcheckTargetGroup = "test-tg"
 	if err := b.CheckValidation(); err == nil || err.Error() != "you have to add healthcheck_target_group to target_groups" {
 		t.Errorf("validation failed: target groups missing")
