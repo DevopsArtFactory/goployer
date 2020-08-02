@@ -33,7 +33,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfi
 }
 
 // Deploy function
-func (b BlueGreen) Deploy(config builder.Config) {
+func (b BlueGreen) Deploy(config builder.Config) error {
 	b.Logger.Info("Deploy Mode is " + b.Mode)
 
 	//Get LocalFileProvider
@@ -55,7 +55,7 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			tool.ErrorLogging(err.Error())
+			return err
 		}
 
 		// Get All Autoscaling Groups
@@ -128,19 +128,19 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		)
 
 		if !ret {
-			tool.ErrorLogging("Unknown error happened creating new launch template.")
+			return fmt.Errorf("unknown error happened creating new launch template")
 		}
 
 		healthElb := region.HealthcheckLB
 		loadbalancers := region.LoadBalancers
-		if !tool.IsStringInArray(healthElb, loadbalancers) {
+		if healthElb != "" && !tool.IsStringInArray(healthElb, loadbalancers) {
 			loadbalancers = append(loadbalancers, healthElb)
 		}
 
-		healthcheckTargetGroups := region.HealthcheckTargetGroup
+		healthcheckTargetGroup := region.HealthcheckTargetGroup
 		targetGroups := region.TargetGroups
-		if !tool.IsStringInArray(healthcheckTargetGroups, targetGroups) {
-			targetGroups = append(targetGroups, healthcheckTargetGroups)
+		if healthcheckTargetGroup != "" && !tool.IsStringInArray(healthcheckTargetGroup, targetGroups) {
+			targetGroups = append(targetGroups, healthcheckTargetGroup)
 		}
 
 		usePublicSubnets := region.UsePublicSubnets
@@ -148,10 +148,13 @@ func (b BlueGreen) Deploy(config builder.Config) {
 		healthcheckGracePeriod := int64(aws.DEFAULT_HEALTHCHECK_GRACE_PERIOD)
 		terminationPolicies := []*string{}
 		availabilityZones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
-		targetGroupArns := client.ELBService.GetTargetGroupARNs(targetGroups)
 		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars, region.Region)
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
+		targetGroupArns, err := client.ELBService.GetTargetGroupARNs(targetGroups)
+		if err != nil {
+			return err
+		}
 
 		var appliedCapacity builder.Capacity
 		if !config.ForceManifestCapacity && prevInstanceCount.Desired > b.Stack.Capacity.Desired {
@@ -205,6 +208,8 @@ func (b BlueGreen) Deploy(config builder.Config) {
 			b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating", additionalFields)
 		}
 	}
+
+	return nil
 }
 
 // Healthchecking
@@ -238,12 +243,15 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			tool.ErrorLogging(err.Error())
+			return map[string]bool{stack_name: false, "error": true}
 		}
 
 		asg := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
 
-		isHealthy := b.Deployer.polling(region, asg, client)
+		isHealthy, err := b.Deployer.polling(region, asg, client)
+		if err != nil {
+			return map[string]bool{stack_name: false, "error": true}
+		}
 
 		if isHealthy {
 			if b.Collector.MetricConfig.Enabled {
@@ -256,10 +264,10 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(finished) == validCount {
-		return map[string]bool{stack_name: true}
+		return map[string]bool{stack_name: true, "error": false}
 	}
 
-	return map[string]bool{stack_name: false}
+	return map[string]bool{stack_name: false, "error": false}
 }
 
 //Stack Name Getter

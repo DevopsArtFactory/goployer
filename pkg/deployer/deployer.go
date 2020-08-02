@@ -36,13 +36,24 @@ func getCurrentVersion(prevVersions []int) int {
 }
 
 // Polling for healthcheck
-func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) bool {
+func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) (bool, error) {
 	if *asg.AutoScalingGroupName == "" {
 		tool.ErrorLogging(fmt.Sprintf("No autoscaling found for %s", d.AsgNames[region.Region]))
 	}
 
 	healthcheckTargetGroup := region.HealthcheckTargetGroup
-	healthcheckTargetGroupArn := (client.ELBService.GetTargetGroupARNs([]string{healthcheckTargetGroup}))[0]
+	tgs := []string{}
+	if healthcheckTargetGroup == "" {
+		d.Logger.Infof("healthcheck skipped because of no target group specified")
+		return true, nil
+	}
+
+	tgs = append(tgs, healthcheckTargetGroup)
+	tgArns, err := client.ELBService.GetTargetGroupARNs(tgs)
+	if err != nil {
+		return false, err
+	}
+	healthcheckTargetGroupArn := tgArns[0]
 
 	threshold := d.Stack.Capacity.Desired
 	targetHosts := client.ELBService.GetHostInTarget(asg, healthcheckTargetGroupArn)
@@ -60,13 +71,13 @@ func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, c
 		// Success
 		Logger.Info(fmt.Sprintf("Healthy Count for %s : %d/%d", d.AsgNames[region.Region], healthHostCount, threshold))
 		d.Slack.SendSimpleMessage(fmt.Sprintf("All instances are healthy in %s  :  %d/%d", d.AsgNames[region.Region], healthHostCount, threshold), d.Stack.Env)
-		return true
+		return true, nil
 	}
 
 	Logger.Info(fmt.Sprintf("Healthy count does not meet the requirement(%s) : %d/%d", d.AsgNames[region.Region], healthHostCount, threshold))
 	d.Slack.SendSimpleMessage(fmt.Sprintf("Waiting for healthy instances %s  :  %d/%d", d.AsgNames[region.Region], healthHostCount, threshold), d.Stack.Env)
 
-	return false
+	return false, nil
 }
 
 // CheckTerminating checks if all of instances are terminated well
@@ -176,6 +187,11 @@ func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
 	targetGroups, err := client.EC2Service.GetTargetGroups(target)
 	if err != nil {
 		return err
+	}
+
+	if len(targetGroups) == 0 {
+		d.Logger.Warnf("this autoscaling group does not belong to any target group ")
+		return nil
 	}
 
 	d.Logger.Debugf("start retrieving additional metrics")
