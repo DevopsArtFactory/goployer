@@ -191,7 +191,9 @@ func (r Runner) Run() error {
 
 	// Deploy
 	for _, deployer := range deployers {
-		deployer.Deploy(r.Builder.Config)
+		if err := deployer.Deploy(r.Builder.Config); err != nil {
+			return err
+		}
 	}
 
 	// healthcheck
@@ -279,9 +281,15 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 
 		for count > 0 {
 			ret := <-ch
-			for stack, fin := range ret {
-				if fin {
-					healthyStackList = append(healthyStackList, stack)
+			if ret["error"] {
+				return fmt.Errorf("error happened while healthchecking")
+			}
+			for key, val := range ret {
+				if key == "error" {
+					continue
+				}
+				if val {
+					healthyStackList = append(healthyStackList, key)
 				}
 			}
 			count -= 1

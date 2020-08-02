@@ -43,7 +43,7 @@ tags:
 
 stacks:
   - stack: artd
-    polling_interval: 30s
+    polling_interval: 20s
     account: dev
     env: dev
     assume_role: ""
@@ -51,13 +51,6 @@ stacks:
     iam_instance_profile: 'app-hello-profile'
     ansible_tags: all
     ebs_optimized: true
-    #instance_market_options:
-    #  market_type: spot
-    #  spot_options:
-    #    block_duration_minutes: 180
-    #    instance_interruption_behavior: terminate # terminate / stop / hibernate
-    #    max_price: 0.
-    #    spot_instance_type: one-time # one-time or persistent
     mixed_instances_policy:
       enabled: false
       override_instance_types:
@@ -105,7 +98,7 @@ stacks:
           - hello-artdapne2-ext
 
   - stack: artd-spot
-    polling_interval: 30s
+    polling_interval: 20s
     account: dev
     env: dev
     assume_role: ""
@@ -157,7 +150,7 @@ stacks:
           - hello-artdapne2-ext
 
   - stack: artd-mixed
-    polling_interval: 30s
+    polling_interval: 20s
     account: dev
     env: dev
     assume_role: ""
@@ -169,10 +162,9 @@ stacks:
       enabled: true
       override_instance_types:
         - c5.large
-        - c5.xlarge
       on_demand_percentage: 20
       spot_allocation_strategy: lowest-price
-      spot_instance_pools: 3
+      spot_instance_pools: 1
       spot_max_price: 0.3
 
     block_devices:
@@ -210,3 +202,41 @@ stacks:
           - ap-northeast-2c
         target_groups:
           - hello-artdapne2-ext
+
+  - stack: artd-without-targetgroup
+    polling_interval: 20s
+    account: dev
+    env: dev
+    assume_role: ""
+    replacement_type: BlueGreen
+    iam_instance_profile: 'app-hello-profile'
+    ansible_tags: all
+    ebs_optimized: true
+
+    # capacity
+    capacity:
+      min: 1
+      max: 2
+      desired: 1
+
+    autoscaling: *autoscaling_policy
+    alarms: *autoscaling_alarms
+
+    lifecycle_callbacks:
+      pre_terminate_past_cluster:
+        - service hello stop
+
+    regions:
+      - region: ap-northeast-2
+        instance_type: t3.medium
+        ssh_key: test-master-key
+        ami_id: ami-01288945bd24ed49a
+        use_public_subnets: true
+        vpc: vpc-artd_apnortheast2
+        security_groups:
+          - hello-artd_apnortheast2
+          - default-artd_apnortheast2
+        availability_zones:
+          - ap-northeast-2a
+          - ap-northeast-2b
+          - ap-northeast-2c

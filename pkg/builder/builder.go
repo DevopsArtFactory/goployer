@@ -278,14 +278,27 @@ func (b Builder) CheckValidation() error {
 		}
 
 		for _, region := range stack.Regions {
-			//Check ami id
+			// Check ami id
 			if len(target_ami) == 0 && len(region.AmiId) == 0 {
 				return fmt.Errorf("you have to specify at least one ami id")
 			}
 
-			//Check instance type
+			// Check instance type
 			if len(region.InstanceType) == 0 {
 				return fmt.Errorf("you have to specify the instance type")
+			}
+
+			// Check target group
+			if len(region.TargetGroups) == 0 && region.HealthcheckTargetGroup != "" {
+				return fmt.Errorf("you have to add healthcheck_target_group to target_groups")
+			}
+
+			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup == "" {
+				return fmt.Errorf("you have to choose one target group as healthcheck_target_group")
+			}
+
+			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup != "" && !tool.IsStringInArray(region.HealthcheckTargetGroup, region.TargetGroups){
+				return fmt.Errorf("you have to choose the healthcheck_target_group from the target_groups")
 			}
 		}
 
