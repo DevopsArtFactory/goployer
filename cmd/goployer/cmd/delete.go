@@ -9,15 +9,15 @@ import (
 )
 
 // Create new deploy command
-func NewDeployCommand() *cobra.Command {
-	return NewCmd("deploy").
-		WithDescription("Deploy a new application").
+func NewDeleteCommand() *cobra.Command {
+	return NewCmd("delete").
+		WithDescription("Delete previous applications").
 		SetFlags().
-		RunWithNoArgs(funcDeploy)
+		RunWithNoArgs(funcDelete)
 }
 
-// funcDeploy run deployment
-func funcDeploy(ctx context.Context, _ io.Writer) error {
+// funcDelete delete stacks
+func funcDelete(ctx context.Context, _ io.Writer) error {
 	return runWithoutExecutor(ctx, func() error {
 		//Create new builder
 		builderSt, err := runner.SetupBuilder()
@@ -26,7 +26,7 @@ func funcDeploy(ctx context.Context, _ io.Writer) error {
 		}
 
 		//Start runner
-		if err := runner.Start(builderSt, "deploy"); err != nil {
+		if err := runner.Start(builderSt, "delete"); err != nil {
 			return err
 		}
 

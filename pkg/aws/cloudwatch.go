@@ -95,7 +95,7 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.A
 }
 
 // GetRequestStatics returns statistics for terminating autoscaling group
-func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, terminatedDate time.Time, period int64, logger *Logger.Logger) (map[string]map[string]float64, error) {
+func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
 	ret := map[string]map[string]float64{}
 
 	if len(tgs) > 0 {
@@ -111,12 +111,15 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				logger.Debugf("Metric id : %s", id)
 
 				endTime := tool.GetBaseTime(startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)).Add(-1 * time.Second)
-				logger.Debugf("End Time : %s", endTime)
 				if CheckMetricTimeValidation(terminatedDate, endTime) {
 					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
 					endTime = terminatedDate
 				}
 				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
+
+				if !CheckMetricTimeValidation(startTime, endTime) {
+					break
+				}
 
 				v, s, err := c.GetOneDayStatistics(tgName, startTime, endTime, appliedPeriod, id)
 				if err != nil {
@@ -126,7 +129,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				ret[tgName] = v
 				vSum += s
 
-				startTime = startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)
+				startTime = endTime.Add(1 * time.Second)
 
 				if !CheckMetricTimeValidation(startTime, endTime) {
 					isFinished = true

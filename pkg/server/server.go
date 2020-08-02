@@ -75,7 +75,7 @@ func (s Server) TriggerDeploy(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := runner.Start(builder); err != nil {
+	if err := runner.Start(builder, "server"); err != nil {
 		s.Logger.Errorf(err.Error())
 		return
 	}

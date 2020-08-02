@@ -14,17 +14,19 @@ import (
 
 // Deployer per stack
 type Deployer struct {
-	Mode          string
-	AsgNames      map[string]string
-	PrevAsgs      map[string][]string
-	PrevInstances map[string][]string
-	Logger        *Logger.Logger
-	Stack         builder.Stack
-	AwsConfig     builder.AWSConfig
-	AWSClients    []aws.AWSClient
-	LocalProvider builder.UserdataProvider
-	Slack         tool.Slack
-	Collector     collector.Collector
+	Mode              string
+	AsgNames          map[string]string
+	PrevAsgs          map[string][]string
+	PrevInstances     map[string][]string
+	PrevVersions      map[string][]int
+	PrevInstanceCount map[string]builder.Capacity
+	Logger            *Logger.Logger
+	Stack             builder.Stack
+	AwsConfig         builder.AWSConfig
+	AWSClients        []aws.AWSClient
+	LocalProvider     builder.UserdataProvider
+	Slack             tool.Slack
+	Collector         collector.Collector
 }
 
 // getCurrentVersion returns current version for current deployment step

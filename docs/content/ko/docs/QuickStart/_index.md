@@ -55,13 +55,13 @@ Goployer는 AWS Launch Template, Autoscaling Group, DynamoDB, CloudWatch Alarm �
 1. `examples` 폴더로 가서 Goployer를 실행합니다.
 * 4번에서 세팅한 Metric 기능을 사용하고 싶지 않으신 경우에는, 명령어 실행 시 `--disable-metrics=true` 을 사용하시기 바랍니다.
     ```bash
-   goployer --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+   goployer deploy --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
     ```
 
 ## 로그 확인   
 
 ```
-$ goployer --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+$ goployer deploy --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
 INFO[0000] Beginning deployment: hello                  
 
 ============================================================

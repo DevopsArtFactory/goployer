@@ -58,13 +58,13 @@ So you need to have the right permissions to make these resources in your AWS cr
 * If you don't want to use metrics feature(Step 4), then use `--disable-metrics=true` 
 
     ```bash
-   goployer --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+   goployer deploy --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
     ```
 
 ## Logging   
 
 ```
-$ goployer --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+$ goployer deploy --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
 INFO[0000] Beginning deployment: hello                  
 
 ============================================================

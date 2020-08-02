@@ -31,8 +31,13 @@ const (
 var zeroTimeout = 0 * time.Minute
 var zeroPollingInterval = 0 * time.Second
 
+var flagKey = map[string]string{
+	"deploy": "fullset",
+	"delete": "fullset",
+}
+
 var FlagRegistry = map[string][]Flag{
-	"deploy": []Flag{
+	"fullset": []Flag{
 		{
 			Name:          "manifest",
 			Shorthand:     "m",
@@ -197,8 +202,8 @@ func reflectValueOf(values []interface{}) []reflect.Value {
 //Add command flags
 func SetCommandFlags(cmd *cobra.Command) {
 	var flagsForCommand []*Flag
-	for i := range FlagRegistry[cmd.Use] {
-		fl := &FlagRegistry[cmd.Use][i]
+	for i := range FlagRegistry[flagKey[cmd.Use]] {
+		fl := &FlagRegistry[flagKey[cmd.Use]][i]
 		cmd.PersistentFlags().AddFlag(fl.flag())
 		flagsForCommand = append(flagsForCommand, fl)
 	}

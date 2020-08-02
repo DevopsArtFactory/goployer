@@ -16,13 +16,14 @@ fi
 make test
 
 # build goployer
-GOOS=darwin CGO_ENABLED=1 go build -o ./$BUILD_DIR/goployer main.go
+GOOS=darwin CGO_ENABLED=1 go build -o ./$BUILD_DIR/goployer cmd/goployer/main.go
 if [[ $? -ne 0 ]];then
     echo "error occurred when building binary file"
     exit 1
 fi
 
 # api test
+lastStack=""
 for stack in "${stacks[@]}"; do
     ./$BUILD_DIR/goployer deploy --manifest=$TEST_DIR/test_manifest.yaml --stack=$stack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
     if [[ $? -eq 0 ]]; then
@@ -38,9 +39,13 @@ for stack in "${stacks[@]}"; do
         done
         echo "healthcheck is done"
     fi
+    lastStack=$stack
     sleep 30
 done
+echo "API test is done"
 
-echo "api test is done"
+echo  "delete test autoscaling group"
+./$BUILD_DIR/goployer delete --manifest=$TEST_DIR/test_manifest.yaml --stack=$lastStack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
+
 rm -rf $BUILD_DIR
 

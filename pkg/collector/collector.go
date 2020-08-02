@@ -130,12 +130,10 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 		}
 	}
 
-	var period int64
 	if len(tgs) > 0 && (startDate.Sub(minTimestamp) > 0) && enableStats {
 		// if baseTimeDuration is over a month which is the maximum duration of cloudwatch
 		// fix the time to one month
 		if baseTimeDuration > MONTH {
-			period = int64(MONTH)
 			startDate = curr.Add(-2592000 * time.Second)
 		}
 
@@ -144,9 +142,9 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 			logger.Debugf("current: %s, terminated: %s", curr, startDate)
 
 		} else {
-			logger.Debugf("StartDate : %s\n", startDate)
+			logger.Debugf("StartDate : %s", startDate)
 
-			targetRequest, err := c.MetricClient.CloudWatchService.GetRequestStatistics(tgs, startDate, curr, period, logger)
+			targetRequest, err := c.MetricClient.CloudWatchService.GetRequestStatistics(tgs, startDate, curr, logger)
 			if err != nil {
 				return ret, err
 			}
