@@ -1,7 +1,10 @@
 package runner
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/initializer"
+	"github.com/spf13/viper"
 	"os"
 	"runtime"
 	"strings"
@@ -22,17 +25,6 @@ type Runner struct {
 	Slacker    tool.Slack
 	FuncMapper map[string]func() error
 }
-
-var (
-	logLevelMapper = map[string]Logger.Level{
-		"info":  Logger.InfoLevel,
-		"debug": Logger.DebugLevel,
-		"warn":  Logger.WarnLevel,
-		"trace": Logger.TraceLevel,
-		"fatal": Logger.FatalLevel,
-		"error": Logger.ErrorLevel,
-	}
-)
 
 func SetupBuilder() (builder.Builder, error) {
 	// Create new builder
@@ -93,6 +85,35 @@ func setManifestToBuilder(builderSt builder.Builder) (builder.Builder, error) {
 	return builderSt, nil
 }
 
+// Initialize creates necessary files for goployer
+func Initialize(args []string) error {
+	var appName string
+	var err error
+
+	// validation
+	if len(args) > 1 {
+		return fmt.Errorf("usage: goployer init <application name>")
+	}
+
+	if len(args) == 0 {
+		appName, err = getApplicationName()
+		if err != nil {
+			return err
+		}
+	} else {
+		appName = args[0]
+	}
+
+	i := initializer.NewInitializer(appName)
+	i.Logger.SetLevel(tool.LogLevelMapper[viper.GetString("log-level")])
+
+	if err := i.RunInit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //Start function is the starting point of all processes.
 func Start(builderSt builder.Builder, mode string) error {
 	// Check validation of configurations
@@ -151,9 +172,8 @@ func NewRunner(newBuilder builder.Builder) (Runner, error) {
 
 // Set log format
 func (r Runner) LogFormatting(logLevel string) {
-	//logger.SetFormatter(&Logger.JSONFormatter{})
 	r.Logger.SetOutput(os.Stdout)
-	r.Logger.SetLevel(logLevelMapper[logLevel])
+	r.Logger.SetLevel(tool.LogLevelMapper[logLevel])
 }
 
 // Run executes all required steps for deployments
@@ -274,7 +294,7 @@ func (r Runner) Delete() error {
 
 	// From local os, you need to ensure that delete command is intended
 	if runtime.GOOS == "darwin" {
-		if tool.AskContinue() {
+		if tool.AskContinue("Do you really want to delete applications? ") {
 			r.Logger.Infof("you agreed to delete applications")
 		} else {
 			return fmt.Errorf("you declined to run delete command")
@@ -469,4 +489,19 @@ func FilterS3Path(path string) (string, string) {
 	split := strings.Split(path, "/")
 
 	return split[0], strings.Join(split[1:], "/")
+}
+
+func getApplicationName() (string, error) {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Printf("What is application name: ")
+	var input string
+	if scanner.Scan() {
+		input = strings.ReplaceAll(strings.TrimSpace(scanner.Text()), " ", "_")
+
+		if input == "" {
+			return "", fmt.Errorf("application name is empty")
+		}
+	}
+
+	return input, nil
 }

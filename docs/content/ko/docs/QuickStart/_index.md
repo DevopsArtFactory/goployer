@@ -29,33 +29,35 @@ Goployer는 AWS Launch Template, Autoscaling Group, DynamoDB, CloudWatch Alarm �
 
 ## 매니페스트 및 매트릭 관련 파일 작업
 
-1. Goployer 레포지토리를 다운로드 합니다:
+1. goployer를 위한 샘플 폴더를 생성합니다.
     ```bash
-    git clone https://github.com/DevopsArtFactory/goployer
+    $ mkdir goployer
+    $ cd goployer
     ```
 
-1. `examples` 폴더로 들어갑니다.
+1. `goployer init` 명령어를 사용해 샘플 파일들을 생성합니다.
 
     ```bash
-    cd goployer/examples
-    ```
-   
-1. `manifests/basic-example.yaml` 파일을 열어 설정을 변경합니다.
-
-    ```bash
-    vim manifests/basic-example.yaml
+    $ goployer init                                                                                                                                                                                                        
+    What is application name: hello
     ```
    
-1. `metrics/metrics.yaml` 파일을 수정합니다.
+1. `manifests/hello.yaml` 파일을 열어 설정을 변경합니다.
+
+    ```bash
+    $ vim manifests/hello.yaml
+    ```
+   
+1. `metrics.yaml` 파일을 수정합니다.
 * metrics.yaml 파일은 반드시 goployer가 실행되는 루트 디렉토리에 있어야 합니다.
     ```bash
-    vim metrics/metrics.yaml
+    $ vim metrics.yaml
     ```
    
-1. `examples` 폴더로 가서 Goployer를 실행합니다.
+1. goployer를 실행합니다.
 * 4번에서 세팅한 Metric 기능을 사용하고 싶지 않으신 경우에는, 명령어 실행 시 `--disable-metrics=true` 을 사용하시기 바랍니다.
     ```bash
-   goployer deploy --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+   goployer deploy --manifest=manifests/hello.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
     ```
 
 ## 로그 확인   
@@ -142,4 +144,8 @@ DEBU[0307] Launch templates are deleted in hello-dev_apnortheast2-v008
 INFO[0307] finished : hello-dev_apnortheast2-v008       
 INFO[0307] All stacks are terminated!!        
 ```
+
+
+## 예시 더보기
+* [Examples]({{< relref "/docs/examples" >}})
 

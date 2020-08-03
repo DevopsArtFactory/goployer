@@ -30,41 +30,43 @@ So you need to have the right permissions to make these resources in your AWS cr
 
 ## Preparing manifest and metric file
 
-1. Clone the goployer repository:
+1. make new directory:
     ```bash
-    git clone https://github.com/DevopsArtFactory/goployer
+    $ mkdir goployer
+    $ cd goployer
     ```
 
-1. Change to the `examples` directory in goployer directory.
+1. Create sample files with `goployer init`
 
     ```bash
-    cd goployer/examples
-    ```
-   
-1. Modify configurations in the file `manifests/basic-example.yaml` to your application.
-
-    ```bash
-    vim manifests/basic-example.yaml
+    $ goployer init                                                                                                                                                                                                        
+    What is application name: hello
     ```
    
-1. Modify configurations in the file `metrics/metrics.yaml` .
+1. Modify configurations in the file `manifests/hello.yaml` to your application.
+
+    ```bash
+    $ vim manifests/hello.yaml
+    ```
+   
+1. Modify configurations in the file `metrics.yaml` .
 * metrics.yaml file should be in the root directory where you run goployer command
 
     ```bash
-    vim metrics/metrics.yaml
+    $ vim metrics.yaml
     ```
    
-1. In the `examples` directory, you can run goployer.
+1. Run deploy command
 * If you don't want to use metrics feature(Step 4), then use `--disable-metrics=true` 
 
     ```bash
-   goployer deploy --manifest=manifests/basic-example.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+   $ goployer deploy --manifest=manifests/hello.yaml --stack=<stack name> --region=ap-northeast-2 --slack-off=true --log-level=debug
     ```
 
 ## Logging   
 
 ```
-$ goployer deploy --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug --disable-metrics=true
+$ goployer deploy --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug
 INFO[0000] Beginning deployment: hello                  
 
 ============================================================
@@ -146,3 +148,5 @@ INFO[0307] finished : hello-dev_apnortheast2-v008
 INFO[0307] All stacks are terminated!!        
 ```
 
+## More examples
+* [Examples]({{< relref "/docs/examples" >}})

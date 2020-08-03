@@ -6,9 +6,34 @@ weight: 10
 
 <br>
 
+프로젝트 시작:
+* [goployer init](#goployer-init) - setup goployer project
+
+<br>
+
 Total Deployment Process:
 * [goployer deploy](#goployer-deploy) - to deploy a new application
 * [goployer delete](#goployer-delete) - to delete previous applications
+
+## goployer init
+- setup goployer project
+```
+Examples:
+  # Minimum argument
+  goployer init
+
+  # See log
+  goployer init --log-level=debug
+
+Options:
+      --log-level string                Level of logging
+```
+
+- All project files will be created in current directory.
+  - manifests
+  - scripts
+  - metric.yaml
+<br>
 
 ## goployer deploy
 - Deploy a new application
