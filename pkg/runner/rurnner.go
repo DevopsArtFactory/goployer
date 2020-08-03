@@ -12,9 +12,9 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
+	"github.com/DevopsArtFactory/goployer/pkg/initializer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
-	"github.com/DevopsArtFactory/goployer/pkg/initializer"
 	"github.com/spf13/viper"
 )
 

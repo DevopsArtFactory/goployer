@@ -139,7 +139,7 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 
 		startDate = tool.GetBaseStartTime(startDate)
 		if curr.Sub(startDate) < 0 {
-			logger.Debugf("current: %s, terminated: %s", curr, startDate)
+			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", curr, startDate)
 
 		} else {
 			logger.Debugf("StartDate : %s", startDate)
@@ -149,8 +149,8 @@ func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger
 				return ret, err
 			}
 
+			fmt.Println(targetRequest)
 			ret["stat"] = targetRequest
-			ret["timezone"] = c.MetricConfig.Metrics.BaseTimezone
 		}
 	}
 
