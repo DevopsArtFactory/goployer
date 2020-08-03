@@ -98,13 +98,16 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.A
 func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
 	ret := map[string]map[string]float64{}
 
+	resetStartTime := startTime
 	if len(tgs) > 0 {
 		for _, tg := range tgs {
 			tgName := (*tg)[strings.LastIndex(*tg, ":")+1:]
+			logger.Debugf("GetRequestStatistics: %s", tgName)
 
 			appliedPeriod := tool.HOURTOSEC
 			vSum := float64(0)
 
+			startTime = resetStartTime
 			isFinished := false
 			for !isFinished {
 				id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
@@ -133,6 +136,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				}
 
 				startTime = endTime.Add(1 * time.Second)
+				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
 
 				if !CheckMetricTimeValidation(startTime, endTime) {
 					logger.Debugf("Finish gathering metrics")
@@ -154,8 +158,8 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time.Time, period int64, id string) (map[string]float64, float64, error) {
 
 	input := &cloudwatch.GetMetricDataInput{
-		StartTime: aws.Time(startTime.UTC()),
-		EndTime:   aws.Time(endTime.UTC()),
+		StartTime: aws.Time(startTime),
+		EndTime:   aws.Time(endTime),
 	}
 
 	var mdq []*cloudwatch.MetricDataQuery
@@ -195,6 +199,8 @@ func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time
 	if len(result.MetricDataResults) == 0 {
 		return nil, 0, nil
 	}
+
+	Logger.Infoln(result.MetricDataResults)
 
 	ret := map[string]float64{}
 	sum := float64(0)
