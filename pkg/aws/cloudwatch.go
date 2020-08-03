@@ -118,6 +118,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
 
 				if !CheckMetricTimeValidation(startTime, endTime) {
+					logger.Debugf("Finish gathering metrics")
 					break
 				}
 
@@ -126,17 +127,22 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 					return nil, err
 				}
 
-				ret[tgName] = v
-				vSum += s
+				if v != nil {
+					ret[tgName] = v
+					vSum += s
+				}
 
 				startTime = endTime.Add(1 * time.Second)
 
 				if !CheckMetricTimeValidation(startTime, endTime) {
+					logger.Debugf("Finish gathering metrics")
 					isFinished = true
 				}
-
 			}
 
+			if ret[tgName] == nil {
+				ret[tgName] = map[string]float64{}
+			}
 			ret[tgName]["total"] = vSum
 		}
 	}

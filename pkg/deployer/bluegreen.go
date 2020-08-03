@@ -56,7 +56,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		if err != nil {
 			return err
 		}
-    
+
 		//Setup frigga with prefix
 		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
 
@@ -374,7 +374,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			for _, asg := range b.PrevAsgs[region.Region] {
 				b.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
 				if err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg); err != nil {
-					return err
+					b.Logger.Errorf(err.Error())
 				}
 			}
 		} else {
