@@ -7,6 +7,7 @@ import (
 type DeployManager interface {
 	GetStackName() string
 	Deploy(config builder.Config) error
+	CheckPrevious(config builder.Config) error
 	HealthChecking(config builder.Config) map[string]bool
 	FinishAdditionalWork(config builder.Config) error
 	CleanPreviousVersion(config builder.Config) error

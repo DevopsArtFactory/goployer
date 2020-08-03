@@ -149,8 +149,8 @@ preview-docs:
 test:
 	@ go test -count=1 -v -race -short -timeout=90s $(TEST_PACKAGES)
 
-.PHONY: build-test
-build-test:
+.PHONY: api-test
+api-test:
 	./hack/apitest.sh
 
 .PHONY: coverage

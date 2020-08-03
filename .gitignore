@@ -2,4 +2,5 @@
 base-infrastructure
 bin
 out
+build
 venv

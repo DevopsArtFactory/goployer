@@ -35,6 +35,7 @@ You can find more information in https://goployer.dev`,
 
 	rootCmd.AddCommand(NewDeployCommand())
 	rootCmd.AddCommand(NewVersionCommand())
+	rootCmd.AddCommand(NewDeleteCommand())
 
 	return rootCmd
 }
