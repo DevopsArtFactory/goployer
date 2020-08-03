@@ -34,6 +34,7 @@ var zeroPollingInterval = 0 * time.Second
 var flagKey = map[string]string{
 	"deploy": "fullset",
 	"delete": "fullset",
+	"init":   "initset",
 }
 
 var FlagRegistry = map[string][]Flag{
@@ -106,7 +107,7 @@ var FlagRegistry = map[string][]Flag{
 			Name:          "log-level",
 			Usage:         "Level of logging",
 			Value:         aws.String(noString),
-			DefValue:      "",
+			DefValue:      "info",
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -164,6 +165,15 @@ var FlagRegistry = map[string][]Flag{
 			Value:         &zeroPollingInterval,
 			DefValue:      pollingInterval,
 			FlagAddMethod: "DurationVar",
+		},
+	},
+	"initset": []Flag{
+		{
+			Name:          "log-level",
+			Usage:         "Level of logging",
+			Value:         aws.String(noString),
+			DefValue:      "info",
+			FlagAddMethod: "StringVar",
 		},
 	},
 }

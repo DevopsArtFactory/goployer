@@ -3,8 +3,10 @@ package tool
 import (
 	"bufio"
 	"fmt"
+	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -16,7 +18,18 @@ var (
 	HOURTOSEC               = int64(3600)
 	allowedAnswerYes        = []string{"y", "yes"}
 	allowedAnswerNo         = []string{"n", "no"}
+	LogLevelMapper          = map[string]Logger.Level{
+		"info":  Logger.InfoLevel,
+		"debug": Logger.DebugLevel,
+		"warn":  Logger.WarnLevel,
+		"trace": Logger.TraceLevel,
+		"fatal": Logger.FatalLevel,
+		"error": Logger.ErrorLevel,
+	}
 )
+
+var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
 // Check if file exists
 func FileExists(filename string) bool {
@@ -85,9 +98,9 @@ func GetTimePrefix(t time.Time) string {
 	return fmt.Sprintf("%d%02d%02d", t.Year(), t.Month(), t.Day())
 }
 
-func AskContinue() bool {
+func AskContinue(message string) bool {
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Printf("Are you sure? (y, n)")
+	fmt.Printf(message)
 	for scanner.Scan() {
 		input := strings.ToLower(scanner.Text())
 
@@ -103,4 +116,17 @@ func AskContinue() bool {
 	}
 
 	return false
+}
+
+func CheckFileExists(filePath string) bool {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+func ToSnakeCase(str string) string {
+	snake := matchFirstCap.ReplaceAllString(str, "${1}${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
 }

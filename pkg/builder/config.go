@@ -84,16 +84,16 @@ type Stack struct {
 	ReplacementType string `yaml:"replacement_type"`
 
 	// Userdata configuration for stack deployment
-	Userdata Userdata `yaml:"userdata"`
+	Userdata Userdata `yaml:"userdata,omitempty"`
 
 	// AWS IAM instance profile.
 	IamInstanceProfile string `yaml:"iam_instance_profile"`
 
 	// Tags about ansible
-	AnsibleTags string `yaml:"ansible_tags"`
+	AnsibleTags string `yaml:"ansible_tags,omitempty"`
 
 	// IAM Role ARN for assume role
-	AssumeRole string `yaml:"assume_role"`
+	AssumeRole string `yaml:"assume_role,omitempty"`
 
 	// Polling interval when health checking
 	PollingInterval time.Duration `yaml:"polling_interval"`
@@ -102,10 +102,10 @@ type Stack struct {
 	EbsOptimized bool `yaml:"ebs_optimized"`
 
 	// Instance market options like spot
-	InstanceMarketOptions InstanceMarketOptions `yaml:"instance_market_options"`
+	InstanceMarketOptions *InstanceMarketOptions `yaml:"instance_market_options,omitempty"`
 
 	// MixedInstancePolicy of autoscaling group
-	MixedInstancesPolicy MixedInstancesPolicy `yaml:"mixed_instances_policy,omitempty"`
+	MixedInstancesPolicy MixedInstancesPolicy `yaml:"mixed_instances_policy"`
 
 	// EBS Block Devices for EC2 Instance
 	BlockDevices []BlockDevice `yaml:"block_devices"`
