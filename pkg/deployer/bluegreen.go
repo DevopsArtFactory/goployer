@@ -56,30 +56,9 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		if err != nil {
 			return err
 		}
-
-		////Setup frigga with prefix
-		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
-
-		//// Get All Autoscaling Groups
-		//asgGroups := client.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(frigga.Prefix)
-		//
-		////Get All Previous Autoscaling Groups and versions
-		//prevAsgs := []string{}
-		//prevInstanceIds := []string{}
-		//prevVersions := []int{}
-		//var prevInstanceCount builder.Capacity
-		//for _, asgGroup := range asgGroups {
-		//	prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
-		//	prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
-		//	for _, instance := range asgGroup.Instances {
-		//		prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
-		//	}
-		//
-		//	prevInstanceCount.Desired = *asgGroup.DesiredCapacity
-		//	prevInstanceCount.Max = *asgGroup.MaxSize
-		//	prevInstanceCount.Min = *asgGroup.MinSize
-		//}
-		//b.Logger.Info("Previous Versions : ", strings.Join(prevAsgs, " | "))
+    
+		//Setup frigga with prefix
+		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region
 
 		// Get Current Version
 		curVersion := getCurrentVersion(b.PrevVersions[region.Region])

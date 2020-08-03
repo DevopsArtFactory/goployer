@@ -3,8 +3,6 @@ package runner
 import (
 	"bufio"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/initializer"
-	"github.com/spf13/viper"
 	"os"
 	"runtime"
 	"strings"
@@ -16,6 +14,8 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
+	"github.com/DevopsArtFactory/goployer/pkg/initializer"
+	"github.com/spf13/viper"
 )
 
 type Runner struct {

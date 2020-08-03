@@ -67,6 +67,7 @@ So you need to have the right permissions to make these resources in your AWS cr
 
 ```
 $ goployer deploy --manifest=configs/hello.yaml --manifest-s3-region=ap-northeast-2 --stack=artd --region=ap-northeast-2 --slack-off=true --log-level=debug
+
 INFO[0000] Beginning deployment: hello                  
 
 ============================================================
