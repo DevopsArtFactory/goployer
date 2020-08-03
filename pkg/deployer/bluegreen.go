@@ -56,7 +56,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		if err != nil {
 			return err
 		}
-
+    
 		//Setup frigga with prefix
 		frigga.Prefix = tool.BuildPrefixName(b.AwsConfig.Name, b.Stack.Env, region.Region)
 

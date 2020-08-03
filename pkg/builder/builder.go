@@ -107,8 +107,6 @@ func (b Builder) SetStacks(stacks []Stack) Builder {
 		}
 	}
 
-	b.Stacks = stacks
-
 	var deployStack Stack
 	for _, stack := range stacks {
 		if b.Config.Stack == stack.Stack {
@@ -116,6 +114,8 @@ func (b Builder) SetStacks(stacks []Stack) Builder {
 			break
 		}
 	}
+
+	b.Stacks = stacks
 
 	if len(b.Config.Env) == 0 {
 		b.Config.Env = deployStack.Env
@@ -206,7 +206,7 @@ func (b Builder) CheckValidation() error {
 		}
 
 		// Check Spot Options
-		if len(stack.InstanceMarketOptions.MarketType) != 0 {
+		if stack.InstanceMarketOptions != nil {
 			if stack.InstanceMarketOptions.MarketType != "spot" {
 				return fmt.Errorf("no valid market type : %s", stack.InstanceMarketOptions.MarketType)
 			}
@@ -303,7 +303,6 @@ func (b Builder) CheckValidation() error {
 			}
 		}
 
-		// check mixed instances policy
 		if stack.MixedInstancesPolicy.Enabled {
 			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) == 0 {
 				stack.MixedInstancesPolicy.SpotAllocationStrategy = DEFAULT_SPOT_ALLOCATION_STRATEGY

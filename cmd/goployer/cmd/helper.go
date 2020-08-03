@@ -9,17 +9,10 @@ import (
 type Command interface {
 	WithDescription(description string) Command
 	WithLongDescription(description string) Command
-	//SetAliases(alias []string) Command
-	//AddCommand(cmd *cobra.Command) Command
-	//AddGetGroups() Command
-	//AddSearchGroups() Command
-	//AddInspectGroups() Command
-	//AddConfigGroups() Command
 	SetFlags() Command
 	SetPreRunWithArgs(action func(context.Context, io.Writer, []string) error) Command
 	RunWithNoArgs(action func(context.Context, io.Writer) error) *cobra.Command
 	RunWithArgs(action func(context.Context, io.Writer, []string) error) *cobra.Command
-	//RunWithArgsAndCmd(action func(context.Context, io.Writer, *cobra.Command, []string) error) *cobra.Command
 }
 
 type command struct {

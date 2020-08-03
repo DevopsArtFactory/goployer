@@ -314,7 +314,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 }
 
 // Create New Launch Template
-func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions builder.InstanceMarketOptions) bool {
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *builder.InstanceMarketOptions) bool {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
@@ -334,7 +334,7 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 		input.LaunchTemplateData.BlockDeviceMappings = blockDevices
 	}
 
-	if len(instanceMarketOptions.MarketType) != 0 && !mixedInstancePolicyEnabled {
+	if instanceMarketOptions != nil && !mixedInstancePolicyEnabled {
 		input.LaunchTemplateData.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
 			MarketType: aws.String(instanceMarketOptions.MarketType),
 			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{

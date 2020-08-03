@@ -48,6 +48,7 @@ GO_LDFLAGS_linux =" $(GO_LDFLAGS)  -extldflags \"$(LDFLAGS_linux)\""
 
 # Build for local development.
 $(BUILD_DIR)/$(PROJECT): $(GO_FILES) $(BUILD_DIR)
+	@echo
 	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=1 go build -tags $(GO_BUILD_TAGS_$(GOOS)) -ldflags $(GO_LDFLAGS_$(GOOS)) -o $@ $(BUILD_PACKAGE)
 
 .PHONY: install
@@ -123,6 +124,8 @@ upload-release-only: version
 .PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf manifest
+	rm -rf scripts
 
 .PHONY: version
 version:

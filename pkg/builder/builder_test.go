@@ -127,7 +127,7 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].Alarms[0].AlarmActions = []string{"test"}
 
-	b.Stacks[0].InstanceMarketOptions = InstanceMarketOptions{
+	b.Stacks[0].InstanceMarketOptions = &InstanceMarketOptions{
 		MarketType:  "not spot",
 		SpotOptions: SpotOptions{},
 	}
@@ -153,7 +153,7 @@ func TestCheckValidationStack(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != "persistent type is not allowed with terminate behavior" {
 		t.Errorf("validation failed: stack-instance market options spot type")
 	}
-	b.Stacks[0].InstanceMarketOptions = InstanceMarketOptions{}
+	b.Stacks[0].InstanceMarketOptions = nil
 
 	b.Stacks[0].BlockDevices = []BlockDevice{
 		{

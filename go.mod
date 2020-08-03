@@ -6,6 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.33.6
 	github.com/fatih/color v1.9.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-test/deep v1.0.4
 	github.com/google/go-licenses v0.0.0-20200602185517-f29a4c695c3d // indirect
 	github.com/mitchellh/go-homedir v1.1.0
