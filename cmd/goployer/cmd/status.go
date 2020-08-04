@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/DevopsArtFactory/goployer/pkg/runner"
@@ -9,21 +10,27 @@ import (
 )
 
 // Create new deploy command
-func NewDeployCommand() *cobra.Command {
-	return NewCmd("deploy").
-		WithDescription("Deploy a new application").
+func NewStatusCommand() *cobra.Command {
+	return NewCmd("status").
+		WithDescription("Get status of deployment").
 		SetFlags().
-		RunWithNoArgs(funcDeploy)
+		RunWithArgs(funcStatus)
 }
 
-// funcDeploy run deployment
-func funcDeploy(ctx context.Context, _ io.Writer, mode string) error {
+// funcDelete delete stacks
+func funcStatus(ctx context.Context, _ io.Writer, args []string, mode string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: goployer status <application name>")
+	}
+
 	return runWithoutExecutor(ctx, func() error {
 		//Create new builder
 		builderSt, err := runner.SetupBuilder(mode)
 		if err != nil {
 			return err
 		}
+
+		builderSt.Config.Application = args[0]
 
 		//Start runner
 		if err := runner.Start(builderSt, mode); err != nil {

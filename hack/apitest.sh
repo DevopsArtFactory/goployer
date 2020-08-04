@@ -42,7 +42,7 @@ for stack in "${stacks[@]}"; do
     lastStack=$stack
     sleep 30
 done
-echo "API test is done"
+echo "API deployment test is done"
 
 echo  "delete test autoscaling group"
 ./$BUILD_DIR/goployer delete --manifest=$TEST_DIR/test_manifest.yaml --stack=$lastStack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s

@@ -11,8 +11,8 @@ type Command interface {
 	WithLongDescription(description string) Command
 	SetFlags() Command
 	SetPreRunWithArgs(action func(context.Context, io.Writer, []string) error) Command
-	RunWithNoArgs(action func(context.Context, io.Writer) error) *cobra.Command
-	RunWithArgs(action func(context.Context, io.Writer, []string) error) *cobra.Command
+	RunWithNoArgs(action func(context.Context, io.Writer, string) error) *cobra.Command
+	RunWithArgs(action func(context.Context, io.Writer, []string, string) error) *cobra.Command
 }
 
 type command struct {
@@ -54,18 +54,18 @@ func (c command) SetPreRunWithArgs(function func(context.Context, io.Writer, []s
 }
 
 //Run command without Argument
-func (c command) RunWithNoArgs(function func(context.Context, io.Writer) error) *cobra.Command {
+func (c command) RunWithNoArgs(function func(context.Context, io.Writer, string) error) *cobra.Command {
 	c.cmd.Args = cobra.NoArgs
 	c.cmd.RunE = func(*cobra.Command, []string) error {
-		return funcError(function(c.cmd.Context(), c.cmd.OutOrStderr()))
+		return funcError(function(c.cmd.Context(), c.cmd.OutOrStderr(), c.cmd.Use))
 	}
 	return &c.cmd
 }
 
 // Run command with extra arguments
-func (c command) RunWithArgs(function func(context.Context, io.Writer, []string) error) *cobra.Command {
+func (c command) RunWithArgs(function func(context.Context, io.Writer, []string, string) error) *cobra.Command {
 	c.cmd.RunE = func(_ *cobra.Command, args []string) error {
-		return funcError(function(c.cmd.Context(), c.cmd.OutOrStderr(), args))
+		return funcError(function(c.cmd.Context(), c.cmd.OutOrStderr(), args, c.cmd.Use))
 	}
 	return &c.cmd
 }

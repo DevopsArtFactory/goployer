@@ -13,6 +13,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/initializer"
+	"github.com/DevopsArtFactory/goployer/pkg/inspector"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -26,11 +27,19 @@ type Runner struct {
 	FuncMapper map[string]func() error
 }
 
-func SetupBuilder() (builder.Builder, error) {
+func SetupBuilder(mode string) (builder.Builder, error) {
 	// Create new builder
 	builderSt, err := builder.NewBuilder(nil)
 	if err != nil {
 		return builder.Builder{}, err
+	}
+
+	if !checkMode(mode) {
+		return builderSt, nil
+	}
+
+	if err := builderSt.PreConfigValidation(); err != nil {
+		return builderSt, err
 	}
 
 	builderSt, err = setManifestToBuilder(builderSt)
@@ -116,9 +125,12 @@ func Initialize(args []string) error {
 
 //Start function is the starting point of all processes.
 func Start(builderSt builder.Builder, mode string) error {
-	// Check validation of configurations
-	if err := builderSt.CheckValidation(); err != nil {
-		return err
+
+	if checkMode(mode) {
+		// Check validation of configurations
+		if err := builderSt.CheckValidation(); err != nil {
+			return err
+		}
 	}
 
 	// run with runner
@@ -140,7 +152,7 @@ func Start(builderSt builder.Builder, mode string) error {
 
 //withRunner creates runner and runs the deployment process
 func withRunner(builderSt builder.Builder, mode string, postAction func(slacker tool.Slack) error) error {
-	runner, err := NewRunner(builderSt)
+	runner, err := NewRunner(builderSt, mode)
 	if err != nil {
 		return err
 	}
@@ -154,17 +166,21 @@ func withRunner(builderSt builder.Builder, mode string, postAction func(slacker 
 }
 
 //NewRunner creates a new runner
-func NewRunner(newBuilder builder.Builder) (Runner, error) {
+func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 	newRunner := Runner{
-		Logger:    Logger.New(),
-		Builder:   newBuilder,
-		Collector: collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole),
-		Slacker:   tool.NewSlackClient(newBuilder.Config.SlackOff),
+		Logger:  Logger.New(),
+		Builder: newBuilder,
+		Slacker: tool.NewSlackClient(newBuilder.Config.SlackOff),
+	}
+
+	if checkMode(mode) {
+		newRunner.Collector = collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole)
 	}
 
 	newRunner.FuncMapper = map[string]func() error{
 		"deploy": newRunner.Deploy,
 		"delete": newRunner.Delete,
+		"status": newRunner.Status,
 	}
 
 	return newRunner, nil
@@ -357,6 +373,28 @@ func (r Runner) Delete() error {
 	return nil
 }
 
+func (r Runner) Status() error {
+	inspector := inspector.New(r.Builder.Config.Region)
+
+	asg, err := inspector.SelectStack(r.Builder.Config.Application)
+	if err != nil {
+		return err
+	}
+
+	group, err := inspector.GetStackInformation(asg)
+	if err != nil {
+		return err
+	}
+
+	inspector.StatusSummary = inspector.SetStatusSummary(group)
+
+	if err := inspector.Print(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //Generate new deployer
 func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.AWSConfig, slack tool.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
@@ -504,4 +542,8 @@ func getApplicationName() (string, error) {
 	}
 
 	return input, nil
+}
+
+func checkMode(mode string) bool {
+	return tool.IsStringInArray(mode, []string{"deploy", "delete"})
 }

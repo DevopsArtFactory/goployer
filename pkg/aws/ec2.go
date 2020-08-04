@@ -42,23 +42,13 @@ func getAsgClientFn(session *session.Session, region string, creds *credentials.
 	return autoscaling.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
-func (e EC2Client) GetMatchingAutoscalingGroup(name string) *autoscaling.Group {
-
-	asgGroups := []*autoscaling.Group{}
-	asgGroups = getAutoScalingGroups(e.AsClient, asgGroups, nil)
-
-	ret := []*autoscaling.Group{}
-	for _, asgGroup := range asgGroups {
-		if *asgGroup.AutoScalingGroupName == name {
-			ret = append(ret, asgGroup)
-		}
+func (e EC2Client) GetMatchingAutoscalingGroup(name string) (*autoscaling.Group, error) {
+	asgGroup, err := getSingleAutoScalingGroup(e.AsClient, name)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(ret) > 0 {
-		return ret[0]
-	}
-
-	return nil
+	return asgGroup, nil
 }
 
 // Delete All Launch Configurations belongs to the autoscaling group
@@ -950,4 +940,21 @@ func (e EC2Client) GetTargetGroups(asgName string) ([]*string, error) {
 	}
 
 	return ret, nil
+}
+
+// getSingleAutoScalingGroup return detailed information of autoscaling group
+func getSingleAutoScalingGroup(client *autoscaling.AutoScaling, asgName string) (*autoscaling.Group, error) {
+	input := &autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: MakeStringArrayToAwsStrings([]string{asgName}),
+	}
+	ret, err := client.DescribeAutoScalingGroups(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ret.AutoScalingGroups) == 0 {
+		return nil, fmt.Errorf("no autoscaling group exists with name: %s", asgName)
+	}
+
+	return ret.AutoScalingGroups[0], nil
 }

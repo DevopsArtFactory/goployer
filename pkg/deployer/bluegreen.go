@@ -225,7 +225,10 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 			return map[string]bool{stack_name: false, "error": true}
 		}
 
-		asg := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
+		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
+		if err != nil {
+			return map[string]bool{stack_name: false, "error": true}
+		}
 
 		isHealthy, err := b.Deployer.polling(region, asg, client)
 		if err != nil {
