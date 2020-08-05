@@ -113,8 +113,8 @@ INFO[0124] Healthy Count for hello-dev_apnortheast2-v009 : 1/1
 INFO[0124] All stacks are healthy                       
 INFO[0124] Attaching autoscaling policies : ap-northeast-2 
 INFO[0124] Metrics monitoring of autoscaling group is enabled : hello-dev_apnortheast2-v009 
-INFO[0124] New metric alarm is created : scale_up_on_util / asg : hello-dev_apnortheast2-v009 
-INFO[0124] New metric alarm is created : scale_down_on_util / asg : hello-dev_apnortheast2-v009 
+INFO[0124] New metric alarm is created : scale_out_on_util / asg : hello-dev_apnortheast2-v009 
+INFO[0124] New metric alarm is created : scale_in_on_util / asg : hello-dev_apnortheast2-v009 
 DEBU[0124] run lifecycle callbacks before termination : [i-099f40b492a6a2da5] 
 DEBU[0125] Delete Mode is BlueGreen                     
 INFO[0125] [ap-northeast-2]The number of previous versions to delete is 2 

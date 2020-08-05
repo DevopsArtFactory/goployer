@@ -5,17 +5,17 @@ userdata:
   path: scripts/userdata.sh
 
 autoscaling: &autoscaling_policy
-  - name: scale_up
+  - name: scale_out
     adjustment_type: ChangeInCapacity
     scaling_adjustment: 1
     cooldown: 60
-  - name: scale_down
+  - name: scale_in
     adjustment_type: ChangeInCapacity
     scaling_adjustment: -1
     cooldown: 180
 
 alarms: &autoscaling_alarms
-  - name: scale_up_on_util
+  - name: scale_out_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -24,8 +24,8 @@ alarms: &autoscaling_alarms
     period: 120
     evaluation_periods: 2
     alarm_actions:
-      - scale_up
-  - name: scale_down_on_util
+      - scale_out
+  - name: scale_in_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -34,11 +34,10 @@ alarms: &autoscaling_alarms
     period: 300
     evaluation_periods: 3
     alarm_actions:
-      - scale_down
+      - scale_in
 
 tags:
   - project=test
-  - app=hello
   - repo=hello-deploy
 
 stacks:
@@ -46,14 +45,12 @@ stacks:
     polling_interval: 30s
     account: dev
     env: dev
-    assume_role: ""
     replacement_type: BlueGreen
-    iam_instance_profile: 'app-hello-profile'
-    ansible_tags: all
+    iam_instance_profile: app-hello-profile
     ebs_optimized: true
     block_devices:
       - device_name: /dev/xvda
-        volume_size: 100
+        volume_size: 15
         volume_type: "gp2"
       - device_name: /dev/xvdb
         volume_type: "st1"

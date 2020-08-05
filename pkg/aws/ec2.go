@@ -610,44 +610,67 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 }
 
 // GenerateTags creates tag list for autoscaling group
-func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
+func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags string, stackTags []string, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
 	ret := []*autoscaling.Tag{}
+	keyList := []string{}
 
 	for _, tagKV := range tagList {
 		arr := strings.Split(tagKV, "=")
 		k := arr[0]
 		v := arr[1]
 
+		keyList = append(keyList, k)
 		ret = append(ret, &autoscaling.Tag{
 			Key:   aws.String(k),
 			Value: aws.String(v),
 		})
 	}
 
-	//Add Name
+	// Add Name
 	ret = append(ret, &autoscaling.Tag{
 		Key:   aws.String("Name"),
 		Value: aws.String(asg_name),
 	})
 
-	//Add pkg name
-	ret = append(ret, &autoscaling.Tag{
-		Key:   aws.String("app"),
-		Value: aws.String(app),
-	})
-
-	//Add stack name
+	// Add stack name
 	ret = append(ret, &autoscaling.Tag{
 		Key:   aws.String("stack"),
 		Value: aws.String(fmt.Sprintf("%s_%s", stack, strings.ReplaceAll(region, "-", ""))),
 	})
 
-	//Add ansibleTags
+	// Add pkg name
+	ret = append(ret, &autoscaling.Tag{
+		Key:   aws.String("app"),
+		Value: aws.String(app),
+	})
+
+	// Add ansibleTags
+	// This will be deprecated
 	if len(ansibleTags) > 0 {
 		ret = append(ret, &autoscaling.Tag{
 			Key:   aws.String("ansible-tags"),
 			Value: aws.String(ansibleTags),
 		})
+	}
+
+	for _, t := range stackTags {
+		arr := strings.Split(t, "=")
+		k := arr[0]
+		v := arr[1]
+
+		if !tool.IsStringInArray(k, keyList) {
+			ret = append(ret, &autoscaling.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
+		} else {
+			for _, t := range ret {
+				if *t.Key == k {
+					*t.Value = v
+					break
+				}
+			}
+		}
 	}
 
 	//Add extraTags

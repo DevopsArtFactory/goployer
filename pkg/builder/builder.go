@@ -23,6 +23,7 @@ var (
 	S3_PREFIX                        = "s3://"
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 	timeFields                       = []string{"timeout", "polling-interval"}
+	prohibitedTags                   = []string{"Name", "app", "stack"}
 )
 
 type UserdataProvider interface {
@@ -99,6 +100,7 @@ func (b Builder) SetStacks(stacks []Stack) Builder {
 	for _, stack := range stacks {
 		if b.Config.Stack == stack.Stack {
 			deployStack = stack
+			fmt.Println(deployStack)
 			break
 		}
 	}
@@ -129,6 +131,14 @@ func (b Builder) CheckValidation() error {
 	// check stack
 	if len(b.Config.Stack) == 0 {
 		return fmt.Errorf("you should choose at least one stack")
+	}
+
+	if len(b.AwsConfig.Tags) > 0 && HasProhibited(b.AwsConfig.Tags) {
+		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
+	}
+
+	if len(b.Config.ExtraTags) > 0 && HasProhibited(strings.Split(b.Config.ExtraTags, ",")) {
+		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
 	}
 
 	// global AMI check
@@ -169,6 +179,10 @@ func (b Builder) CheckValidation() error {
 	for _, stack := range b.Stacks {
 		if stack.Stack != b.Config.Stack {
 			continue
+		}
+
+		if len(stack.Tags) > 0 && HasProhibited(stack.Tags) {
+			return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
 		}
 
 		// Check AMI
@@ -323,16 +337,17 @@ func (b Builder) MakeSummary(target_stack string) string {
 ============================================================
 Target Stack Deployment Information
 ============================================================
-name             : %s
-env              : %s
-timeout          : %.0f min
-polling-interval : %.0f sec 
-assume role      : %s
-extra tags       : %s
+name             	: %s
+env              	: %s
+timeout          	: %.0f min
+polling-interval 	: %.0f sec 
+assume role      	: %s
+ansible-extra-vars  : %s
+extra tags       	: %s
 ============================================================
 Stack
 ============================================================`
-	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout.Minutes(), b.Config.PollingInterval.Seconds(), b.Config.AssumeRole, b.Config.ExtraTags))
+	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout.Minutes(), b.Config.PollingInterval.Seconds(), b.Config.AssumeRole, b.Config.AnsibleExtraVars, b.Config.ExtraTags))
 
 	for _, stack := range b.Stacks {
 		if stack.Stack == target_stack {
@@ -348,7 +363,7 @@ func printEnvironment(stack Stack) string {
 Account             	: %s
 Environment             : %s
 IAM Instance Profile    : %s
-Ansible tags            : %s 
+tags              : %s 
 Capacity                : %+v
 MixedInstancesPolicy
 - Enabled 			: %t
@@ -364,7 +379,7 @@ MixedInstancesPolicy
 		stack.Account,
 		stack.Env,
 		stack.IamInstanceProfile,
-		stack.AnsibleTags,
+		strings.Join(stack.Tags, ","),
 		stack.Capacity,
 		stack.MixedInstancesPolicy.Enabled,
 		stack.MixedInstancesPolicy.Override,
@@ -490,4 +505,17 @@ func RefineConfig(config Config) Config {
 	config.StartTimestamp = time.Now().Unix()
 
 	return config
+}
+
+func HasProhibited(tags []string) bool {
+	for _, t := range tags {
+		arr := strings.Split(t, "=")
+		k := arr[0]
+
+		if tool.IsStringInArray(k, prohibitedTags) {
+			return true
+		}
+	}
+
+	return false
 }
