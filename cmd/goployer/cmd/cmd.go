@@ -15,7 +15,7 @@ var (
 )
 
 // Get root command
-func NewRootCommand(out, err io.Writer) *cobra.Command {
+func NewRootCommand(_, _ io.Writer) *cobra.Command {
 	cobra.OnInitialize(initConfig)
 	rootCmd := &cobra.Command{
 		Use:   "goployer",
@@ -38,6 +38,7 @@ You can find more information in https://goployer.dev`,
 	rootCmd.AddCommand(NewDeleteCommand())
 	rootCmd.AddCommand(NewInitCommand())
 	rootCmd.AddCommand(NewStatusCommand())
+	rootCmd.AddCommand(NewAddCommand())
 
 	return rootCmd
 }

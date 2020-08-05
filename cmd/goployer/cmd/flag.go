@@ -36,6 +36,7 @@ var flagKey = map[string]string{
 	"delete": "fullset",
 	"init":   "initset",
 	"status": "statusset",
+	"add": "addset",
 }
 
 var FlagRegistry = map[string][]Flag{
@@ -184,10 +185,19 @@ var FlagRegistry = map[string][]Flag{
 			FlagAddMethod: "StringVar",
 		},
 	},
+	"addset": []Flag{
+		{
+			Name:          "log-level",
+			Usage:         "Level of logging",
+			Value:         aws.String(noString),
+			DefValue:      "info",
+			FlagAddMethod: "StringVar",
+		},
+	},
 	"statusset": []Flag{
 		{
 			Name:          "region",
-			Usage:         "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.",
+			Usage:         "Region of autoscaling group",
 			Value:         aws.String(noString),
 			DefValue:      "",
 			FlagAddMethod: "StringVar",

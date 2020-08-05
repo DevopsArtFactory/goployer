@@ -123,6 +123,35 @@ func Initialize(args []string) error {
 	return nil
 }
 
+// AddManifest creates single manifest file
+func AddManifest(args []string) error {
+	var appName string
+	var err error
+
+	// validation
+	if len(args) > 1 {
+		return fmt.Errorf("usage: goployer add <application name>")
+	}
+
+	if len(args) == 0 {
+		appName, err = getApplicationName()
+		if err != nil {
+			return err
+		}
+	} else {
+		appName = args[0]
+	}
+
+	i := initializer.NewInitializer(appName)
+	i.Logger.SetLevel(tool.LogLevelMapper[viper.GetString("log-level")])
+
+	if err := i.RunAdd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //Start function is the starting point of all processes.
 func Start(builderSt builder.Builder, mode string) error {
 
@@ -531,7 +560,7 @@ func FilterS3Path(path string) (string, string) {
 func getApplicationName() (string, error) {
 	var answer string
 	prompt := &survey.Input{
-		Message: "What is application name: ",
+		Message: "What is application name? ",
 	}
 	survey.AskOne(prompt, &answer)
 	if answer == "" {

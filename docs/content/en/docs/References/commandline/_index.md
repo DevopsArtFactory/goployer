@@ -8,6 +8,7 @@ weight: 10
 
 Initiate project:
 * [goployer init](#goployer-init) - setup goployer project
+* [goployer add](#goployer-add) - add goployer new manifest file 
 
 <br>
 
@@ -38,6 +39,21 @@ Options:
   - manifests
   - scripts
   - metric.yaml
+<br>
+
+## goployer add
+- add new goployer manifest file 
+```
+Examples:
+  # Minimum argument
+  goployer add 
+
+  # You can specify application name from command
+  goployer add hello
+
+Options:
+      --log-level string                Level of logging
+```
 <br>
 
 
