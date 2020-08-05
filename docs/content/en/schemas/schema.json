@@ -231,8 +231,8 @@
         },
         "spot_max_price": {
           "type": "string",
-          "description": "Maximum number of spot",
-          "x-intellij-html-description": "Maximum number of spot"
+          "description": "Maximum spot price",
+          "x-intellij-html-description": "Maximum spot price"
         }
       },
       "additionalProperties": false,
@@ -265,8 +265,8 @@
         },
         "healthcheck_load_balancer": {
           "type": "string",
-          "description": "Load balancer name for healthcheck",
-          "x-intellij-html-description": "Load balancer name for healthcheck"
+          "description": "Class load balancer name for healthcheck",
+          "x-intellij-html-description": "Class load balancer name for healthcheck"
         },
         "healthcheck_target_group": {
           "type": "string",
@@ -426,11 +426,6 @@
           "description": "CloudWatch alarm for autoscaling action",
           "x-intellij-html-description": "CloudWatch alarm for autoscaling action"
         },
-        "ansible_tags": {
-          "type": "string",
-          "description": "Tags about ansible",
-          "x-intellij-html-description": "Tags about ansible"
-        },
         "assume_role": {
           "type": "string",
           "description": "IAM Role ARN for assume role",
@@ -515,6 +510,15 @@
           "description": "Name of stack",
           "x-intellij-html-description": "Name of stack"
         },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Stack specific tags",
+          "x-intellij-html-description": "Stack specific tags",
+          "default": "[]"
+        },
         "userdata": {
           "$ref": "#/definitions/Userdata",
           "description": "configuration for stack deployment",
@@ -529,7 +533,7 @@
         "replacement_type",
         "userdata",
         "iam_instance_profile",
-        "ansible_tags",
+        "tags",
         "assume_role",
         "polling_interval",
         "ebs_optimized",

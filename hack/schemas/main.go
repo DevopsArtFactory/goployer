@@ -175,6 +175,7 @@ func (g Generator) Apply(input string) ([]byte, error) {
 			for k, v := range inlineStructRef.Properties {
 				def.Properties[k] = v
 			}
+
 			defPreferredOrder = append(defPreferredOrder, inlineStructRef.PreferredOrder...)
 			def.Required = append(def.Required, inlineStructRef.Required...)
 		}
@@ -242,8 +243,6 @@ func (g Generator) Apply(input string) ([]byte, error) {
 	}
 
 	return toJSON(schema)
-
-	return nil, nil
 }
 
 func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag string) *Definition {
@@ -298,7 +297,7 @@ func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag 
 				continue
 			}
 
-			if yamlName == "" || yamlName == "-" {
+			if yamlName == "" || yamlName == "-" || yamlName == "ansible_tags" {
 				continue
 			}
 

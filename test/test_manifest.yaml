@@ -5,17 +5,17 @@ userdata:
   path: test/test_userdata.sh
 
 autoscaling: &autoscaling_policy
-  - name: scale_up
+  - name: scale_out
     adjustment_type: ChangeInCapacity
     scaling_adjustment: 1
     cooldown: 60
-  - name: scale_down
+  - name: scale_in
     adjustment_type: ChangeInCapacity
     scaling_adjustment: -1
     cooldown: 180
 
 alarms: &autoscaling_alarms
-  - name: scale_up_on_util
+  - name: scale_out_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -24,8 +24,8 @@ alarms: &autoscaling_alarms
     period: 120
     evaluation_periods: 2
     alarm_actions:
-      - scale_up
-  - name: scale_down_on_util
+      - scale_out
+  - name: scale_in_on_util
     namespace: AWS/EC2
     metric: CPUUtilization
     statistic: Average
@@ -34,11 +34,10 @@ alarms: &autoscaling_alarms
     period: 300
     evaluation_periods: 3
     alarm_actions:
-      - scale_down
+      - scale_in
 
 tags:
   - project=test
-  - app=hello
   - repo=hello-deploy
 
 stacks:
@@ -49,36 +48,22 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
-    ansible_tags: all
     ebs_optimized: true
-    mixed_instances_policy:
-      enabled: false
-      override_instance_types:
-        - c5.large
-        - c5.xlarge
-      on_demand_percentage: 20
-      spot_allocation_strategy: lowest-price
-      spot_instance_pools: 3
-      spot_max_price: 0.3
-
+    tags:
+      - test-stack=artd
     block_devices:
       - device_name: /dev/xvda
         volume_size: 8
         volume_type: "gp2"
-
-    # capacity
     capacity:
       min: 1
       max: 2
       desired: 1
-
     autoscaling: *autoscaling_policy
     alarms: *autoscaling_alarms
-
     lifecycle_callbacks:
       pre_terminate_past_cluster:
         - service hello stop
-
     regions:
       - region: ap-northeast-2
         instance_type: t3.medium
@@ -90,13 +75,8 @@ stacks:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
         healthcheck_target_group: hello-artdapne2-ext
-        availability_zones:
-          - ap-northeast-2a
-          - ap-northeast-2b
-          - ap-northeast-2c
         target_groups:
           - hello-artdapne2-ext
-
   - stack: artd-spot
     polling_interval: 20s
     account: dev
@@ -104,7 +84,8 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
-    ansible_tags: all
+    tags:
+      - test-stack=artd-spot
     ebs_optimized: true
     instance_market_options:
       market_type: spot
@@ -156,7 +137,8 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
-    ansible_tags: all
+    tags:
+      - test-stack=artd-mixed
     ebs_optimized: true
     mixed_instances_policy:
       enabled: true
@@ -210,7 +192,8 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
-    ansible_tags: all
+    tags:
+      - test-stack=artd-without-targetgroup
     ebs_optimized: true
 
     # capacity
@@ -244,7 +227,8 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
-    ansible_tags: all
+    tags:
+      - test-stack=artd-with-exact-values
     ebs_optimized: true
 
     # capacity
@@ -282,7 +266,8 @@ stacks:
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
-    ansible_tags: all
+    tags:
+      - test-stack=artd-with-classic-lb
     ebs_optimized: true
 
     # capacity

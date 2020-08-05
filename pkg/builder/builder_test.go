@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -305,6 +306,38 @@ func TestRefineConfig(t *testing.T) {
 		td.output.StartTimestamp = r.StartTimestamp
 		if diff := deep.Equal(r, td.output); diff != nil {
 			t.Error(diff)
+		}
+	}
+}
+
+func TestHasProhibited(t *testing.T) {
+	type TestData struct {
+		input  []string
+		output bool
+	}
+
+	testData := []TestData{
+		{
+			input:  []string{"test=test"},
+			output: false,
+		},
+		{
+			input:  []string{"Name=test"},
+			output: true,
+		},
+		{
+			input:  []string{"name=test"},
+			output: false,
+		},
+		{
+			input:  []string{"name=test", "app=test"},
+			output: true,
+		},
+	}
+
+	for _, td := range testData {
+		if HasProhibited(td.input) != td.output {
+			t.Errorf("wrong validation: %s/%t", strings.Join(td.input, ","), td.output)
 		}
 	}
 }

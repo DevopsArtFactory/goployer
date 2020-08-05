@@ -1,10 +1,9 @@
 package runner
 
 import (
-	"bufio"
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -309,13 +308,13 @@ func (r Runner) Delete() error {
 	}()
 
 	// From local os, you need to ensure that delete command is intended
-	if runtime.GOOS == "darwin" {
-		if tool.AskContinue("Do you really want to delete applications? ") {
-			r.Logger.Infof("you agreed to delete applications")
-		} else {
-			return fmt.Errorf("you declined to run delete command")
-		}
-	}
+	//if runtime.GOOS == "darwin" {
+	// if tool.AskContinue("Do you really want to delete applications? ") {
+	// 	r.Logger.Infof("you agreed to delete applications")
+	// } else {
+	// 	return fmt.Errorf("you declined to run delete command")
+	// }
+	//
 
 	//Send Beginning Message
 	r.Logger.Info("Beginning delete process: ", r.Builder.AwsConfig.Name)
@@ -530,18 +529,16 @@ func FilterS3Path(path string) (string, string) {
 }
 
 func getApplicationName() (string, error) {
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Printf("What is application name: ")
-	var input string
-	if scanner.Scan() {
-		input = strings.ReplaceAll(strings.TrimSpace(scanner.Text()), " ", "_")
-
-		if input == "" {
-			return "", fmt.Errorf("application name is empty")
-		}
+	var answer string
+	prompt := &survey.Input{
+		Message: "What is application name: ",
+	}
+	survey.AskOne(prompt, &answer)
+	if answer == "" {
+		return "", fmt.Errorf("canceled")
 	}
 
-	return input, nil
+	return answer, nil
 }
 
 func checkMode(mode string) bool {

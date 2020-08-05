@@ -62,7 +62,7 @@ function* template(definitions, parentDefinition, ref, ident, parent) {
         const desc = definition['x-intellij-html-description'];
 
         // Don't duplicate definitions of top level sections such as build, test, deploy and portForward.
-        if ((name === 'Profile') && definitions['SkaffoldConfig'].properties[key]) {
+        if (name === 'ansible_tags') {
             value = '{}';
             yield html`
         <tr>

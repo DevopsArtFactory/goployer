@@ -76,10 +76,10 @@ type Stack struct {
 	Stack string `yaml:"stack"`
 
 	// Name of AWS Account
-	Account string `yaml:"account"`
+	Account string `yaml:"account,omitempty"`
 
 	// Environment of stack
-	Env string `yaml:"env"`
+	Env string `yaml:"env,omitempty"`
 
 	// Type of Replacement for deployment
 	ReplacementType string `yaml:"replacement_type"`
@@ -88,43 +88,46 @@ type Stack struct {
 	Userdata Userdata `yaml:"userdata,omitempty"`
 
 	// AWS IAM instance profile.
-	IamInstanceProfile string `yaml:"iam_instance_profile"`
+	IamInstanceProfile string `yaml:"iam_instance_profile,omitempty"`
 
-	// Tags about ansible
+	// Tags about ansible ( This will be deprecated )
 	AnsibleTags string `yaml:"ansible_tags,omitempty"`
+
+	// Stack specific tags
+	Tags []string `yaml:"tags,omitempty"`
 
 	// IAM Role ARN for assume role
 	AssumeRole string `yaml:"assume_role,omitempty"`
 
 	// Polling interval when health checking
-	PollingInterval time.Duration `yaml:"polling_interval"`
+	PollingInterval time.Duration `yaml:"polling_interval,omitempty"`
 
 	// Whether using EBS Optimized option or not
-	EbsOptimized bool `yaml:"ebs_optimized"`
+	EbsOptimized bool `yaml:"ebs_optimized,omitempty"`
 
 	// Instance market options like spot
 	InstanceMarketOptions *InstanceMarketOptions `yaml:"instance_market_options,omitempty"`
 
 	// MixedInstancePolicy of autoscaling group
-	MixedInstancesPolicy MixedInstancesPolicy `yaml:"mixed_instances_policy"`
+	MixedInstancesPolicy MixedInstancesPolicy `yaml:"mixed_instances_policy,omitempty"`
 
 	// EBS Block Devices for EC2 Instance
-	BlockDevices []BlockDevice `yaml:"block_devices"`
+	BlockDevices []BlockDevice `yaml:"block_devices,omitempty"`
 
 	// Autoscaling Capacity
-	Capacity Capacity `yaml:"capacity"`
+	Capacity Capacity `yaml:"capacity,omitempty"`
 
 	// Autoscaling Policy according to the metrics
-	Autoscaling []ScalePolicy `yaml:"autoscaling"`
+	Autoscaling []ScalePolicy `yaml:"autoscaling,omitempty"`
 
 	// CloudWatch alarm for autoscaling action
-	Alarms []AlarmConfigs `yaml:"alarms"`
+	Alarms []AlarmConfigs `yaml:"alarms,omitempty"`
 
 	// List of commands which will be run before terminating instances
-	LifecycleCallbacks LifecycleCallbacks `yaml:"lifecycle_callbacks"`
+	LifecycleCallbacks LifecycleCallbacks `yaml:"lifecycle_callbacks,omitempty"`
 
 	// Lifecycle hooks of autoscaling group
-	LifecycleHooks LifecycleHooks `yaml:"lifecycle_hooks"`
+	LifecycleHooks LifecycleHooks `yaml:"lifecycle_hooks,omitempty"`
 
 	// List of region configurations
 	Regions []RegionConfig `yaml:"regions"`
@@ -156,7 +159,7 @@ type MixedInstancesPolicy struct {
 	// The number of pools of instance type for spot instances
 	SpotInstancePools int64 `yaml:"spot_instance_pools"`
 
-	// Maximum number of spot
+	// Maximum spot price
 	SpotMaxPrice string `yaml:"spot_max_price,omitempty"`
 }
 
@@ -263,7 +266,7 @@ type RegionConfig struct {
 	// List of security group name
 	SecurityGroups []string `yaml:"security_groups"`
 
-	// Load balancer name for healthcheck
+	// Class load balancer name for healthcheck
 	HealthcheckLB string `yaml:"healthcheck_load_balancer"`
 
 	// Target group name for healthcheck

@@ -1,8 +1,8 @@
 package tool
 
 import (
-	"bufio"
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
 	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
@@ -99,20 +99,17 @@ func GetTimePrefix(t time.Time) string {
 }
 
 func AskContinue(message string) bool {
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Printf(message)
-	for scanner.Scan() {
-		input := strings.ToLower(scanner.Text())
+	var answer string
+	prompt := &survey.Input{
+		Message: message,
+	}
+	survey.AskOne(prompt, &answer)
+	if answer == "" {
+		return false
+	}
 
-		if IsStringInArray(input, allowedAnswerNo) {
-			return false
-		}
-
-		if IsStringInArray(input, allowedAnswerYes) {
-			return true
-		}
-
-		break
+	if IsStringInArray(answer, allowedAnswerYes) {
+		return true
 	}
 
 	return false
