@@ -84,7 +84,12 @@ func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, c
 
 // CheckTerminating checks if all of instances are terminated well
 func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableMetrics bool) bool {
-	asgInfo := client.EC2Service.GetMatchingAutoscalingGroup(target)
+	asgInfo, err := client.EC2Service.GetMatchingAutoscalingGroup(target)
+	if err != nil {
+		d.Logger.Errorf(err.Error())
+		return true
+	}
+
 	if asgInfo == nil {
 		d.Logger.Info("Already deleted autoscaling group : ", target)
 		return true

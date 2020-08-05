@@ -15,6 +15,6 @@ func NewVersionCommand() *cobra.Command {
 }
 
 // Function for search execution
-func execVersion(_ context.Context, out io.Writer) error {
+func execVersion(_ context.Context, _ io.Writer, _ string) error {
 	return version.New().Print()
 }

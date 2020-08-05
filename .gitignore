@@ -4,3 +4,4 @@ bin
 out
 build
 venv
+.DS_Store

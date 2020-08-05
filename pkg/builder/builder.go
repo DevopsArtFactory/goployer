@@ -2,11 +2,11 @@ package builder
 
 import (
 	"encoding/base64"
-	"flag"
 	"fmt"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"reflect"
 	"strings"
 	"time"
 
@@ -22,6 +22,7 @@ var (
 	MIN_POLLING_INTERVAL             = 5 * time.Second
 	S3_PREFIX                        = "s3://"
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
+	timeFields                       = []string{"timeout", "polling-interval"}
 )
 
 type UserdataProvider interface {
@@ -63,19 +64,6 @@ func NewBuilder(config *Config) (Builder, error) {
 	if config == nil {
 		c := argumentParsing()
 		config = &c
-	}
-
-	// check manifest file
-	if len(config.Manifest) <= 0 {
-		return builder, fmt.Errorf("you should specify manifest file")
-	}
-
-	if strings.HasPrefix(config.Manifest, S3_PREFIX) && len(config.ManifestS3Region) <= 0 {
-		return builder, fmt.Errorf("you have to specify region of s3 bucket: --manifest-s3-region")
-	}
-
-	if len(config.Manifest) <= 0 || (!strings.HasPrefix(config.Manifest, S3_PREFIX) && !tool.FileExists(config.Manifest)) {
-		return builder, fmt.Errorf(NO_MANIFEST_EXISTS)
 	}
 
 	// set config
@@ -416,48 +404,30 @@ func buildStructFromYaml(yamlFile []byte) (AWSConfig, []Stack) {
 
 // Parsing Config from command
 func argumentParsing() Config {
-	//manifest := flag.String("manifest", "", "The manifest configuration file to use.")
-	//manifestS3Region := flag.String("manifest-s3-region", "", "Region of bucket containing the manifest configuration file to use.")
-	//ami := flag.String("ami", "", "The AMI to use for the servers.")
-	//env := flag.String("env", "", "The environment that is being deployed into.")
-	//stack := flag.String("stack", "", "An ordered, comma-delimited list of stacks that should be deployed.")
-	//assumeRole := flag.String("assume-role", "", "The Role ARN to assume into")
-	//timeout := flag.Duration("timeout", DEFAULT_DEPLOYMENT_TIMEOUT, "Time to wait for deploy to finish before timing out (default 60m)")
-	//region := flag.String("region", "", "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.")
-	//confirm := flag.Bool("confirm", true, "Suppress confirmation prompt")
-	//slackOff := flag.Bool("slack-off", false, "Turn off slack alarm")
-	//logLevel := flag.String("log-level", "info", "log level")
-	//extraTags := flag.String("extra-tags", "", "Extra tags to add to autoscaling group tags")
-	//ansibleExtraVars := flag.String("ansible-extra-vars", "", "Extra variables for ansible")
-	//overrideInstanceType := flag.String("override-instance-type", "", "Instance Type to override")
-	//disableMetrics := flag.Bool("disable-metrics", false, "Disable gathering metrics")
-	//releaseNotes := flag.String("release-notes", "", "Release note for the current deployment")
-	//releaseNotesBase64 := flag.String("release-notes-base64", "", "base64 encoded string of release note for the current deployment")
-	//forceManifestCapacity := flag.Bool("force-manifest-capacity", false, "Force-apply the capacity of instances in the manifest file")
-	//pollingInterval := flag.Duration("polling-interval", DEFAULT_POLLING_INTERVAL, "Time to interval for polling health check (default 60s)")
+	keys := viper.AllKeys()
+	config := Config{}
 
-	flag.Parse()
-
-	config := Config{
-		Manifest:              viper.GetString("manifest"),
-		ManifestS3Region:      viper.GetString("manifest-s3-region"),
-		Ami:                   viper.GetString("ami"),
-		Env:                   viper.GetString("env"),
-		Stack:                 viper.GetString("stack"),
-		Region:                viper.GetString("region"),
-		AssumeRole:            viper.GetString("assume-role"),
-		Timeout:               viper.GetDuration("timeout"),
-		Confirm:               false,
-		SlackOff:              viper.GetBool("slack-off"),
-		LogLevel:              viper.GetString("log-level"),
-		ExtraTags:             viper.GetString("extra-tags"),
-		AnsibleExtraVars:      viper.GetString("ansible-extra-vars"),
-		OverrideInstanceType:  viper.GetString("override-instance-type"),
-		DisableMetrics:        viper.GetBool("disable-metrics"),
-		ReleaseNotes:          viper.GetString("release-notes"),
-		ReleaseNotesBase64:    viper.GetString("release-notes-base64"),
-		ForceManifestCapacity: viper.GetBool("force-manifest-capacity"),
-		PollingInterval:       viper.GetDuration("polling-interval"),
+	val := reflect.ValueOf(&config).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		typeField := val.Type().Field(i)
+		key := strings.ReplaceAll(typeField.Tag.Get("json"), "_", "-")
+		if tool.IsStringInArray(key, keys) {
+			t := val.FieldByName(typeField.Name)
+			if t.CanSet() {
+				switch t.Kind() {
+				case reflect.String:
+					t.SetString(viper.GetString(key))
+				case reflect.Int64: // should use int64 not, int
+					if tool.IsStringInArray(key, timeFields) {
+						t.SetInt(int64(viper.GetDuration(key)))
+					} else {
+						t.SetInt(viper.GetInt64(key))
+					}
+				case reflect.Bool:
+					t.SetBool(viper.GetBool(key))
+				}
+			}
+		}
 	}
 
 	return RefineConfig(config)
@@ -465,7 +435,6 @@ func argumentParsing() Config {
 
 // Set Userdata provider
 func SetUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataProvider {
-
 	//Set default if no userdata exists in the stack
 	if userdata.Type == "" {
 		userdata.Type = default_userdata.Type
@@ -482,6 +451,23 @@ func SetUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataP
 	return LocalProvider{
 		Path: userdata.Path,
 	}
+}
+
+func (b Builder) PreConfigValidation() error {
+	// check manifest file
+	if len(b.Config.Manifest) <= 0 {
+		return fmt.Errorf("you should specify manifest file")
+	}
+
+	if strings.HasPrefix(b.Config.Manifest, S3_PREFIX) && len(b.Config.ManifestS3Region) <= 0 {
+		return fmt.Errorf("you have to specify region of s3 bucket: --manifest-s3-region")
+	}
+
+	if len(b.Config.Manifest) <= 0 || (!strings.HasPrefix(b.Config.Manifest, S3_PREFIX) && !tool.FileExists(b.Config.Manifest)) {
+		return fmt.Errorf(NO_MANIFEST_EXISTS)
+	}
+
+	return nil
 }
 
 // RefineConfig refines the values for clear setting

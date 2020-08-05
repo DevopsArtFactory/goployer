@@ -17,7 +17,7 @@ func NewInitCommand() *cobra.Command {
 }
 
 // funcDelete delete stacks
-func funcInit(ctx context.Context, _ io.Writer, args []string) error {
+func funcInit(ctx context.Context, _ io.Writer, args []string, _ string) error {
 	return runWithoutExecutor(ctx, func() error {
 		if err := runner.Initialize(args); err != nil {
 			return err

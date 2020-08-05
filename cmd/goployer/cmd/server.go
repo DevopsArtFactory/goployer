@@ -15,8 +15,9 @@ func NewServerCommand() *cobra.Command {
 }
 
 // funcDeploy run deployment
-func funcServer(ctx context.Context, _ io.Writer) error {
+func funcServer(ctx context.Context, _ io.Writer, mode string) error {
 	return runWithoutExecutor(ctx, func() error {
+		// ready to develop
 		return nil
 	})
 }
