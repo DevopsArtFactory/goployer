@@ -577,7 +577,7 @@ func checkMode(mode string) bool {
 func (r Runner) LocalCheck(message string) error {
 	// From local os, you need to ensure that this command is intended
 	if runtime.GOOS == "darwin" && !r.Builder.Config.AutoApply {
-		if ! tool.AskContinue(message) {
+		if !tool.AskContinue(message) {
 			return fmt.Errorf("you declined to run command")
 		}
 	}

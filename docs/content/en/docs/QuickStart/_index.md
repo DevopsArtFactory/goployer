@@ -148,5 +148,12 @@ INFO[0307] finished : hello-dev_apnortheast2-v008
 INFO[0307] All stacks are terminated!!        
 ```
 
+## Slack Notification   
+- You can get logs with slack notification.
+- There are two ways to set up slack configuration.
+  - 1) export SLACK_WEBHOOK_URL=xxxx : use slack webhook URL 
+  - 2) export SLACK_TOKEN=xxxx, export SLACK_CHANNEL : use slack token and channel
+- If webhook environment variable is set up, then goployer will ignore token and channel variable
+
 ## More examples
 * [Examples]({{< relref "/docs/examples" >}})
