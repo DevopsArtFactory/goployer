@@ -15,7 +15,8 @@ var (
 type AWSClient struct {
 	Region            string
 	EC2Service        EC2Client
-	ELBService        ELBV2Client
+	ELBV2Service      ELBV2Client
+	ELBService        ELBClient
 	CloudWatchService CloudWatchClient
 	SSMService        SSMClient
 }
@@ -61,7 +62,8 @@ func BootstrapServices(region string, assume_role string) AWSClient {
 	client := AWSClient{
 		Region:            region,
 		EC2Service:        NewEC2Client(aws_session, region, creds),
-		ELBService:        NewELBV2Client(aws_session, region, creds),
+		ELBV2Service:      NewELBV2Client(aws_session, region, creds),
+		ELBService:        NewELBClient(aws_session, region, creds),
 		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
 		SSMService:        NewSSMClient(aws_session, region, creds),
 	}

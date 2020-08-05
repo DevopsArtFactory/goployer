@@ -5,7 +5,7 @@ BUILD_DIR="build"
 TEST_DIR="test"
 URL="https://hello.devops-art-factory.com"
 
-stacks=("artd" "artd-spot" "artd-mixed" "artd-without-targetgroup")
+stacks=("artd" "artd-spot" "artd-mixed" "artd-without-targetgroup" "artd-with-exact-values" "artd-with-classic-lb")
 
 if [[ ! -d $BUILD_DIR ]]; then
     echo "creating new directory [ $BUILD_DIR ]"
@@ -25,6 +25,7 @@ fi
 # api test
 lastStack=""
 for stack in "${stacks[@]}"; do
+    echo "stack: $stack"
     ./$BUILD_DIR/goployer deploy --manifest=$TEST_DIR/test_manifest.yaml --stack=$stack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
     if [[ $? -eq 0 ]]; then
         echo "$stack is deployed"

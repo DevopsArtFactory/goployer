@@ -132,7 +132,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, config.ExtraTags, config.AnsibleExtraVars, region.Region)
 		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
 		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
-		targetGroupArns, err := client.ELBService.GetTargetGroupARNs(targetGroups)
+		targetGroupArns, err := client.ELBV2Service.GetTargetGroupARNs(targetGroups)
 		if err != nil {
 			return err
 		}
@@ -147,7 +147,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 
 		b.Logger.Infof("Applied instance capacity - Min: %d, Desired: %d, Max: %d", appliedCapacity.Min, appliedCapacity.Desired, appliedCapacity.Max)
 
-		ret = client.EC2Service.CreateAutoScalingGroup(
+		ret, err = client.EC2Service.CreateAutoScalingGroup(
 			new_asg_name,
 			launch_template_name,
 			healthcheckType,
@@ -163,8 +163,8 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			lifecycleHooksSpecificationList,
 		)
 
-		if !ret {
-			return fmt.Errorf("Unknown error happened creating new autoscaling group.")
+		if err != nil {
+			return err
 		}
 
 		b.AsgNames[region.Region] = new_asg_name

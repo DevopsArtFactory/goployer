@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	Logger "github.com/sirupsen/logrus"
-	"os"
 )
 
 type ELBV2Client struct {
@@ -53,16 +51,16 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) ([]*string, erro
 		return nil, err
 	}
 
-	ret := []*string{}
+	tgs := []*string{}
 	for _, group := range result.TargetGroups {
-		ret = append(ret, group.TargetGroupArn)
+		tgs = append(tgs, group.TargetGroupArn)
 	}
 
-	return ret, nil
+	return tgs, nil
 }
 
 // GetHostInTarget gets host instance
-func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) []HealthcheckHost {
+func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) ([]HealthcheckHost, error) {
 	Logger.Debug(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
 
 	input := &elbv2.DescribeTargetHealthInput{
@@ -71,23 +69,7 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 
 	result, err := e.Client.DescribeTargetHealth(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case elbv2.ErrCodeInvalidTargetException:
-				Logger.Errorln(elbv2.ErrCodeInvalidTargetException, aerr.Error())
-			case elbv2.ErrCodeTargetGroupNotFoundException:
-				Logger.Errorln(elbv2.ErrCodeTargetGroupNotFoundException, aerr.Error())
-			case elbv2.ErrCodeHealthUnavailableException:
-				Logger.Errorln(elbv2.ErrCodeHealthUnavailableException, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		os.Exit(1)
+		return nil, err
 	}
 
 	ret := []HealthcheckHost{}
@@ -108,5 +90,5 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 			Healthy:        *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy",
 		})
 	}
-	return ret
+	return ret, nil
 }

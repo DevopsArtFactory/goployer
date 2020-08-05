@@ -230,22 +230,30 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].Regions[0].InstanceType = "t3.large"
 
-	b.Stacks[0].Regions[0].HealthcheckTargetGroup = "test-tg"
-	if err := b.CheckValidation(); err == nil || err.Error() != "you have to add healthcheck_target_group to target_groups" {
-		t.Errorf("validation failed: target groups missing")
-	}
 	b.Stacks[0].Regions[0].HealthcheckTargetGroup = ""
-
 	b.Stacks[0].Regions[0].TargetGroups = []string{"test-tg"}
 	if err := b.CheckValidation(); err == nil || err.Error() != "you have to choose one target group as healthcheck_target_group" {
 		t.Errorf("validation failed: healthcheck target group missing")
 	}
-
-	b.Stacks[0].Regions[0].HealthcheckTargetGroup = "test-tg2"
-	if err := b.CheckValidation(); err == nil || err.Error() != "you have to choose the healthcheck_target_group from the target_groups" {
-		t.Errorf("validation failed: wrong healthcheck target group")
-	}
 	b.Stacks[0].Regions[0].HealthcheckTargetGroup = "test-tg"
+
+	b.Stacks[0].Regions[0].HealthcheckLB = ""
+	b.Stacks[0].Regions[0].LoadBalancers = []string{"test-lb"}
+	if err := b.CheckValidation(); err == nil || err.Error() != "you have to choose one load balancer as healthcheck_load_balancer" {
+		t.Errorf("validation failed: healthcheck load balancer missing")
+	}
+	b.Stacks[0].Regions[0].HealthcheckLB = "test-lb"
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "you cannot use healthcheck_load_balancer with target_groups" {
+		t.Errorf("validation failed: mixing healthcheck load balancer and target groups")
+	}
+	b.Stacks[0].Regions[0].TargetGroups = nil
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "you cannot use healthcheck_target_group and healthcheck_load_balancer at the same time" {
+		t.Errorf("validation failed: mixing healthcheck target group and healthcheck load balancer")
+	}
+	b.Stacks[0].Regions[0].HealthcheckLB = ""
+	b.Stacks[0].Regions[0].LoadBalancers = nil
 
 	b.Stacks[0].MixedInstancesPolicy = MixedInstancesPolicy{
 		Enabled:                true,
