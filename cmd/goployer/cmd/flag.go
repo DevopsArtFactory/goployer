@@ -36,7 +36,7 @@ var flagKey = map[string]string{
 	"delete": "fullset",
 	"init":   "initset",
 	"status": "statusset",
-	"add": "addset",
+	"add":    "addset",
 }
 
 var FlagRegistry = map[string][]Flag{

@@ -104,7 +104,7 @@ func (i Initializer) RunAdd() error {
 			}
 		}
 	} else {
-		if ! tool.AskContinue(fmt.Sprintf("Do you want to override %s", filePath)) {
+		if !tool.AskContinue(fmt.Sprintf("Do you want to override %s", filePath)) {
 			return fmt.Errorf("cancel to add manifest file")
 		}
 	}

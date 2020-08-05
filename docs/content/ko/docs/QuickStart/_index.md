@@ -145,6 +145,12 @@ INFO[0307] finished : hello-dev_apnortheast2-v008
 INFO[0307] All stacks are terminated!!        
 ```
 
+## Slack 알람 받기
+- 위에서 보신 배포 로그를 slack으로 받아보실 수 있습니다.
+- Slack을 설정하는 방법은 두 가지가 있습니다.
+  - 1) export SLACK_WEBHOOK_URL=xxxx : slack 웹 훅 주소 사용 
+  - 2) export SLACK_TOKEN=xxxx, export SLACK_CHANNEL : slack 토큰과 채널 사용
+- 만약 웹 훅 주소 환경변수가 설정되어 있으면 토큰과 채널 값은 무시합니다.
 
 ## 예시 더보기
 * [Examples]({{< relref "/docs/examples" >}})
