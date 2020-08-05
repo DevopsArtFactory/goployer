@@ -40,33 +40,37 @@ func getCurrentVersion(prevVersions []int) int {
 // Polling for healthcheck
 func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) (bool, error) {
 	if *asg.AutoScalingGroupName == "" {
-		tool.ErrorLogging(fmt.Sprintf("No autoscaling found for %s", d.AsgNames[region.Region]))
+		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
 
-	healthcheckTargetGroup := region.HealthcheckTargetGroup
-	tgs := []string{}
-	if healthcheckTargetGroup == "" {
-		d.Logger.Infof("healthcheck skipped because of no target group specified")
+	threshold := d.Stack.Capacity.Desired
+	healthHostCount := int64(0)
+
+	if region.HealthcheckTargetGroup == "" && region.HealthcheckLB == "" {
+		d.Logger.Infof("healthcheck skipped because of neither target group nor classic load balancer specified")
 		return true, nil
 	}
 
-	tgs = append(tgs, healthcheckTargetGroup)
-	tgArns, err := client.ELBService.GetTargetGroupARNs(tgs)
-	if err != nil {
-		return false, err
-	}
-	healthcheckTargetGroupArn := tgArns[0]
-
-	threshold := d.Stack.Capacity.Desired
-	targetHosts := client.ELBService.GetHostInTarget(asg, healthcheckTargetGroupArn)
-
-	healthHostCount := int64(0)
-
-	for _, host := range targetHosts {
-		Logger.Info(fmt.Sprintf("%+v", host))
-		if host.Healthy {
-			healthHostCount += 1
+	if region.HealthcheckTargetGroup != "" {
+		tgs := []string{region.HealthcheckTargetGroup}
+		tgArns, err := client.ELBV2Service.GetTargetGroupARNs(tgs)
+		if err != nil {
+			return false, err
 		}
+		healthcheckTargetGroupArn := tgArns[0]
+
+		targetHosts, err := client.ELBV2Service.GetHostInTarget(asg, healthcheckTargetGroupArn)
+		if err != nil {
+			return false, err
+		}
+		healthHostCount = getHealthyHostCount(targetHosts)
+	} else if region.HealthcheckLB != "" {
+		targetHosts, err := client.ELBService.GetHealthyHostInELB(asg, region.HealthcheckLB)
+		if err != nil {
+			return false, err
+		}
+
+		healthHostCount = getHealthyHostCount(targetHosts)
 	}
 
 	if healthHostCount >= threshold {
@@ -214,4 +218,17 @@ func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
 	d.Logger.Debugf("finish updating additional metrics to DynamoDB")
 
 	return nil
+}
+
+// getHealthyHostCount return the number of health host
+func getHealthyHostCount(targetHosts []aws.HealthcheckHost) int64 {
+	ret := 0
+	for _, host := range targetHosts {
+		Logger.Info(fmt.Sprintf("%+v", host))
+		if host.Healthy {
+			ret += 1
+		}
+	}
+
+	return int64(ret)
 }

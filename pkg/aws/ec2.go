@@ -541,7 +541,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 	tags []*(autoscaling.Tag),
 	subnets []string,
 	mixedInstancePolicy builder.MixedInstancesPolicy,
-	hooks []*autoscaling.LifecycleHookSpecification) bool {
+	hooks []*autoscaling.LifecycleHookSpecification) (bool, error) {
 
 	lt := autoscaling.LaunchTemplateSpecification{
 		LaunchTemplateName: aws.String(launch_template_name),
@@ -602,30 +602,11 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 
 	_, err := e.AsClient.CreateAutoScalingGroup(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeAlreadyExistsFault:
-				Logger.Errorln(autoscaling.ErrCodeAlreadyExistsFault, aerr.Error())
-			case autoscaling.ErrCodeLimitExceededFault:
-				Logger.Errorln(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		return false
+		return false, err
 	}
 
 	Logger.Info("Successfully create new autoscaling group : ", name)
-
-	return true
+	return true, nil
 }
 
 // GenerateTags creates tag list for autoscaling group

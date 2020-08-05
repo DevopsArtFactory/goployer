@@ -278,16 +278,23 @@ func (b Builder) CheckValidation() error {
 			}
 
 			// Check target group
-			if len(region.TargetGroups) == 0 && region.HealthcheckTargetGroup != "" {
-				return fmt.Errorf("you have to add healthcheck_target_group to target_groups")
-			}
-
 			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup == "" {
 				return fmt.Errorf("you have to choose one target group as healthcheck_target_group")
 			}
 
-			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup != "" && !tool.IsStringInArray(region.HealthcheckTargetGroup, region.TargetGroups) {
-				return fmt.Errorf("you have to choose the healthcheck_target_group from the target_groups")
+			// Check load balancer
+			if len(region.LoadBalancers) > 0 && region.HealthcheckLB == "" {
+				return fmt.Errorf("you have to choose one load balancer as healthcheck_load_balancer")
+			}
+
+			// Check load balancer
+			if region.HealthcheckLB != "" && len(region.TargetGroups) > 0 {
+				return fmt.Errorf("you cannot use healthcheck_load_balancer with target_groups")
+			}
+
+			// Check load balancer and target group
+			if region.HealthcheckLB != "" && region.HealthcheckTargetGroup != "" {
+				return fmt.Errorf("you cannot use healthcheck_target_group and healthcheck_load_balancer at the same time")
 			}
 		}
 
