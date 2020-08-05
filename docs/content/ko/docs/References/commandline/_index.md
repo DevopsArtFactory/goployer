@@ -11,6 +11,11 @@ weight: 10
 
 <br>
 
+배포 정보 조회 및 수정:
+* [goployer status](#goployer-status) - 특정 배포 관련 정보 조회
+
+<br>
+
 전체 배포 과정 실행:
 * [goployer deploy](#goployer-deploy) - 배포 실행
 * [goployer delete](#goployer-delete) - 이전 배포 삭제
@@ -34,8 +39,20 @@ Options:
   - metric.yaml
 <br>
 
+## goployer status
+-  특정 배포 관련 정보 조회
+```
+Examples:
+  # Minimum argument
+  goployer status hello --region=ap-northeast-2
+
+Options:
+      --region string                  Region of autoscaling group
+```
+<br>
+
 ## goployer deploy
-- Deploy a new application
+-  새로운 어플리케이션 배포 실행
 
 ```
 
@@ -65,17 +82,18 @@ Options:
       --force-manifest-capacity         Force-apply the capacity of instances in the manifest file
       --log-level string                Level of logging
       --override-instance-type string   Instance Type to override
-      --polling-interval duration       Time to interval for polling health check (default 60s) (default 1m0s)
+      --polling-interval duration       Time to interval for polling health check (default 60s)
       --region string                   The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.
       --release-notes string            Release note for the current deployment
       --release-notes-base64 string     Base64 encoded string of release note for the current deployment
       --slack-off                       Turn off slack alarm
-      --timeout duration                Time to wait for deploy to finish before timing out (default 60m) (default 1h0m0s)
+      --timeout duration                Time to wait for deploy to finish before timing out (default 60m)
+      --auto-apply                      Apply command without confirmation from local terminal
 ```
 <br>
 
 ### 추가 정보
-* 만약 `--ami`를 명시한 경우에는 stack에 하나의 리전만 있거나 `--region`을 통해 리전을 명시해주어야 합니다.
+* 만약 `--ami`를 명시한 경우에는 stack에 하나의 리전만 있거나 `--region`을 통해 리전을 명시해 주어야 합니다.
 
 ## goployer delete
 - 이전 배포 버전 삭제
@@ -100,7 +118,8 @@ Options:
       --disable-metrics                 Disable gathering metrics.
       --env string                      The environment that is being deployed into.
       --log-level string                Level of logging
-      --polling-interval duration       Time to interval for polling health check (default 60s) (default 1m0s)
-      --timeout duration                Time to wait for deploy to finish before timing out (default 60m) (default 1h0m0s)
+      --polling-interval duration       Time to interval for polling health check (default 60s)
+      --timeout duration                Time to wait for deploy to finish before timing out (default 60m)
+      --auto-apply                      Apply command without confirmation from local terminal
 ```
 <br>

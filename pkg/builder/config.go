@@ -35,9 +35,9 @@ type Config struct { // Do not add comments for this struct
 	ReleaseNotesBase64    string        `json:"release_notes_base64"`
 	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
 	PollingInterval       time.Duration `json:"polling_interval"`
+	AutoApply             bool          `json:"auto-apply"`
 	Application           string        `,inline`
 	StartTimestamp        int64         `,inline`
-	Confirm               bool          `,inline`
 }
 
 //Yaml configuration from manifest file

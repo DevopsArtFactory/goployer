@@ -100,7 +100,6 @@ func (b Builder) SetStacks(stacks []Stack) Builder {
 	for _, stack := range stacks {
 		if b.Config.Stack == stack.Stack {
 			deployStack = stack
-			fmt.Println(deployStack)
 			break
 		}
 	}
