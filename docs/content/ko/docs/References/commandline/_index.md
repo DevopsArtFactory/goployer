@@ -8,6 +8,7 @@ weight: 10
 
 프로젝트 시작:
 * [goployer init](#goployer-init) - goployer 프로젝트 구조 생성
+* [goployer add](#goployer-add) - 새로운 goployer 매니페스트 파일 생성
 
 <br>
 
@@ -16,9 +17,7 @@ weight: 10
 
 <br>
 
-전체 배포 과정 실행:
-* [goployer deploy](#goployer-deploy) - 배포 실행
-* [goployer delete](#goployer-delete) - 이전 배포 삭제
+전체 배포 과정 실행: * [goployer deploy](#goployer-deploy) - 배포 실행 * [goployer delete](#goployer-delete) - 이전 배포 삭제
 
 ## goployer init
 - 프로젝트 구조 생성
@@ -37,6 +36,21 @@ Options:
   - manifests
   - scripts
   - metric.yaml
+<br>
+
+## goployer add
+-  새로운 goployer 매니페스트 파일 생성
+```
+Examples:
+  # Minimum argument
+  goployer add 
+
+  # You can specify application name from command
+  goployer add hello
+
+Options:
+      --log-level string                Level of logging
+```
 <br>
 
 ## goployer status

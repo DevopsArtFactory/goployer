@@ -16,7 +16,7 @@ func NewInitCommand() *cobra.Command {
 		RunWithArgs(funcInit)
 }
 
-// funcDelete delete stacks
+// funcInit creates necessary files
 func funcInit(ctx context.Context, _ io.Writer, args []string, _ string) error {
 	return runWithoutExecutor(ctx, func() error {
 		if err := runner.Initialize(args); err != nil {

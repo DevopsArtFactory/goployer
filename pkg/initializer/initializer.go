@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
@@ -48,17 +49,17 @@ func (i Initializer) RunInit() error {
 	filePath := fmt.Sprintf("%s/%s.yaml", manifestDir, i.AppName)
 
 	// Generate data
-	writeData, err := generateData(filePath, manifestBase64)
+	writeData, err := generateData(filePath, manifestBase64, i.AppName)
 	if err != nil {
 		return err
 	}
 
-	scriptData, err := generateData(scriptPath, userdataBase64)
+	scriptData, err := generateData(scriptPath, userdataBase64, i.AppName)
 	if err != nil {
 		return err
 	}
 
-	metricData, err := generateData(metricPath, metricFileBase64)
+	metricData, err := generateData(metricPath, metricFileBase64, i.AppName)
 	if err != nil {
 		return err
 	}
@@ -88,6 +89,43 @@ func (i Initializer) RunInit() error {
 	}
 
 	fmt.Println("files are successfully created")
+	tool.Blue.Fprintln(os.Stdout, "Change the value of configurations based on your environment before using")
+	return nil
+}
+
+// RunAdd creates single manifest file
+func (i Initializer) RunAdd() error {
+	filePath := fmt.Sprintf("%s/%s.yaml", manifestDir, i.AppName)
+
+	if !tool.CheckFileExists(filePath) {
+		if !tool.CheckFileExists(manifestDir) {
+			if err := os.Mkdir(manifestDir, os.ModePerm); err != nil {
+				return err
+			}
+		}
+	} else {
+		if ! tool.AskContinue(fmt.Sprintf("Do you want to override %s", filePath)) {
+			return fmt.Errorf("cancel to add manifest file")
+		}
+	}
+
+	// Generate data
+	writeData, err := generateData(filePath, manifestBase64, i.AppName)
+	if err != nil {
+		return err
+	}
+
+	if !tool.AskContinue("Do you want to add this manifest file? ") {
+		tool.Red.Fprintln(os.Stdout, "canceled")
+		return nil
+	}
+
+	i.Logger.Debugf("starts to write yaml configuration: %s", filePath)
+	if err := generateFile(filePath, string(writeData)); err != nil {
+		return err
+	}
+
+	fmt.Println("A file is successfully created")
 	tool.Blue.Fprintln(os.Stdout, "Change the value of configurations based on your environment before using")
 	return nil
 }
@@ -149,13 +187,14 @@ func (i Initializer) GetWriteData(path string) ([]byte, error) {
 	return ret, nil
 }
 
-func generateData(path, base64String string) (string, error) {
+func generateData(path, base64String, appName string) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(base64String)
 	if err != nil {
 		return "", err
 	}
 
 	ret := string(data)
+	ret = strings.ReplaceAll(ret, "hello", appName)
 
 	tool.Yellow.Fprintf(os.Stdout, "%s:\n", path)
 	fmt.Println(ret)
