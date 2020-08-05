@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/AlecAivazis/survey/v2"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -208,6 +209,10 @@ func (r Runner) Deploy() error {
 		}
 	}()
 
+	if err := r.LocalCheck("Do you really want to deploy this application? "); err != nil {
+		return err
+	}
+
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
 
@@ -307,14 +312,9 @@ func (r Runner) Delete() error {
 		}
 	}()
 
-	// From local os, you need to ensure that delete command is intended
-	//if runtime.GOOS == "darwin" {
-	// if tool.AskContinue("Do you really want to delete applications? ") {
-	// 	r.Logger.Infof("you agreed to delete applications")
-	// } else {
-	// 	return fmt.Errorf("you declined to run delete command")
-	// }
-	//
+	if err := r.LocalCheck("Do you really want to delete applications? "); err != nil {
+		return err
+	}
 
 	//Send Beginning Message
 	r.Logger.Info("Beginning delete process: ", r.Builder.AwsConfig.Name)
@@ -543,4 +543,14 @@ func getApplicationName() (string, error) {
 
 func checkMode(mode string) bool {
 	return tool.IsStringInArray(mode, []string{"deploy", "delete"})
+}
+
+func (r Runner) LocalCheck(message string) error {
+	// From local os, you need to ensure that this command is intended
+	if runtime.GOOS == "darwin" && !r.Builder.Config.AutoApply {
+		if ! tool.AskContinue(message) {
+			return fmt.Errorf("you declined to run command")
+		}
+	}
+	return nil
 }

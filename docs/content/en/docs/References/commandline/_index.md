@@ -6,8 +6,13 @@ weight: 10
 
 <br>
 
-프로젝트 시작:
+Initiate project:
 * [goployer init](#goployer-init) - setup goployer project
+
+<br>
+
+Retrieve and Modify deployment:
+* [goployer status](#goployer-status) -  Retrieve information of the specific deployment
 
 <br>
 
@@ -33,6 +38,19 @@ Options:
   - manifests
   - scripts
   - metric.yaml
+<br>
+
+
+## goployer status
+-  Retrieve information of the specific deployment
+```
+Examples:
+  # Minimum argument
+  goployer status hello --region=ap-northeast-2
+
+Options:
+      --region string                  Region of autoscaling group
+```
 <br>
 
 ## goployer deploy
@@ -72,6 +90,7 @@ Options:
       --release-notes-base64 string     Base64 encoded string of release note for the current deployment
       --slack-off                       Turn off slack alarm
       --timeout duration                Time to wait for deploy to finish before timing out (default 60m) (default 1h0m0s)
+      --auto-apply                      Apply command without confirmation from local terminal
 ```
 <br>
 
@@ -103,6 +122,7 @@ Options:
       --log-level string                Level of logging
       --polling-interval duration       Time to interval for polling health check (default 60s) (default 1m0s)
       --timeout duration                Time to wait for deploy to finish before timing out (default 60m) (default 1h0m0s)
+      --auto-apply                      Apply command without confirmation from local terminal
 ```
 <br>
 

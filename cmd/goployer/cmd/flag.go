@@ -167,6 +167,13 @@ var FlagRegistry = map[string][]Flag{
 			DefValue:      pollingInterval,
 			FlagAddMethod: "DurationVar",
 		},
+		{
+			Name:          "auto-apply",
+			Usage:         "Apply command without confirmation from local terminal",
+			Value:         aws.Bool(false),
+			DefValue:      false,
+			FlagAddMethod: "BoolVar",
+		},
 	},
 	"initset": []Flag{
 		{

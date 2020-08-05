@@ -17,10 +17,10 @@ func NewStatusCommand() *cobra.Command {
 		RunWithArgs(funcStatus)
 }
 
-// funcDelete delete stacks
+// funcStatus shows deployment status
 func funcStatus(ctx context.Context, _ io.Writer, args []string, mode string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("usage: goployer status <application name>")
+		return fmt.Errorf("usage: goployer status <application name> --region=<region ID>")
 	}
 
 	return runWithoutExecutor(ctx, func() error {
