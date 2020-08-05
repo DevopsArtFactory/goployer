@@ -23,7 +23,7 @@ var (
 	S3_PREFIX                        = "s3://"
 	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
 	timeFields                       = []string{"timeout", "polling-interval"}
-	prohibitedTags                   = []string{"Name", "app", "stack"}
+	prohibitedTags                   = []string{"Name", "stack"}
 )
 
 type UserdataProvider interface {

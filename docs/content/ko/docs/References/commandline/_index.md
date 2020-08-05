@@ -17,7 +17,10 @@ weight: 10
 
 <br>
 
-전체 배포 과정 실행: * [goployer deploy](#goployer-deploy) - 배포 실행 * [goployer delete](#goployer-delete) - 이전 배포 삭제
+전체 배포 과정 실행: 
+* [goployer deploy](#goployer-deploy) - 배포 실행 
+* [goployer delete](#goployer-delete) - 이전 배포 삭제
+
 
 ## goployer init
 - 프로젝트 구조 생성
