@@ -18,7 +18,7 @@ func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricCon
 		return schemas.MetricConfig{Enabled: false}, nil
 	}
 
-	if ! tool.FileExists(filename) {
+	if !tool.FileExists(filename) {
 		return schemas.MetricConfig{Enabled: false}, nil
 	}
 
