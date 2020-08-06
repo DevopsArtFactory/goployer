@@ -1,4 +1,4 @@
-package tool
+package slack
 
 import (
 	"bytes"
@@ -129,6 +129,13 @@ func (s Slack) CreateSimpleSection(text string) *slack.SectionBlock {
 	return section
 }
 
+func (s Slack) CreateSimpleSectionWithFields(text string, fields []*slack.TextBlockObject) *slack.SectionBlock {
+	txt := slack.NewTextBlockObject("mrkdwn", text, false, false)
+	section := slack.NewSectionBlock(txt, fields, nil)
+	fmt.Println(section.Fields[0].Text)
+	return section
+}
+
 func (s Slack) CreateDividerSection() *slack.DividerBlock {
 	return slack.NewDividerBlock()
 }
@@ -151,4 +158,10 @@ func (s Slack) ValidClient() bool {
 	}
 
 	return true
+}
+
+func (s Slack) CreateTitleSection(text string) *slack.SectionBlock {
+	txt := slack.NewTextBlockObject("mrkdwn", text, false, false)
+	section := slack.NewSectionBlock(txt, nil, nil)
+	return section
 }

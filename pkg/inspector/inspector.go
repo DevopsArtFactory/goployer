@@ -2,11 +2,11 @@ package inspector
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/fatih/color"
 )
@@ -19,7 +19,7 @@ type Inspector struct {
 
 type StatusSummary struct {
 	Name         string
-	Capacity     builder.Capacity
+	Capacity     schemas.Capacity
 	CreatedTime  time.Time
 	InstanceType map[string]int64
 	Tags         []string
@@ -82,7 +82,7 @@ func (i Inspector) GetStackInformation(asgName string) (*autoscaling.Group, erro
 func (i Inspector) SetStatusSummary(asg *autoscaling.Group) StatusSummary {
 	summary := StatusSummary{}
 	summary.Name = *asg.AutoScalingGroupName
-	summary.Capacity = builder.Capacity{
+	summary.Capacity = schemas.Capacity{
 		Min:     *asg.MinSize,
 		Max:     *asg.MaxSize,
 		Desired: *asg.DesiredCapacity,

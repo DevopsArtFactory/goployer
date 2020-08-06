@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/go-test/deep"
 	"testing"
 )
@@ -12,14 +13,14 @@ var (
 func TestParseMetricConfig(t *testing.T) {
 
 	input, _ := ParseMetricConfig(false, TEST_METRIC_YAML_PATH)
-	expected := MetricConfig{
+	expected := schemas.MetricConfig{
 		Enabled: true,
 		Region:  "ap-northeast-2",
-		Storage: Storage{
+		Storage: schemas.Storage{
 			Type: "dynamodb",
 			Name: "goployer-metrics-test",
 		},
-		Metrics: Metrics{BaseTimezone: "UTC"},
+		Metrics: schemas.Metrics{BaseTimezone: "UTC"},
 	}
 
 	if diff := deep.Equal(input, expected); diff != nil {

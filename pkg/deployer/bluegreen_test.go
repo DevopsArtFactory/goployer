@@ -1,12 +1,12 @@
 package deployer
 
 import (
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"testing"
 )
 
 func TestGetStackName(t *testing.T) {
-	b := BlueGreen{Deployer{Stack: builder.Stack{Stack: "Test"}}}
+	b := BlueGreen{Deployer{Stack: schemas.Stack{Stack: "Test"}}}
 
 	input := b.GetStackName()
 	expected := "Test"
@@ -18,8 +18,8 @@ func TestGetStackName(t *testing.T) {
 
 func TestCheckRegionExist(t *testing.T) {
 	target := "ap-northeast-2"
-	regionList := []builder.RegionConfig{
-		builder.RegionConfig{
+	regionList := []schemas.RegionConfig{
+		schemas.RegionConfig{
 			Region: "us-east-1",
 		},
 	}
@@ -30,7 +30,7 @@ func TestCheckRegionExist(t *testing.T) {
 		t.Error(regionList, target)
 	}
 
-	regionList = append(regionList, builder.RegionConfig{
+	regionList = append(regionList, schemas.RegionConfig{
 		Region: target,
 	})
 

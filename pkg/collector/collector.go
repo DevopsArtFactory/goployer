@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
@@ -19,11 +20,11 @@ var (
 )
 
 type Collector struct {
-	MetricConfig builder.MetricConfig
+	MetricConfig schemas.MetricConfig
 	MetricClient aws.MetricClient
 }
 
-func NewCollector(mc builder.MetricConfig, assumeRole string) Collector {
+func NewCollector(mc schemas.MetricConfig, assumeRole string) Collector {
 	return Collector{
 		MetricConfig: mc,
 		MetricClient: aws.BootstrapMetricService(mc.Region, assumeRole),
@@ -55,7 +56,7 @@ func (c Collector) CheckStorage(logger *Logger.Logger) error {
 	return nil
 }
 
-func (c Collector) StampDeployment(stack builder.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
+func (c Collector) StampDeployment(stack schemas.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
 	tagsMap := map[string]string{}
 
 	for _, tag := range tags {

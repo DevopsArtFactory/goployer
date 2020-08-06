@@ -1,44 +1,6 @@
-package builder
+package schemas
 
 import "time"
-
-type Builder struct { // Do not add comments for this struct
-	// Config from command
-	Config Config
-
-	// AWS related Configuration
-	AwsConfig AWSConfig
-
-	// Configuration for metrics
-	MetricConfig MetricConfig
-
-	// Stack configuration
-	Stacks []Stack
-}
-
-type Config struct { // Do not add comments for this struct
-	Manifest              string        `json:"manifest"`
-	ManifestS3Region      string        `json:"manifest_s3_region"`
-	Ami                   string        `json:"ami"`
-	Env                   string        `json:"env"`
-	Stack                 string        `json:"stack"`
-	AssumeRole            string        `json:"assume_role"`
-	Timeout               time.Duration `json:"timeout"`
-	Region                string        `json:"region"`
-	SlackOff              bool          `json:"slack_off"`
-	LogLevel              string        `json:"log_level"`
-	ExtraTags             string        `json:"extra_tags"`
-	AnsibleExtraVars      string        `json:"ansible_extra_vars"`
-	OverrideInstanceType  string        `json:"override_instance_type"`
-	DisableMetrics        bool          `json:"disable_metrics"`
-	ReleaseNotes          string        `json:"release_notes"`
-	ReleaseNotesBase64    string        `json:"release_notes_base64"`
-	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
-	PollingInterval       time.Duration `json:"polling_interval"`
-	AutoApply             bool          `json:"auto-apply"`
-	Application           string        `,inline`
-	StartTimestamp        int64         `,inline`
-}
 
 //Yaml configuration from manifest file
 type YamlConfig struct {
