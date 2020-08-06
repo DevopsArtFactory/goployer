@@ -72,7 +72,7 @@ func main() {
 
 func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bool, error) {
 
-	input := filepath.Join(root, "pkg", "builder", inputFile+".go")
+	input := filepath.Join(root, "pkg", "schemas", inputFile+".go")
 	output := filepath.Join(root, "docs", "content", "en", "schemas", outputFile+".json")
 
 	generator := Generator{}

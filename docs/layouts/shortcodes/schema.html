@@ -12,7 +12,7 @@
 
 {{ $schema := (readFile $json_schema) | unmarshal }}
 {{ if not $schema}}
-    {{ errorf "missing json schema: %s" .Position }}
+    {{ errorf "missing json schemas: %s" .Position }}
 {{ end }}
 
 {{ $definition := index $schema.definitions $root }}

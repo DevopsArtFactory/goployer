@@ -2,7 +2,7 @@
 name: hello
 userdata:
   type: local
-  path: examples/scripts/userdata.sh
+  path: scripts/userdata.sh
 
 autoscaling: &autoscaling_policy
   - name: scale_in

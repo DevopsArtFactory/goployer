@@ -3,6 +3,8 @@ package runner
 import (
 	"fmt"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"os"
 	"runtime"
 	"strings"
@@ -23,7 +25,7 @@ type Runner struct {
 	Logger     *Logger.Logger
 	Builder    builder.Builder
 	Collector  collector.Collector
-	Slacker    tool.Slack
+	Slacker    slack.Slack
 	FuncMapper map[string]func() error
 }
 
@@ -163,7 +165,7 @@ func Start(builderSt builder.Builder, mode string) error {
 	}
 
 	// run with runner
-	return withRunner(builderSt, mode, func(slacker tool.Slack) error {
+	return withRunner(builderSt, mode, func(slacker slack.Slack) error {
 		if !builderSt.Config.SlackOff {
 			// These are post actions after deployment
 			if mode == "deploy" {
@@ -180,7 +182,7 @@ func Start(builderSt builder.Builder, mode string) error {
 }
 
 //withRunner creates runner and runs the deployment process
-func withRunner(builderSt builder.Builder, mode string, postAction func(slacker tool.Slack) error) error {
+func withRunner(builderSt builder.Builder, mode string, postAction func(slacker slack.Slack) error) error {
 	runner, err := NewRunner(builderSt, mode)
 	if err != nil {
 		return err
@@ -199,7 +201,7 @@ func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 	newRunner := Runner{
 		Logger:  Logger.New(),
 		Builder: newBuilder,
-		Slacker: tool.NewSlackClient(newBuilder.Config.SlackOff),
+		Slacker: slack.NewSlackClient(newBuilder.Config.SlackOff),
 	}
 
 	if checkMode(mode) {
@@ -424,7 +426,7 @@ func (r Runner) Status() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack builder.Stack, awsConfig builder.AWSConfig, slack tool.Slack, c collector.Collector) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, slack slack.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,

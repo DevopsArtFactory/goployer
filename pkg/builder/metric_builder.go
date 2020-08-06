@@ -1,6 +1,8 @@
 package builder
 
 import (
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -11,12 +13,16 @@ var (
 	DEFAULT_METRIC_STORAGE_TYPE = "dynamodb"
 )
 
-func ParseMetricConfig(disabledMetrics bool, filename string) (MetricConfig, error) {
+func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricConfig, error) {
 	if disabledMetrics {
-		return MetricConfig{Enabled: false}, nil
+		return schemas.MetricConfig{Enabled: false}, nil
 	}
 
-	metricConfig := MetricConfig{Enabled: true}
+	if ! tool.FileExists(filename) {
+		return schemas.MetricConfig{Enabled: false}, nil
+	}
+
+	metricConfig := schemas.MetricConfig{Enabled: true}
 	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)

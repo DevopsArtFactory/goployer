@@ -6,7 +6,8 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
 	"time"
@@ -19,13 +20,13 @@ type Deployer struct {
 	PrevAsgs          map[string][]string
 	PrevInstances     map[string][]string
 	PrevVersions      map[string][]int
-	PrevInstanceCount map[string]builder.Capacity
+	PrevInstanceCount map[string]schemas.Capacity
 	Logger            *Logger.Logger
-	Stack             builder.Stack
-	AwsConfig         builder.AWSConfig
+	Stack             schemas.Stack
+	AwsConfig         schemas.AWSConfig
 	AWSClients        []aws.AWSClient
 	LocalProvider     builder.UserdataProvider
-	Slack             tool.Slack
+	Slack             slack.Slack
 	Collector         collector.Collector
 }
 
@@ -38,7 +39,7 @@ func getCurrentVersion(prevVersions []int) int {
 }
 
 // Polling for healthcheck
-func (d Deployer) polling(region builder.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) (bool, error) {
+func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) (bool, error) {
 	if *asg.AutoScalingGroupName == "" {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}

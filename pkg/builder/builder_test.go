@@ -2,6 +2,7 @@ package builder
 
 import (
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"strings"
 	"testing"
 	"time"
@@ -74,20 +75,20 @@ func TestCheckValidationStack(t *testing.T) {
 			PollingInterval: DEFAULT_POLLING_INTERVAL,
 			DisableMetrics:  true,
 		},
-		MetricConfig: MetricConfig{
+		MetricConfig: schemas.MetricConfig{
 			Enabled: true,
 			Region:  "ap-northeast-2",
-			Storage: Storage{
+			Storage: schemas.Storage{
 				Name: "goployer-test",
 				Type: "dynamodb",
 			},
 		},
-		Stacks: []Stack{
+		Stacks: []schemas.Stack{
 			{
 				Stack:   "artd",
 				Account: "dev",
 				Env:     "dev",
-				Autoscaling: []ScalePolicy{
+				Autoscaling: []schemas.ScalePolicy{
 					{
 						Name:              "",
 						AdjustmentType:    "",
@@ -95,7 +96,7 @@ func TestCheckValidationStack(t *testing.T) {
 						Cooldown:          0,
 					},
 				},
-				Alarms: []AlarmConfigs{
+				Alarms: []schemas.AlarmConfigs{
 					{
 						Name:              "",
 						Namespace:         "",
@@ -128,9 +129,9 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].Alarms[0].AlarmActions = []string{"test"}
 
-	b.Stacks[0].InstanceMarketOptions = &InstanceMarketOptions{
+	b.Stacks[0].InstanceMarketOptions = &schemas.InstanceMarketOptions{
 		MarketType:  "not spot",
-		SpotOptions: SpotOptions{},
+		SpotOptions: schemas.SpotOptions{},
 	}
 	if err := b.CheckValidation(); err == nil || err.Error() != "no valid market type : not spot" {
 		t.Errorf("validation failed: stack-instance market options type")
@@ -156,7 +157,7 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].InstanceMarketOptions = nil
 
-	b.Stacks[0].BlockDevices = []BlockDevice{
+	b.Stacks[0].BlockDevices = []schemas.BlockDevice{
 		{
 			DeviceName: "",
 			VolumeSize: 0,
@@ -180,7 +181,7 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].BlockDevices[0].VolumeSize = 500
 
-	b.Stacks[0].BlockDevices = append(b.Stacks[0].BlockDevices, BlockDevice{
+	b.Stacks[0].BlockDevices = append(b.Stacks[0].BlockDevices, schemas.BlockDevice{
 		DeviceName: "/dev/xvda",
 		VolumeSize: 100,
 		VolumeType: "gp2",
@@ -190,8 +191,8 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].BlockDevices[1].DeviceName = "/dev/xvdb"
 
-	b.Stacks[0].LifecycleHooks = LifecycleHooks{
-		LaunchTransition: []LifecycleHookSpecification{
+	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{
+		LaunchTransition: []schemas.LifecycleHookSpecification{
 			{
 				LifecycleHookName:     "test",
 				NotificationTargetARN: "arn:test",
@@ -202,8 +203,8 @@ func TestCheckValidationStack(t *testing.T) {
 		t.Errorf("validation failed: lifecycle hook notification")
 	}
 
-	b.Stacks[0].LifecycleHooks = LifecycleHooks{
-		LaunchTransition: []LifecycleHookSpecification{
+	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{
+		LaunchTransition: []schemas.LifecycleHookSpecification{
 			{
 				LifecycleHookName: "test",
 				RoleARN:           "arn:test",
@@ -213,9 +214,9 @@ func TestCheckValidationStack(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != "notification_target_arn is needed if role_arn is not empty : test" {
 		t.Errorf("validation failed: lifecycle hook role")
 	}
-	b.Stacks[0].LifecycleHooks = LifecycleHooks{}
+	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{}
 
-	b.Stacks[0].Regions = []RegionConfig{
+	b.Stacks[0].Regions = []schemas.RegionConfig{
 		{
 			Region: "ap-northeast-2",
 			AmiId:  "",
@@ -256,7 +257,17 @@ func TestCheckValidationStack(t *testing.T) {
 	b.Stacks[0].Regions[0].HealthcheckLB = ""
 	b.Stacks[0].Regions[0].LoadBalancers = nil
 
-	b.Stacks[0].MixedInstancesPolicy = MixedInstancesPolicy{
+
+	b.Stacks[0].Userdata = schemas.Userdata{
+		Type: "local",
+		Path: "script/cannotfindpath.yaml",
+	}
+	if err := b.CheckValidation(); err == nil || err.Error() != "script file does not exists" {
+		t.Errorf("validation failed: stack script check")
+	}
+	b.Stacks[0].Userdata = schemas.Userdata{}
+
+	b.Stacks[0].MixedInstancesPolicy = schemas.MixedInstancesPolicy{
 		Enabled:                true,
 		SpotAllocationStrategy: "capacity-optimized",
 		SpotInstancePools:      1,
@@ -331,7 +342,7 @@ func TestHasProhibited(t *testing.T) {
 		},
 		{
 			input:  []string{"name=test", "app=test"},
-			output: true,
+			output: false,
 		},
 	}
 

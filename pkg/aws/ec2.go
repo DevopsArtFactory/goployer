@@ -2,7 +2,7 @@ package aws
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -304,7 +304,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 }
 
 // Create New Launch Template
-func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *builder.InstanceMarketOptions) bool {
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions) bool {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
@@ -423,7 +423,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 }
 
 // MakeBlockDevices returns list of block device mapping for launch configuration
-func (e EC2Client) MakeBlockDevices(blocks []builder.BlockDevice) []*autoscaling.BlockDeviceMapping {
+func (e EC2Client) MakeBlockDevices(blocks []schemas.BlockDevice) []*autoscaling.BlockDeviceMapping {
 	ret := []*autoscaling.BlockDeviceMapping{}
 
 	for _, block := range blocks {
@@ -454,7 +454,7 @@ func (e EC2Client) MakeBlockDevices(blocks []builder.BlockDevice) []*autoscaling
 }
 
 //MakeLaunchTemplateBlockDeviceMappings returns list of block device mappings for launch template
-func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []builder.BlockDevice) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
+func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockDevice) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
 	ret := []*ec2.LaunchTemplateBlockDeviceMappingRequest{}
 
 	for _, block := range blocks {
@@ -536,11 +536,11 @@ func (e EC2Client) GetVPCId(vpc string) string {
 
 func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string,
 	healthcheck_grace_period int64,
-	capacity builder.Capacity,
+	capacity schemas.Capacity,
 	loadbalancers, target_group_arns, termination_policies, availability_zones []*string,
 	tags []*(autoscaling.Tag),
 	subnets []string,
-	mixedInstancePolicy builder.MixedInstancesPolicy,
+	mixedInstancePolicy schemas.MixedInstancesPolicy,
 	hooks []*autoscaling.LifecycleHookSpecification) (bool, error) {
 
 	lt := autoscaling.LaunchTemplateSpecification{
@@ -813,7 +813,7 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired, retry i
 }
 
 //CreateScalingPolicy creates scaling policy
-func (e EC2Client) CreateScalingPolicy(policy builder.ScalePolicy, asg_name string) (*string, error) {
+func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asg_name string) (*string, error) {
 	input := &autoscaling.PutScalingPolicyInput{
 		AdjustmentType:       aws.String(policy.AdjustmentType),
 		AutoScalingGroupName: aws.String(asg_name),
@@ -876,7 +876,7 @@ func (e EC2Client) EnableMetrics(asg_name string) error {
 }
 
 // Generate Lifecycle Hooks
-func (e EC2Client) GenerateLifecycleHooks(hooks builder.LifecycleHooks) []*autoscaling.LifecycleHookSpecification {
+func (e EC2Client) GenerateLifecycleHooks(hooks schemas.LifecycleHooks) []*autoscaling.LifecycleHookSpecification {
 	ret := []*autoscaling.LifecycleHookSpecification{}
 
 	if len(hooks.LaunchTransition) > 0 {
@@ -896,7 +896,7 @@ func (e EC2Client) GenerateLifecycleHooks(hooks builder.LifecycleHooks) []*autos
 	return ret
 }
 
-func createSingleLifecycleHookSpecification(l builder.LifecycleHookSpecification, transition string) autoscaling.LifecycleHookSpecification {
+func createSingleLifecycleHookSpecification(l schemas.LifecycleHookSpecification, transition string) autoscaling.LifecycleHookSpecification {
 	lhs := autoscaling.LifecycleHookSpecification{
 		LifecycleHookName:   aws.String(l.LifecycleHookName),
 		LifecycleTransition: aws.String(transition),

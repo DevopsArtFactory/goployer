@@ -2,7 +2,7 @@ package aws
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -32,7 +32,7 @@ func getCloudwatchClientFn(session *session.Session, region string, creds *crede
 }
 
 //CreateScalingAlarms creates scaling alarms
-func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []builder.AlarmConfigs, policyArns map[string]string) error {
+func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []schemas.AlarmConfigs, policyArns map[string]string) error {
 	if len(alarms) == 0 {
 		return nil
 	}
@@ -53,7 +53,7 @@ func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []builder.
 }
 
 // Create cloudwatch alarms for autoscaling group
-func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm builder.AlarmConfigs) error {
+func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm schemas.AlarmConfigs) error {
 	input := &cloudwatch.PutMetricAlarmInput{
 		AlarmName:          aws.String(alarm.Name),
 		AlarmActions:       MakeStringArrayToAwsStrings(alarm.AlarmActions),

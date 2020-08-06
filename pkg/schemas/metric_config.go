@@ -1,4 +1,4 @@
-package builder
+package schemas
 
 type MetricBuilder struct { // Do not add comments for this struct
 	MetricConfig MetricConfig
@@ -12,24 +12,24 @@ type MetricConfig struct {
 	// Base region for gathering metrics
 	Region string `yaml:"region"`
 
-	// Storage configuration for storing metric data
+	//  Configuration for storage
 	Storage Storage `yaml:"storage"`
 
 	// Configuration of metrics
-	Metrics Metrics `yaml:"metrics"`
+	Metrics Metrics `,inline`
 }
 
 // Storage configurations
 type Storage struct {
-	// Type of storage
+	// Storage Type - dynamodb
 	Type string `yaml:"type"`
 
-	// Name of storage
+	// Storage Name
 	Name string `yaml:"name"`
 }
 
 // Configurations of metrics
 type Metrics struct {
 	// Timezone of metrics
-	BaseTimezone string `yaml:"base_timezone"`
+	BaseTimezone string
 }

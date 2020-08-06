@@ -3,6 +3,7 @@ package builder
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -13,6 +14,44 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 )
+
+type Builder struct { // Do not add comments for this struct
+	// Config from command
+	Config Config
+
+	// AWS related Configuration
+	AwsConfig schemas.AWSConfig
+
+	// Configuration for metrics
+	MetricConfig schemas.MetricConfig
+
+	// Stack configuration
+	Stacks []schemas.Stack
+}
+
+type Config struct { // Do not add comments for this struct
+	Manifest              string        `json:"manifest"`
+	ManifestS3Region      string        `json:"manifest_s3_region"`
+	Ami                   string        `json:"ami"`
+	Env                   string        `json:"env"`
+	Stack                 string        `json:"stack"`
+	AssumeRole            string        `json:"assume_role"`
+	Timeout               time.Duration `json:"timeout"`
+	Region                string        `json:"region"`
+	SlackOff              bool          `json:"slack_off"`
+	LogLevel              string        `json:"log_level"`
+	ExtraTags             string        `json:"extra_tags"`
+	AnsibleExtraVars      string        `json:"ansible_extra_vars"`
+	OverrideInstanceType  string        `json:"override_instance_type"`
+	DisableMetrics        bool          `json:"disable_metrics"`
+	ReleaseNotes          string        `json:"release_notes"`
+	ReleaseNotesBase64    string        `json:"release_notes_base64"`
+	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
+	PollingInterval       time.Duration `json:"polling_interval"`
+	AutoApply             bool          `json:"auto-apply"`
+	Application           string        `,inline`
+	StartTimestamp        int64         `,inline`
+}
 
 var (
 	NO_MANIFEST_EXISTS               = "Manifest file does not exist"
@@ -88,7 +127,7 @@ func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
 }
 
 // SetStacks set stack information
-func (b Builder) SetStacks(stacks []Stack) Builder {
+func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 
 	if len(b.Config.AssumeRole) > 0 {
 		for i, _ := range stacks {
@@ -96,7 +135,7 @@ func (b Builder) SetStacks(stacks []Stack) Builder {
 		}
 	}
 
-	var deployStack Stack
+	var deployStack schemas.Stack
 	for _, stack := range stacks {
 		if b.Config.Stack == stack.Stack {
 			deployStack = stack
@@ -309,6 +348,11 @@ func (b Builder) CheckValidation() error {
 			if region.HealthcheckLB != "" && region.HealthcheckTargetGroup != "" {
 				return fmt.Errorf("you cannot use healthcheck_target_group and healthcheck_load_balancer at the same time")
 			}
+
+			// Check userdata
+			if stack.Userdata.Type == "local" && len(stack.Userdata.Path) > 0 && !tool.FileExists(stack.Userdata.Path) {
+				return fmt.Errorf("script file does not exists")
+			}
 		}
 
 		if stack.MixedInstancesPolicy.Enabled {
@@ -339,9 +383,9 @@ Target Stack Deployment Information
 name             	: %s
 env              	: %s
 timeout          	: %.0f min
-polling-interval 	: %.0f sec 
+polling-interval 	: %.0f sec
 assume role      	: %s
-ansible-extra-vars  : %s
+ansible-extra-vars  	: %s
 extra tags       	: %s
 ============================================================
 Stack
@@ -357,12 +401,12 @@ Stack
 	return strings.Join(summary, "\n")
 }
 
-func printEnvironment(stack Stack) string {
+func printEnvironment(stack schemas.Stack) string {
 	formatting := `[ %s ]
 Account             	: %s
 Environment             : %s
 IAM Instance Profile    : %s
-tags              : %s 
+tags              	: %s 
 Capacity                : %+v
 MixedInstancesPolicy
 - Enabled 			: %t
@@ -391,28 +435,28 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func ParsingManifestFile(manifest string) (AWSConfig, []Stack) {
+func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack) {
 	var yamlFile []byte
 	var err error
 
 	yamlFile, err = ioutil.ReadFile(manifest)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
-		return AWSConfig{}, nil
+		return schemas.AWSConfig{}, nil
 	}
 
 	return buildStructFromYaml(yamlFile)
 }
 
-func buildStructFromYaml(yamlFile []byte) (AWSConfig, []Stack) {
+func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
 
-	yamlConfig := YamlConfig{}
+	yamlConfig := schemas.YamlConfig{}
 	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
 		tool.FatalError(err)
 	}
 
-	awsConfig := AWSConfig{
+	awsConfig := schemas.AWSConfig{
 		Name:     yamlConfig.Name,
 		Userdata: yamlConfig.Userdata,
 		Tags:     yamlConfig.Tags,
@@ -455,7 +499,7 @@ func argumentParsing() Config {
 }
 
 // Set Userdata provider
-func SetUserdataProvider(userdata Userdata, default_userdata Userdata) UserdataProvider {
+func SetUserdataProvider(userdata schemas.Userdata, default_userdata schemas.Userdata) UserdataProvider {
 	//Set default if no userdata exists in the stack
 	if userdata.Type == "" {
 		userdata.Type = default_userdata.Type

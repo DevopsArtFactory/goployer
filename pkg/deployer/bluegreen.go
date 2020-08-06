@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
 	"strings"
@@ -13,7 +14,7 @@ type BlueGreen struct {
 	Deployer
 }
 
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfig, stack builder.Stack) BlueGreen {
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, stack schemas.Stack) BlueGreen {
 	awsClients := []aws.AWSClient{}
 	for _, region := range stack.Regions {
 		awsClients = append(awsClients, aws.BootstrapServices(region.Region, stack.AssumeRole))
@@ -27,7 +28,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig builder.AWSConfi
 			AsgNames:          map[string]string{},
 			PrevAsgs:          map[string][]string{},
 			PrevInstances:     map[string][]string{},
-			PrevInstanceCount: map[string]builder.Capacity{},
+			PrevInstanceCount: map[string]schemas.Capacity{},
 			PrevVersions:      map[string][]int{},
 			Stack:             stack,
 		},
@@ -137,7 +138,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			return err
 		}
 
-		var appliedCapacity builder.Capacity
+		var appliedCapacity schemas.Capacity
 		if !config.ForceManifestCapacity && b.PrevInstanceCount[region.Region].Desired > b.Stack.Capacity.Desired {
 			appliedCapacity = b.PrevInstanceCount[region.Region]
 			b.Logger.Infof("Current desired instance count is larger than the number of instances in manifest file")
@@ -452,7 +453,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 }
 
 // CheckRegionExist checks if target region is really in regions described in manifest file
-func CheckRegionExist(target string, regions []builder.RegionConfig) bool {
+func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
 	regionExists := false
 	for _, region := range regions {
 		if region.Region == target {
@@ -543,7 +544,7 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 		prevAsgs := []string{}
 		prevInstanceIds := []string{}
 		prevVersions := []int{}
-		var prevInstanceCount builder.Capacity
+		var prevInstanceCount schemas.Capacity
 		for _, asgGroup := range asgGroups {
 			prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
 			prevVersions = append(prevVersions, tool.ParseVersion(*asgGroup.AutoScalingGroupName))
