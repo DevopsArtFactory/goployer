@@ -257,7 +257,6 @@ func TestCheckValidationStack(t *testing.T) {
 	b.Stacks[0].Regions[0].HealthcheckLB = ""
 	b.Stacks[0].Regions[0].LoadBalancers = nil
 
-
 	b.Stacks[0].Userdata = schemas.Userdata{
 		Type: "local",
 		Path: "script/cannotfindpath.yaml",

@@ -14,7 +14,8 @@ histories. This enables you to focus on server settings with the userdata and go
  you made.
  
 ## Features
-
+* Deployment management
+  * **Deployment as Code** - Goployer uses manifest files for deployment so that you can manage deployment with code
 * Safe Deployment with versioning
   * **Blue/Green Deployment** - Goployer uses **blue/green** deployment by default in order to ensure the safe deployment. Goployer will create new autoscaling group and attach it to the target group.
   After checking all the instances of autoscaling group are healthy, then delete the previous autoscaling group.
@@ -23,7 +24,7 @@ histories. This enables you to focus on server settings with the userdata and go
   * **Autoscaling Policy** - You can create autoscaling policy with AWS CloudWatch.
   * **Spot Instance** - You can make launch template with spot configuration.
   * **Mixed Instance Policy** - You can use on-demand and spot instance together with MixedInstancePolicy supported by autoscaling group. Autoscaling group will control spot request on behalf of you.
-* Metric Enabled
+* Metrics Enabled
   * **History Management** - You can make history records to AWS DynamoDB and keep track of deployment duration.
 
 ## Demo
