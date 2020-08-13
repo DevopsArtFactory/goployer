@@ -13,15 +13,12 @@ import (
 func TestCheckValidationConfig(t *testing.T) {
 	b := Builder{
 		Config: Config{
+			Stack: "artd",
 			Manifest: "config/hello.yaml",
 			Timeout:  DEFAULT_DEPLOYMENT_TIMEOUT,
 		},
 	}
 
-	if err := b.CheckValidation(); err == nil || err.Error() != "you should choose at least one stack" {
-		t.Errorf("validation failed: stack")
-	}
-	b.Config.Stack = "artd"
 
 	b.Config.Ami = "ami-test"
 	if err := b.CheckValidation(); err == nil || fmt.Sprintf("%s", err.Error()) != fmt.Sprintf("ami id cannot be used in different regions : %s", b.Config.Ami) {

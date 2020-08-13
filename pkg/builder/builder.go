@@ -135,27 +135,22 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 		}
 	}
 
-	var deployStack schemas.Stack
-	for _, stack := range stacks {
-		if b.Config.Stack == stack.Stack {
-			deployStack = stack
-			break
+	//var deployStack *schemas.Stack
+	for i, _ := range stacks {
+		if len(b.Config.Env) > 0 {
+			stacks[i].Env = b.Config.Env
+		}
+		//if b.Config.Stack == stack.Stack {
+		//	deployStack = &stack
+		//	break
+		//}
+
+		if b.Config.PollingInterval > 0 {
+			stacks[i].PollingInterval = b.Config.PollingInterval
 		}
 	}
 
 	b.Stacks = stacks
-
-	if len(b.Config.Env) == 0 {
-		b.Config.Env = deployStack.Env
-	}
-
-	if b.Config.PollingInterval == 0 {
-		if deployStack.PollingInterval > 0 {
-			b.Config.PollingInterval = deployStack.PollingInterval
-		} else {
-			b.Config.PollingInterval = DEFAULT_POLLING_INTERVAL
-		}
-	}
 
 	return b
 }
@@ -166,11 +161,6 @@ func (b Builder) CheckValidation() error {
 	target_region := b.Config.Region
 
 	// check configurations
-	// check stack
-	if len(b.Config.Stack) == 0 {
-		return fmt.Errorf("you should choose at least one stack")
-	}
-
 	if len(b.AwsConfig.Tags) > 0 && HasProhibited(b.AwsConfig.Tags) {
 		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
 	}

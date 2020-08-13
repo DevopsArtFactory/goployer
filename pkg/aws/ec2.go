@@ -86,33 +86,17 @@ func (e EC2Client) DeleteLaunchTemplates(asg_name string) error {
 // Delete Autoscaling group Set
 // 1. Autoscaling Group
 // 2. Luanch Configurations in asg
-func (e EC2Client) DeleteAutoscalingSet(asg_name string) bool {
+func (e EC2Client) DeleteAutoscalingSet(asg_name string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg_name),
 	}
 
 	_, err := e.AsClient.DeleteAutoScalingGroup(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeScalingActivityInProgressFault:
-				Logger.Errorln(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
-			case autoscaling.ErrCodeResourceInUseFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		return false
+		return err
 	}
 
-	return true
+	return nil
 }
 
 // Get All matching autoscaling groups with aws prefix
@@ -801,8 +785,6 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired, retry i
 		MinSize:              aws.Int64(min),
 		DesiredCapacity:      aws.Int64(desired),
 	}
-
-	Logger.Info(input)
 
 	_, err := e.AsClient.UpdateAutoScalingGroup(input)
 	if err != nil {
