@@ -14,4 +14,5 @@ type DeployManager interface {
 	TriggerLifecycleCallbacks(config builder.Config) error
 	TerminateChecking(config builder.Config) map[string]bool
 	GatherMetrics(config builder.Config) error
+	SkipDeployStep()
 }

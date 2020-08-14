@@ -28,6 +28,7 @@ type Deployer struct {
 	LocalProvider     builder.UserdataProvider
 	Slack             slack.Slack
 	Collector         collector.Collector
+	StepStatus        map[int64]bool
 }
 
 // getCurrentVersion returns current version for current deployment step
@@ -109,6 +110,11 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 	}
 	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target), d.Stack.Env)
 
+	if err := d.CleanAutoscalingSet(client, target); err != nil {
+		d.Logger.Errorf(err.Error())
+		return false
+	}
+
 	if !disableMetrics {
 		d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
 		if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
@@ -118,12 +124,6 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 		d.Logger.Debugf("update status of %s is finished", target)
 	}
 
-	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
-	ok := client.EC2Service.DeleteAutoscalingSet(target)
-	if !ok {
-		return false
-	}
-	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
 
 	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
 	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
@@ -133,6 +133,16 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 	d.Logger.Debug(fmt.Sprintf("Launch templates are deleted in %s\n", target))
 
 	return true
+}
+
+func (d Deployer) CleanAutoscalingSet(client aws.AWSClient, target string) error {
+	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
+	if err := client.EC2Service.DeleteAutoscalingSet(target); err != nil {
+		return err
+	}
+	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
+
+	return nil
 }
 
 // ResizingAutoScalingGroupToZero set autoscaling group instance count to 0

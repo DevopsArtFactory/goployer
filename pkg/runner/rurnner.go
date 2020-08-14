@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
@@ -267,34 +268,40 @@ func (r Runner) Deploy() error {
 		}
 	}
 
-	r.Logger.Debug("create deployers for stacks")
+	r.Logger.Debugf("create wait group for deployer setup")
+	wg := sync.WaitGroup{}
 
 	//Prepare deployers
+	r.Logger.Debug("create deployers for stacks")
 	deployers := []deployer.DeployManager{}
 	for _, stack := range r.Builder.Stacks {
-		// If target stack is passed from command, then
-		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
+			r.Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
-		deployers = append(deployers, d)
+
+		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector))
 	}
+
+	r.Logger.Debugf("successfully assign deployer to stacks")
 
 	// Check Previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-			return err
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+			}
+
+			if err := deployer.Deploy(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_DEPLOY] deploy step error occurred: %s", err.Error())
+			}
+		}(d)
 	}
 
-	// Deploy
-	for _, deployer := range deployers {
-		if err := deployer.Deploy(r.Builder.Config); err != nil {
-			return err
-		}
-	}
+	wg.Wait()
 
 	// healthcheck
 	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
@@ -302,35 +309,40 @@ func (r Runner) Deploy() error {
 	}
 
 	// Attach scaling policy
-	for _, deployer := range deployers {
-		if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
 
-	// Trigger Lifecycle Callbacks
-	for _, deployer := range deployers {
-		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
-
-	// Clear previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+	wg.Wait()
 
 	// Checking all previous version before delete asg
 	cleanChecking(deployers, r.Builder.Config)
 
 	// gather metrics of previous version
-	for _, deployer := range deployers {
-		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	return nil
 }
@@ -357,48 +369,65 @@ func (r Runner) Delete() error {
 		}
 	}
 
-	r.Logger.Debug("create deployers for stacks to delete")
+	wg := sync.WaitGroup{}
 
+	//Prepare deployers
+	r.Logger.Debug("create deployers for stacks to delete")
 	deployers := []deployer.DeployManager{}
 	for _, stack := range r.Builder.Stacks {
+		// If target stack is passed from command, then
+		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
+			r.Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
+
+		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
 		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
+	r.Logger.Debugf("successfully assign deployer to stacks")
+
 	// Check Previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+			}
 
-	// Trigger Lifecycle Callbacks
-	for _, deployer := range deployers {
-		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+			deployer.SkipDeployStep()
 
-	// Clear previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+			// Trigger Lifecycle Callbacks
+			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			// Clear previous Version
+			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+		}(d)
 	}
+	wg.Wait()
 
 	// Checking all previous version before delete asg
 	cleanChecking(deployers, r.Builder.Config)
 
 	// gather metrics of previous version
-	for _, deployer := range deployers {
-		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	return nil
 }
@@ -506,18 +535,17 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 
 	for !done {
 		count := 0
-
-		for _, deployer := range deployers {
-			if tool.IsStringInArray(deployer.GetStackName(), doneStackList) {
+		for _, d := range deployers {
+			if tool.IsStringInArray(d.GetStackName(), doneStackList) {
 				continue
 			}
 
 			count += 1
 
 			//Start terminateChecking thread
-			go func() {
+			go func(deployer deployer.DeployManager) {
 				ch <- deployer.TerminateChecking(config)
-			}()
+			}(d)
 		}
 
 		for count > 0 {

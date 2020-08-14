@@ -44,7 +44,7 @@ stacks:
   - stack: artd
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-1
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -77,10 +77,11 @@ stacks:
         healthcheck_target_group: hello-artdapne2-ext
         target_groups:
           - hello-artdapne2-ext
+
   - stack: artd-spot
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-2
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -133,7 +134,7 @@ stacks:
   - stack: artd-mixed
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-3
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -188,7 +189,7 @@ stacks:
   - stack: artd-without-targetgroup
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-4
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -223,7 +224,7 @@ stacks:
   - stack: artd-with-exact-values
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-5
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
@@ -262,7 +263,7 @@ stacks:
   - stack: artd-with-classic-lb
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-6
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
