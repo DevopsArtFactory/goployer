@@ -179,8 +179,6 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			return err
 		}
 
-		b.AsgNames[region.Region] = new_asg_name
-
 		if b.Collector.MetricConfig.Enabled {
 			additionalFields := map[string]string{}
 			if len(config.ReleaseNotes) > 0 {
@@ -195,9 +193,11 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 				additionalFields["userdata"] = userdata
 			}
 
-			b.Stack.Capacity = appliedCapacity
 			b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating", additionalFields)
 		}
+
+		b.AsgNames[region.Region] = new_asg_name
+		b.Stack.Capacity.Desired = appliedCapacity.Desired
 	}
 
 	b.StepStatus[tool.STEP_DEPLOY] = true
@@ -206,11 +206,11 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 
 // Healthchecking
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
-	stack_name := b.GetStackName()
+	stackName := b.GetStackName()
 	if !b.StepStatus[tool.STEP_DEPLOY] {
-		return map[string]bool{stack_name: true}
+		return map[string]bool{stackName: true}
 	}
-	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stack_name))
+	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stackName))
 	finished := []string{}
 
 	//Valid Count
@@ -238,17 +238,17 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
 		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
-		isHealthy, err := b.Deployer.polling(region, asg, client)
+		isHealthy, err := b.Deployer.polling(region, asg, client, config.ForceManifestCapacity)
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
 		if isHealthy {
@@ -262,10 +262,10 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(finished) == validCount {
-		return map[string]bool{stack_name: true, "error": false}
+		return map[string]bool{stackName: true, "error": false}
 	}
 
-	return map[string]bool{stack_name: false, "error": false}
+	return map[string]bool{stackName: false, "error": false}
 }
 
 //Stack Name Getter
@@ -422,11 +422,11 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 
 // Clean Termination Checking
 func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
-	stack_name := b.GetStackName()
+	stackName := b.GetStackName()
 	if !b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] {
-		return map[string]bool{stack_name: true}
+		return map[string]bool{stackName: true}
 	}
-	b.Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name))
+	b.Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stackName))
 
 	//Valid Count
 	validCount := 1
@@ -455,7 +455,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
 			return map[string]bool{
-				stack_name: false,
+				stackName: false,
 			}
 		}
 
@@ -465,7 +465,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 			//if err := b.Deployer.CleanAutoscalingSet(client, ); err != nil {
 			//	b.Logger.Errorf(err.Error())
 			//	return map[string]bool{
-			//		stack_name: false,
+			//		stackName: false,
 			//	}
 			//}
 			finished = append(finished, region.Region)
@@ -487,10 +487,10 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(finished) == validCount {
-		return map[string]bool{stack_name: true}
+		return map[string]bool{stackName: true}
 	}
 
-	return map[string]bool{stack_name: false}
+	return map[string]bool{stackName: false}
 }
 
 // CheckRegionExist checks if target region is really in regions described in manifest file
@@ -529,7 +529,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			tool.ErrorLogging(err.Error())
+			return err
 		}
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
