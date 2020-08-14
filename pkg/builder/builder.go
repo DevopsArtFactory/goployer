@@ -203,6 +203,23 @@ func (b Builder) CheckValidation() error {
 		}
 	}
 
+	// duplicated value check
+	stackMap := map[string]int{}
+	for _, stack := range b.Stacks {
+		if stackMap[stack.Stack] >= 1 {
+			return fmt.Errorf("duplicated stack key between stacks : %s", stack.Stack)
+		}
+		stackMap[stack.Stack] += 1
+	}
+
+	stackMap = map[string]int{}
+	for _, stack := range b.Stacks {
+		if stackMap[stack.Env] >= 1 {
+			return fmt.Errorf("duplicated env between stacks : %s", stack.Env)
+		}
+		stackMap[stack.Env] += 1
+	}
+
 	// check validations in each stack
 	for _, stack := range b.Stacks {
 		if stack.Stack != b.Config.Stack {

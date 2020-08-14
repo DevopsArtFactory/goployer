@@ -485,17 +485,17 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 			return fmt.Errorf("Timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
 		}
 
-		for _, deployer := range deployers {
-			if tool.IsStringInArray(deployer.GetStackName(), healthyStackList) {
+		for _, d := range deployers {
+			if tool.IsStringInArray(d.GetStackName(), healthyStackList) {
 				continue
 			}
 
 			count += 1
 
 			//Start healthcheck thread
-			go func() {
+			go func(deployer deployer.DeployManager) {
 				ch <- deployer.HealthChecking(config)
-			}()
+			}(d)
 		}
 
 		for count > 0 {

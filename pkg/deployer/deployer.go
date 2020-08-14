@@ -40,12 +40,17 @@ func getCurrentVersion(prevVersions []int) int {
 }
 
 // Polling for healthcheck
-func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.AWSClient) (bool, error) {
+func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.AWSClient, forceManifestCapacity bool) (bool, error) {
 	if *asg.AutoScalingGroupName == "" {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
 
-	threshold := d.Stack.Capacity.Desired
+	var threshold int64
+	if !forceManifestCapacity && d.PrevInstanceCount[region.Region].Desired > d.Stack.Capacity.Desired {
+		threshold = d.PrevInstanceCount[region.Region].Desired
+	} else {
+		threshold = d.Stack.Capacity.Desired
+	}
 	healthHostCount := int64(0)
 
 	if region.HealthcheckTargetGroup == "" && region.HealthcheckLB == "" {
@@ -123,7 +128,6 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 		}
 		d.Logger.Debugf("update status of %s is finished", target)
 	}
-
 
 	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
 	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {

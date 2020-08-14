@@ -136,9 +136,9 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				}
 
 				startTime = endTime.Add(1 * time.Second)
-				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
+				logger.Debugf("Next Start Time : %s", startTime)
 
-				if !CheckMetricTimeValidation(startTime, endTime) {
+				if !CheckMetricTimeValidation(startTime, terminatedDate) {
 					logger.Debugf("Finish gathering metrics")
 					isFinished = true
 				}
