@@ -225,6 +225,9 @@ type RegionConfig struct {
 	// Name of VPC
 	VPC string `yaml:"vpc"`
 
+	// Detailed Monitoring Enabled
+	DetailedMonitoringEnabled bool `yaml:"detailed_monitoring_enabled"`
+
 	// List of security group name
 	SecurityGroups []string `yaml:"security_groups"`
 

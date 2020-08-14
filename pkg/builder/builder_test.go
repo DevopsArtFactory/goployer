@@ -13,15 +13,11 @@ import (
 func TestCheckValidationConfig(t *testing.T) {
 	b := Builder{
 		Config: Config{
+			Stack:    "artd",
 			Manifest: "config/hello.yaml",
 			Timeout:  DEFAULT_DEPLOYMENT_TIMEOUT,
 		},
 	}
-
-	if err := b.CheckValidation(); err == nil || err.Error() != "you should choose at least one stack" {
-		t.Errorf("validation failed: stack")
-	}
-	b.Config.Stack = "artd"
 
 	b.Config.Ami = "ami-test"
 	if err := b.CheckValidation(); err == nil || fmt.Sprintf("%s", err.Error()) != fmt.Sprintf("ami id cannot be used in different regions : %s", b.Config.Ami) {
@@ -110,8 +106,23 @@ func TestCheckValidationStack(t *testing.T) {
 					},
 				},
 			},
+			{
+				Stack:   "artd",
+				Account: "dev",
+				Env:     "dev",
+			},
 		},
 	}
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "duplicated stack key between stacks : artd" {
+		t.Errorf("validation failed: duplicated stack key")
+	}
+	b.Stacks[1].Stack = "artd2"
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "duplicated env between stacks : dev" {
+		t.Errorf("validation failed: duplicated env")
+	}
+	b.Stacks = b.Stacks[:1]
 
 	if err := b.CheckValidation(); err == nil || err.Error() != "autoscaling policy doesn't have a name" {
 		t.Errorf("validation failed: stack-autoscaling")

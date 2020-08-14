@@ -1,14 +1,12 @@
 package aws
 
 import (
-	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	Logger "github.com/sirupsen/logrus"
 )
 
 type ELBV2Client struct {
@@ -20,7 +18,7 @@ type HealthcheckHost struct {
 	LifecycleState string
 	TargetStatus   string
 	HealthStatus   string
-	Healthy        bool
+	Valid          bool
 }
 
 func NewELBV2Client(session *session.Session, region string, creds *credentials.Credentials) ELBV2Client {
@@ -60,9 +58,7 @@ func (e ELBV2Client) GetTargetGroupARNs(target_groups []string) ([]*string, erro
 }
 
 // GetHostInTarget gets host instance
-func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string) ([]HealthcheckHost, error) {
-	Logger.Debug(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
-
+func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn *string, isUpdate, downSizingUpdate bool) ([]HealthcheckHost, error) {
 	input := &elbv2.DescribeTargetHealthInput{
 		TargetGroupArn: aws.String(*target_group_arn),
 	}
@@ -82,12 +78,19 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, target_group_arn 
 			}
 		}
 
+		var valid bool
+		if isUpdate && downSizingUpdate {
+			valid = *instance.LifecycleState == "InService" || target_state == "healthy" || *instance.HealthStatus == "Healthy"
+		} else {
+			valid = *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy"
+		}
+
 		ret = append(ret, HealthcheckHost{
 			InstanceId:     *instance.InstanceId,
 			LifecycleState: *instance.LifecycleState,
 			TargetStatus:   target_state,
 			HealthStatus:   *instance.HealthStatus,
-			Healthy:        *instance.LifecycleState == "InService" && target_state == "healthy" && *instance.HealthStatus == "Healthy",
+			Valid:          valid,
 		})
 	}
 	return ret, nil

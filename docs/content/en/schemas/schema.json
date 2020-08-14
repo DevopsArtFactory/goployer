@@ -263,6 +263,12 @@
           "x-intellij-html-description": "Availability zones for autoscaling group",
           "default": "[]"
         },
+        "detailed_monitoring_enabled": {
+          "type": "boolean",
+          "description": "Detailed Monitoring Enabled",
+          "x-intellij-html-description": "Detailed Monitoring Enabled",
+          "default": "false"
+        },
         "healthcheck_load_balancer": {
           "type": "string",
           "description": "Class load balancer name for healthcheck",
@@ -335,6 +341,7 @@
         "ssh_key",
         "ami_id",
         "vpc",
+        "detailed_monitoring_enabled",
         "security_groups",
         "healthcheck_load_balancer",
         "healthcheck_target_group",

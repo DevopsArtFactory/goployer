@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Create new deploy command
+// Create new delete command
 func NewDeleteCommand() *cobra.Command {
 	return NewCmd("delete").
 		WithDescription("Delete previous applications").

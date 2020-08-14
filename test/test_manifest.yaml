@@ -44,7 +44,7 @@ stacks:
   - stack: artd
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-1
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -71,16 +71,18 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
         healthcheck_target_group: hello-artdapne2-ext
         target_groups:
           - hello-artdapne2-ext
+
   - stack: artd-spot
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-2
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -119,6 +121,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
@@ -133,7 +136,7 @@ stacks:
   - stack: artd-mixed
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-3
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -174,6 +177,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
@@ -188,7 +192,7 @@ stacks:
   - stack: artd-without-targetgroup
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-4
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile: 'app-hello-profile'
@@ -216,6 +220,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
@@ -223,7 +228,7 @@ stacks:
   - stack: artd-with-exact-values
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-5
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
@@ -251,6 +256,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-05be14885b028018d
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2
@@ -262,7 +268,7 @@ stacks:
   - stack: artd-with-classic-lb
     polling_interval: 20s
     account: dev
-    env: dev
+    env: dev-6
     assume_role: ""
     replacement_type: BlueGreen
     iam_instance_profile:
@@ -290,6 +296,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-05be14885b028018d
+        detailed_monitoring_enabled: false
         healthcheck_load_balancer: test
         security_groups:
           - hello-artd_apnortheast2

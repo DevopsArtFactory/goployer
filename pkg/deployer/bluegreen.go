@@ -31,12 +31,23 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 			PrevInstanceCount: map[string]schemas.Capacity{},
 			PrevVersions:      map[string][]int{},
 			Stack:             stack,
+			StepStatus: map[int64]bool{
+				tool.STEP_CHECK_PREVIOUS:             false,
+				tool.STEP_DEPLOY:                     false,
+				tool.STEP_ADDITIONAL_WORK:            false,
+				tool.STEP_TRIGGER_LIFECYCLE_CALLBACK: false,
+				tool.STEP_CLEAN_PREVIOUS_VERSION:     false,
+			},
 		},
 	}
 }
 
 // Deploy function
 func (b BlueGreen) Deploy(config builder.Config) error {
+	if !b.StepStatus[tool.STEP_CHECK_PREVIOUS] {
+		return nil
+	}
+
 	b.Logger.Info("Deploy Mode is " + b.Mode)
 
 	//Get LocalFileProvider
@@ -107,6 +118,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			securityGroups,
 			blockDevices,
 			b.Stack.InstanceMarketOptions,
+			region.DetailedMonitoringEnabled,
 		)
 
 		if !ret {
@@ -168,8 +180,6 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			return err
 		}
 
-		b.AsgNames[region.Region] = new_asg_name
-
 		if b.Collector.MetricConfig.Enabled {
 			additionalFields := map[string]string{}
 			if len(config.ReleaseNotes) > 0 {
@@ -184,18 +194,25 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 				additionalFields["userdata"] = userdata
 			}
 
-			b.Stack.Capacity = appliedCapacity
 			b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating", additionalFields)
 		}
+
+		b.AsgNames[region.Region] = new_asg_name
+		b.Stack.Capacity.Desired = appliedCapacity.Desired
 	}
 
+	b.StepStatus[tool.STEP_DEPLOY] = true
 	return nil
 }
 
 // Healthchecking
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
-	stack_name := b.GetStackName()
-	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stack_name))
+	isUpdate := len(config.TargetAutoscalingGroup) > 0
+	stackName := b.GetStackName()
+	if !b.StepStatus[tool.STEP_DEPLOY] && !isUpdate {
+		return map[string]bool{stackName: true}
+	}
+	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stackName))
 	finished := []string{}
 
 	//Valid Count
@@ -223,17 +240,23 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
-		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
+		var targetAsgName string
+		if len(config.TargetAutoscalingGroup) > 0 {
+			targetAsgName = config.TargetAutoscalingGroup
+		} else {
+			targetAsgName = b.AsgNames[region.Region]
+		}
+		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(targetAsgName)
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
-		isHealthy, err := b.Deployer.polling(region, asg, client)
+		isHealthy, err := b.Deployer.polling(region, asg, client, config.ForceManifestCapacity, isUpdate, config.DownSizingUpdate)
 		if err != nil {
-			return map[string]bool{stack_name: false, "error": true}
+			return map[string]bool{stackName: false, "error": true}
 		}
 
 		if isHealthy {
@@ -247,10 +270,10 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(finished) == validCount {
-		return map[string]bool{stack_name: true, "error": false}
+		return map[string]bool{stackName: true, "error": false}
 	}
 
-	return map[string]bool{stack_name: false, "error": false}
+	return map[string]bool{stackName: false, "error": false}
 }
 
 //Stack Name Getter
@@ -260,6 +283,10 @@ func (b BlueGreen) GetStackName() string {
 
 //BlueGreen finish final work
 func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
+	if !b.StepStatus[tool.STEP_DEPLOY] {
+		return nil
+	}
+
 	if len(b.Stack.Autoscaling) == 0 {
 		b.Logger.Debug("No scaling policy exists")
 		return nil
@@ -307,12 +334,17 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		}
 	}
 
-	Logger.Debug("Finish addtional works.")
+	Logger.Debug("Finish additional works.")
+	b.StepStatus[tool.STEP_ADDITIONAL_WORK] = true
 	return nil
 }
 
 // Run lifecycle callbacks before cleaninig.
 func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
+	if !b.StepStatus[tool.STEP_ADDITIONAL_WORK] {
+		return nil
+	}
+
 	if &b.Stack.LifecycleCallbacks == nil || len(b.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
 		b.Logger.Debugf("no lifecycle callbacks in %s\n", b.Stack.Stack)
 		return nil
@@ -342,15 +374,20 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 		} else {
 
 			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), config.Env)
+			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
 		}
 
 	}
+
+	b.StepStatus[tool.STEP_TRIGGER_LIFECYCLE_CALLBACK] = true
 	return nil
 }
 
 //Clean Previous Version
 func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
+	if !b.StepStatus[tool.STEP_TRIGGER_LIFECYCLE_CALLBACK] {
+		return nil
+	}
 	b.Logger.Debug("Delete Mode is " + b.Mode)
 
 	if len(config.Region) > 0 {
@@ -383,17 +420,21 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			}
 		} else {
 			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), config.Env)
+			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
 		}
 	}
 
+	b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] = true
 	return nil
 }
 
-// Clean Teramination Checking
+// Clean Termination Checking
 func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
-	stack_name := b.GetStackName()
-	Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stack_name))
+	stackName := b.GetStackName()
+	if !b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] {
+		return map[string]bool{stackName: true}
+	}
+	b.Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stackName))
 
 	//Valid Count
 	validCount := 1
@@ -421,12 +462,20 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			tool.ErrorLogging(err.Error())
+			return map[string]bool{
+				stackName: false,
+			}
 		}
 
 		targets := b.PrevAsgs[region.Region]
 		if len(targets) == 0 {
 			Logger.Info("No target to delete : ", region.Region)
+			//if err := b.Deployer.CleanAutoscalingSet(client, ); err != nil {
+			//	b.Logger.Errorf(err.Error())
+			//	return map[string]bool{
+			//		stackName: false,
+			//	}
+			//}
 			finished = append(finished, region.Region)
 			continue
 		}
@@ -435,7 +484,7 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 		for _, target := range targets {
 			ok := b.Deployer.CheckTerminating(client, target, config.DisableMetrics)
 			if ok {
-				Logger.Info("finished : ", target)
+				b.Logger.Info("finished : ", target)
 				ok_count++
 			}
 		}
@@ -446,10 +495,10 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	}
 
 	if len(finished) == validCount {
-		return map[string]bool{stack_name: true}
+		return map[string]bool{stackName: true}
 	}
 
-	return map[string]bool{stack_name: false}
+	return map[string]bool{stackName: false}
 }
 
 // CheckRegionExist checks if target region is really in regions described in manifest file
@@ -488,7 +537,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
 		if err != nil {
-			tool.ErrorLogging(err.Error())
+			return err
 		}
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
@@ -564,5 +613,11 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 		b.PrevInstanceCount[region.Region] = prevInstanceCount
 	}
 
+	b.StepStatus[tool.STEP_CHECK_PREVIOUS] = true
 	return nil
+}
+
+func (b BlueGreen) SkipDeployStep() {
+	b.StepStatus[tool.STEP_DEPLOY] = true
+	b.StepStatus[tool.STEP_ADDITIONAL_WORK] = true
 }

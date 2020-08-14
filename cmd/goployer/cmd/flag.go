@@ -36,6 +36,7 @@ var flagKey = map[string]string{
 	"delete": "fullset",
 	"init":   "initset",
 	"status": "statusset",
+	"update": "updateset",
 	"add":    "addset",
 }
 
@@ -201,6 +202,57 @@ var FlagRegistry = map[string][]Flag{
 			Value:         aws.String(noString),
 			DefValue:      "",
 			FlagAddMethod: "StringVar",
+		},
+	},
+	"updateset": []Flag{
+		{
+			Name:          "region",
+			Usage:         "Region of autoscaling group",
+			Value:         aws.String(noString),
+			DefValue:      "",
+			FlagAddMethod: "StringVar",
+		},
+		{
+			Name:          "auto-apply",
+			Usage:         "Apply command without confirmation from local terminal",
+			Value:         aws.Bool(false),
+			DefValue:      false,
+			FlagAddMethod: "BoolVar",
+		},
+		{
+			Name:          "min",
+			Usage:         "Minimum instance capacity you want to update with",
+			Value:         aws.Int(-1),
+			DefValue:      -1,
+			FlagAddMethod: "IntVar",
+		},
+		{
+			Name:          "max",
+			Usage:         "Maximum instance capacity you want to update with",
+			Value:         aws.Int(-1),
+			DefValue:      -1,
+			FlagAddMethod: "IntVar",
+		},
+		{
+			Name:          "desired",
+			Usage:         "Desired instance capacity you want to update with",
+			Value:         aws.Int(-1),
+			DefValue:      -1,
+			FlagAddMethod: "IntVar",
+		},
+		{
+			Name:          "polling-interval",
+			Usage:         "Time to interval for polling health check (default 60s)",
+			Value:         &zeroPollingInterval,
+			DefValue:      pollingInterval,
+			FlagAddMethod: "DurationVar",
+		},
+		{
+			Name:          "timeout",
+			Usage:         "Time to wait for deploy to finish before timing out (default 60m)",
+			Value:         &zeroTimeout,
+			DefValue:      timeout,
+			FlagAddMethod: "DurationVar",
 		},
 	},
 }

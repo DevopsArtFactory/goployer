@@ -5,9 +5,11 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/slack"
+	"github.com/GwonsooLee/kubenx/pkg/color"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
@@ -212,6 +214,7 @@ func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 		"deploy": newRunner.Deploy,
 		"delete": newRunner.Delete,
 		"status": newRunner.Status,
+		"update": newRunner.Update,
 	}
 
 	return newRunner, nil
@@ -267,34 +270,40 @@ func (r Runner) Deploy() error {
 		}
 	}
 
-	r.Logger.Debug("create deployers for stacks")
+	r.Logger.Debugf("create wait group for deployer setup")
+	wg := sync.WaitGroup{}
 
 	//Prepare deployers
+	r.Logger.Debug("create deployers for stacks")
 	deployers := []deployer.DeployManager{}
 	for _, stack := range r.Builder.Stacks {
-		// If target stack is passed from command, then
-		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
+			r.Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
-		deployers = append(deployers, d)
+
+		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector))
 	}
+
+	r.Logger.Debugf("successfully assign deployer to stacks")
 
 	// Check Previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-			return err
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+			}
+
+			if err := deployer.Deploy(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_DEPLOY] deploy step error occurred: %s", err.Error())
+			}
+		}(d)
 	}
 
-	// Deploy
-	for _, deployer := range deployers {
-		if err := deployer.Deploy(r.Builder.Config); err != nil {
-			return err
-		}
-	}
+	wg.Wait()
 
 	// healthcheck
 	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
@@ -302,35 +311,42 @@ func (r Runner) Deploy() error {
 	}
 
 	// Attach scaling policy
-	for _, deployer := range deployers {
-		if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
 
-	// Trigger Lifecycle Callbacks
-	for _, deployer := range deployers {
-		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
-
-	// Clear previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+	wg.Wait()
 
 	// Checking all previous version before delete asg
-	cleanChecking(deployers, r.Builder.Config)
+	if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
+		return err
+	}
 
 	// gather metrics of previous version
-	for _, deployer := range deployers {
-		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	return nil
 }
@@ -357,52 +373,72 @@ func (r Runner) Delete() error {
 		}
 	}
 
-	r.Logger.Debug("create deployers for stacks to delete")
+	wg := sync.WaitGroup{}
 
+	//Prepare deployers
+	r.Logger.Debug("create deployers for stacks to delete")
 	deployers := []deployer.DeployManager{}
 	for _, stack := range r.Builder.Stacks {
+		// If target stack is passed from command, then
+		// Skip other stacks
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
-			Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
+			r.Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
 			continue
 		}
+
+		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
 		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
+	r.Logger.Debugf("successfully assign deployer to stacks")
+
 	// Check Previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+			}
 
-	// Trigger Lifecycle Callbacks
-	for _, deployer := range deployers {
-		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
-	}
+			deployer.SkipDeployStep()
 
-	// Clear previous Version
-	for _, deployer := range deployers {
-		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+			// Trigger Lifecycle Callbacks
+			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+			// Clear previous Version
+			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+
+		}(d)
 	}
+	wg.Wait()
 
 	// Checking all previous version before delete asg
-	cleanChecking(deployers, r.Builder.Config)
+	if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
+		return err
+	}
 
 	// gather metrics of previous version
-	for _, deployer := range deployers {
-		if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-			r.Logger.Errorf(err.Error())
-		}
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	return nil
 }
 
+// Status shows the detailed information about autoscaling deployment
 func (r Runner) Status() error {
 	inspector := inspector.New(r.Builder.Config.Region)
 
@@ -421,6 +457,71 @@ func (r Runner) Status() error {
 	if err := inspector.Print(); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// Update will changes configuration of current deployment on live
+func (r Runner) Update() error {
+	i := inspector.New(r.Builder.Config.Region)
+
+	asg, err := i.SelectStack(r.Builder.Config.Application)
+	if err != nil {
+		return err
+	}
+
+	group, err := i.GetStackInformation(asg)
+	if err != nil {
+		return err
+	}
+
+	oldCapacity := makeCapacityStruct(*group.MinSize, *group.MaxSize, *group.DesiredCapacity)
+	newCapacity := makeCapacityStruct(nullCheck(r.Builder.Config.Min, oldCapacity.Min), nullCheck(r.Builder.Config.Max, oldCapacity.Max), nullCheck(r.Builder.Config.Desired, oldCapacity.Desired))
+	if err := CheckUpdateInformation(oldCapacity, newCapacity); err != nil {
+		return err
+	}
+	color.Cyan.Fprintln(os.Stdout, "[ AS IS ]")
+	color.Cyan.Fprintf(os.Stdout, "Min: %d, Desired: %d, Max: %d", oldCapacity.Min, oldCapacity.Desired, oldCapacity.Max)
+	color.Green.Fprintln(os.Stdout, "[ TO BE ]")
+	color.Green.Fprintf(os.Stdout, "Min: %d, Desired: %d, Max: %d", newCapacity.Min, newCapacity.Desired, newCapacity.Max)
+
+	if err := r.LocalCheck("Do you really want to update? "); err != nil {
+		return err
+	}
+
+	if oldCapacity.Desired > newCapacity.Desired {
+		r.Logger.Debugf("downsizing operation is triggered")
+	}
+
+	i.UpdateFields = inspector.UpdateFields{
+		AutoscalingName: *group.AutoScalingGroupName,
+		Capacity:        newCapacity,
+	}
+
+	r.Logger.Debugf("start updating configuration")
+	if err := i.Update(); err != nil {
+		return err
+	}
+	r.Logger.Debugf("update configuration is triggered")
+
+	stack := i.GenerateStack(r.Builder.Config.Region, group)
+	r.Builder.Config.DownSizingUpdate = oldCapacity.Desired > newCapacity.Desired
+	r.Builder.Config.TargetAutoscalingGroup = i.UpdateFields.AutoscalingName
+	r.Builder.Config.ForceManifestCapacity = false
+
+	r.Logger.Debugf("create deployer for update")
+	deployers := []deployer.DeployManager{
+		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector),
+	}
+
+	// healthcheck
+	r.Logger.Debugf("start healthchecking")
+	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
+		return err
+	}
+	r.Logger.Debugf("healthcheck process is done")
+
+	r.Logger.Infof("update operation is finished")
 
 	return nil
 }
@@ -456,17 +557,17 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 			return fmt.Errorf("Timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
 		}
 
-		for _, deployer := range deployers {
-			if tool.IsStringInArray(deployer.GetStackName(), healthyStackList) {
+		for _, d := range deployers {
+			if tool.IsStringInArray(d.GetStackName(), healthyStackList) {
 				continue
 			}
 
 			count += 1
 
 			//Start healthcheck thread
-			go func() {
+			go func(deployer deployer.DeployManager) {
 				ch <- deployer.HealthChecking(config)
-			}()
+			}(d)
 		}
 
 		for count > 0 {
@@ -486,10 +587,10 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 		}
 
 		if len(healthyStackList) == len(deployers) {
-			Logger.Info("All stacks are healthy")
+			logger.Info("All stacks are healthy")
 			healthy = true
 		} else {
-			Logger.Info("All stacks are not healthy... Please waiting to be deployed...")
+			logger.Info("All stacks are not healthy... Please waiting to be deployed...")
 			time.Sleep(config.PollingInterval)
 		}
 	}
@@ -498,7 +599,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 }
 
 // cleanChecking cleans old autoscaling groups
-func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
+func cleanChecking(deployers []deployer.DeployManager, config builder.Config, logger *Logger.Logger) error {
 	doneStackList := []string{}
 	done := false
 
@@ -506,25 +607,24 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 
 	for !done {
 		count := 0
-
-		for _, deployer := range deployers {
-			if tool.IsStringInArray(deployer.GetStackName(), doneStackList) {
+		for _, d := range deployers {
+			if tool.IsStringInArray(d.GetStackName(), doneStackList) {
 				continue
 			}
 
 			count += 1
 
 			//Start terminateChecking thread
-			go func() {
+			go func(deployer deployer.DeployManager) {
 				ch <- deployer.TerminateChecking(config)
-			}()
+			}(d)
 		}
 
 		for count > 0 {
 			ret := <-ch
 			for stack, fin := range ret {
 				if fin {
-					Logger.Debug("Finished stack : ", stack)
+					logger.Debug("Finished stack : ", stack)
 					doneStackList = append(doneStackList, stack)
 				}
 			}
@@ -532,13 +632,15 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config) {
 		}
 
 		if len(doneStackList) == len(deployers) {
-			Logger.Info("All stacks are terminated!!")
+			logger.Info("All stacks are terminated!!")
 			done = true
 		} else {
-			Logger.Info("All stacks are not ready to be terminated... Please waiting...")
+			logger.Info("All stacks are not ready to be terminated... Please waiting...")
 			time.Sleep(config.PollingInterval)
 		}
 	}
+
+	return nil
 }
 
 func (r Runner) CheckEnabledMetrics() error {
@@ -584,4 +686,42 @@ func (r Runner) LocalCheck(message string) error {
 		}
 	}
 	return nil
+}
+
+// CheckUpdateInformation checks if updated information is valid or not
+func CheckUpdateInformation(old, new schemas.Capacity) error {
+	if new.Min > new.Max {
+		return fmt.Errorf("minimum value cannot be larger than maximum value")
+	}
+
+	if new.Min > new.Desired {
+		return fmt.Errorf("desired value cannot be smaller than maximum value")
+	}
+
+	if new.Desired > new.Max {
+		return fmt.Errorf("desired value cannot be larger than max value")
+	}
+
+	if old == new {
+		return fmt.Errorf("nothing is updated")
+	}
+	return nil
+}
+
+// makeCapacityStruct creates schemas.Capacity with values
+func makeCapacityStruct(min, max, desired int64) schemas.Capacity {
+	return schemas.Capacity{
+		Min:     min,
+		Max:     max,
+		Desired: desired,
+	}
+}
+
+// nullCheck will return original value if no input exists
+func nullCheck(input, origin int64) int64 {
+	if input < 0 {
+		return origin
+	}
+
+	return input
 }

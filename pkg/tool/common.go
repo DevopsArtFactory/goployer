@@ -26,6 +26,16 @@ var (
 		"fatal": Logger.FatalLevel,
 		"error": Logger.ErrorLevel,
 	}
+	// STEP_CHECK_PREVIOUS = CheckPrevious
+	STEP_CHECK_PREVIOUS = int64(1)
+	// STEP_DEPLOY = Deploy
+	STEP_DEPLOY = int64(2)
+	// STEP_ADDITIONAL_WORK = FinishAdditionalWork
+	STEP_ADDITIONAL_WORK = int64(3)
+	// STEP_TRIGGER_LIFECYCLE_CALLBACK = TriggerLifecycleCallbacks
+	STEP_TRIGGER_LIFECYCLE_CALLBACK = int64(4)
+	// STEP_CLEAN_PREVIOUS_VERSION = CleanPreviousVersion
+	STEP_CLEAN_PREVIOUS_VERSION = int64(5)
 )
 
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
@@ -122,8 +132,7 @@ func CheckFileExists(filePath string) bool {
 	return true
 }
 
-func ToSnakeCase(str string) string {
-	snake := matchFirstCap.ReplaceAllString(str, "${1}${2}")
-	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
-	return strings.ToLower(snake)
+// IsTargetGroupArn returns true if string is target group ARN
+func IsTargetGroupArn(str string, region string) bool {
+	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region))
 }

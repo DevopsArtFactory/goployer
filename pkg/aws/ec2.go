@@ -86,33 +86,17 @@ func (e EC2Client) DeleteLaunchTemplates(asg_name string) error {
 // Delete Autoscaling group Set
 // 1. Autoscaling Group
 // 2. Luanch Configurations in asg
-func (e EC2Client) DeleteAutoscalingSet(asg_name string) bool {
+func (e EC2Client) DeleteAutoscalingSet(asg_name string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg_name),
 	}
 
 	_, err := e.AsClient.DeleteAutoScalingGroup(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeScalingActivityInProgressFault:
-				Logger.Errorln(autoscaling.ErrCodeScalingActivityInProgressFault, aerr.Error())
-			case autoscaling.ErrCodeResourceInUseFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		return false
+		return err
 	}
 
-	return true
+	return nil
 }
 
 // Get All matching autoscaling groups with aws prefix
@@ -304,7 +288,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 }
 
 // Create New Launch Template
-func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions) bool {
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions, detailedMonitoringEnabled bool) bool {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
@@ -316,6 +300,7 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 			UserData:         aws.String(userdata),
 			SecurityGroupIds: securityGroups,
 			EbsOptimized:     aws.Bool(ebsOptimized),
+			Monitoring:       &ec2.LaunchTemplatesMonitoringRequest{Enabled: aws.Bool(detailedMonitoringEnabled)},
 		},
 		LaunchTemplateName: aws.String(name),
 	}
@@ -794,15 +779,13 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 }
 
 // Update Autoscaling Group size
-func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired, retry int64) (error, int64) {
+func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, retry int64) (error, int64) {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
 		MaxSize:              aws.Int64(max),
 		MinSize:              aws.Int64(min),
 		DesiredCapacity:      aws.Int64(desired),
 	}
-
-	Logger.Info(input)
 
 	_, err := e.AsClient.UpdateAutoScalingGroup(input)
 	if err != nil {
@@ -961,4 +944,21 @@ func getSingleAutoScalingGroup(client *autoscaling.AutoScaling, asgName string) 
 	}
 
 	return ret.AutoScalingGroups[0], nil
+}
+
+// Update Autoscaling Group information
+func (e EC2Client) UpdateAutoScalingGroup(asg string, capacity schemas.Capacity) error {
+	input := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asg),
+		MaxSize:              aws.Int64(capacity.Max),
+		MinSize:              aws.Int64(capacity.Min),
+		DesiredCapacity:      aws.Int64(capacity.Desired),
+	}
+
+	_, err := e.AsClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
