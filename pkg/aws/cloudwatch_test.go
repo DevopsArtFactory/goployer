@@ -30,5 +30,4 @@ func TestCheckMetricTimeValidation(t *testing.T) {
 			t.Error("CheckMetricTimeValidation failed")
 		}
 	}
-
 }
