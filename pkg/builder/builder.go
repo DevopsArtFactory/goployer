@@ -30,27 +30,32 @@ type Builder struct { // Do not add comments for this struct
 }
 
 type Config struct { // Do not add comments for this struct
-	Manifest              string        `json:"manifest"`
-	ManifestS3Region      string        `json:"manifest_s3_region"`
-	Ami                   string        `json:"ami"`
-	Env                   string        `json:"env"`
-	Stack                 string        `json:"stack"`
-	AssumeRole            string        `json:"assume_role"`
-	Timeout               time.Duration `json:"timeout"`
-	Region                string        `json:"region"`
-	SlackOff              bool          `json:"slack_off"`
-	LogLevel              string        `json:"log_level"`
-	ExtraTags             string        `json:"extra_tags"`
-	AnsibleExtraVars      string        `json:"ansible_extra_vars"`
-	OverrideInstanceType  string        `json:"override_instance_type"`
-	DisableMetrics        bool          `json:"disable_metrics"`
-	ReleaseNotes          string        `json:"release_notes"`
-	ReleaseNotesBase64    string        `json:"release_notes_base64"`
-	ForceManifestCapacity bool          `json:"force_manifest_capacity"`
-	PollingInterval       time.Duration `json:"polling_interval"`
-	AutoApply             bool          `json:"auto-apply"`
-	Application           string        `,inline`
-	StartTimestamp        int64         `,inline`
+	Manifest               string        `json:"manifest"`
+	ManifestS3Region       string        `json:"manifest_s3_region"`
+	Ami                    string        `json:"ami"`
+	Env                    string        `json:"env"`
+	Stack                  string        `json:"stack"`
+	AssumeRole             string        `json:"assume_role"`
+	Timeout                time.Duration `json:"timeout"`
+	Region                 string        `json:"region"`
+	SlackOff               bool          `json:"slack_off"`
+	LogLevel               string        `json:"log_level"`
+	ExtraTags              string        `json:"extra_tags"`
+	AnsibleExtraVars       string        `json:"ansible_extra_vars"`
+	OverrideInstanceType   string        `json:"override_instance_type"`
+	DisableMetrics         bool          `json:"disable_metrics"`
+	ReleaseNotes           string        `json:"release_notes"`
+	ReleaseNotesBase64     string        `json:"release_notes_base64"`
+	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
+	PollingInterval        time.Duration `json:"polling_interval"`
+	AutoApply              bool          `json:"auto-apply"`
+	Min                    int64         `json:"min"`
+	Max                    int64         `json:"max"`
+	Desired                int64         `json:"desired"`
+	Application            string        `,inline`
+	StartTimestamp         int64         `,inline`
+	TargetAutoscalingGroup string        `,inline`
+	DownSizingUpdate       bool          `,inline`
 }
 
 var (
@@ -135,15 +140,10 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 		}
 	}
 
-	//var deployStack *schemas.Stack
 	for i, _ := range stacks {
 		if len(b.Config.Env) > 0 {
 			stacks[i].Env = b.Config.Env
 		}
-		//if b.Config.Stack == stack.Stack {
-		//	deployStack = &stack
-		//	break
-		//}
 
 		if b.Config.PollingInterval > 0 {
 			stacks[i].PollingInterval = b.Config.PollingInterval
@@ -489,6 +489,8 @@ func argumentParsing() Config {
 				switch t.Kind() {
 				case reflect.String:
 					t.SetString(viper.GetString(key))
+				case reflect.Int:
+					t.SetInt(viper.GetInt64(key))
 				case reflect.Int64: // should use int64 not, int
 					if tool.IsStringInArray(key, timeFields) {
 						t.SetInt(int64(viper.GetDuration(key)))

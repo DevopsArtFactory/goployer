@@ -132,8 +132,7 @@ func CheckFileExists(filePath string) bool {
 	return true
 }
 
-func ToSnakeCase(str string) string {
-	snake := matchFirstCap.ReplaceAllString(str, "${1}${2}")
-	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
-	return strings.ToLower(snake)
+// IsTargetGroupArn returns true if string is target group ARN
+func IsTargetGroupArn(str string, region string) bool {
+	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region))
 }

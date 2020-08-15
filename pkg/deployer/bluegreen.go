@@ -206,8 +206,9 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 
 // Healthchecking
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
+	isUpdate := len(config.TargetAutoscalingGroup) > 0
 	stackName := b.GetStackName()
-	if !b.StepStatus[tool.STEP_DEPLOY] {
+	if !b.StepStatus[tool.STEP_DEPLOY] && !isUpdate {
 		return map[string]bool{stackName: true}
 	}
 	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stackName))
@@ -241,12 +242,18 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 			return map[string]bool{stackName: false, "error": true}
 		}
 
-		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(b.AsgNames[region.Region])
+		var targetAsgName string
+		if len(config.TargetAutoscalingGroup) > 0 {
+			targetAsgName = config.TargetAutoscalingGroup
+		} else {
+			targetAsgName = b.AsgNames[region.Region]
+		}
+		asg, err := client.EC2Service.GetMatchingAutoscalingGroup(targetAsgName)
 		if err != nil {
 			return map[string]bool{stackName: false, "error": true}
 		}
 
-		isHealthy, err := b.Deployer.polling(region, asg, client, config.ForceManifestCapacity)
+		isHealthy, err := b.Deployer.polling(region, asg, client, config.ForceManifestCapacity, isUpdate, config.DownSizingUpdate)
 		if err != nil {
 			return map[string]bool{stackName: false, "error": true}
 		}

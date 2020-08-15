@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -9,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/elb"
-	Logger "github.com/sirupsen/logrus"
 )
 
 type ELBClient struct {
@@ -39,8 +37,6 @@ func getELBClientFn(session *session.Session, region string, creds *credentials.
 
 // GetHostInELB returns instances in ELB
 func (e ELBClient) GetHealthyHostInELB(group *autoscaling.Group, elbName string) ([]HealthcheckHost, error) {
-	Logger.Debug(fmt.Sprintf("[Checking healthy host count] Autoscaling Group: %s", *group.AutoScalingGroupName))
-
 	input := &elb.DescribeInstanceHealthInput{
 		LoadBalancerName: aws.String(elbName),
 	}
@@ -55,12 +51,14 @@ func (e ELBClient) GetHealthyHostInELB(group *autoscaling.Group, elbName string)
 	for _, instance := range group.Instances {
 		targetInstances = append(targetInstances, *instance.InstanceId)
 	}
+
 	for _, instance := range result.InstanceStates {
+		valid := *instance.State == "InService"
 		if tool.IsStringInArray(*instance.InstanceId, targetInstances) {
 			ret = append(ret, HealthcheckHost{
 				InstanceId:     *instance.InstanceId,
 				LifecycleState: *instance.State,
-				Healthy:        *instance.State == "InService",
+				Valid:          valid,
 			})
 		}
 	}

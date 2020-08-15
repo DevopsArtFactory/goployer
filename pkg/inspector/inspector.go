@@ -13,16 +13,23 @@ import (
 
 type Inspector struct {
 	AWSClient     aws.AWSClient
-	MetricClient  aws.MetricClient
 	StatusSummary StatusSummary
+	UpdateFields  UpdateFields
 }
 
 type StatusSummary struct {
-	Name         string
-	Capacity     schemas.Capacity
-	CreatedTime  time.Time
-	InstanceType map[string]int64
-	Tags         []string
+	Name           string
+	Capacity       schemas.Capacity
+	UpdateCapacity schemas.Capacity
+	CreatedTime    time.Time
+	UpdateTime     time.Time
+	InstanceType   map[string]int64
+	Tags           []string
+}
+
+type UpdateFields struct {
+	AutoscalingName string
+	Capacity        schemas.Capacity
 }
 
 func New(region string) Inspector {
@@ -108,6 +115,35 @@ func (i Inspector) SetStatusSummary(asg *autoscaling.Group) StatusSummary {
 	return summary
 }
 
+func (i Inspector) SetUpdateSummary(asg *autoscaling.Group) StatusSummary {
+	summary := StatusSummary{}
+	summary.Name = *asg.AutoScalingGroupName
+	summary.Capacity = schemas.Capacity{
+		Min:     *asg.MinSize,
+		Max:     *asg.MaxSize,
+		Desired: *asg.DesiredCapacity,
+	}
+	summary.CreatedTime = *asg.CreatedTime
+
+	instanceTypeInfo := map[string]int64{}
+	for _, i := range asg.Instances {
+		c, ok := instanceTypeInfo[*i.InstanceType]
+		if !ok {
+			instanceTypeInfo[*i.InstanceType] = 1
+		} else {
+			instanceTypeInfo[*i.InstanceType] = c + 1
+		}
+	}
+	summary.InstanceType = instanceTypeInfo
+
+	tags := []string{}
+	for _, t := range asg.Tags {
+		tags = append(tags, fmt.Sprintf("%s=%s", *t.Key, *t.Value))
+	}
+	summary.Tags = tags
+	return summary
+}
+
 func (i Inspector) Print() error {
 	color.Blue("Name: %s", i.StatusSummary.Name)
 	color.Black("Min/Desired/Max: %d/%d/%d", i.StatusSummary.Capacity.Min, i.StatusSummary.Capacity.Desired, i.StatusSummary.Capacity.Max)
@@ -130,4 +166,33 @@ func (i Inspector) Print() error {
 	fmt.Println()
 
 	return nil
+}
+
+func (i Inspector) Update() error {
+	if err := i.AWSClient.EC2Service.UpdateAutoScalingGroup(i.UpdateFields.AutoscalingName, i.UpdateFields.Capacity); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (i Inspector) GenerateStack(region string, group *autoscaling.Group) schemas.Stack {
+	s := schemas.Stack{
+		Stack:    "update-stack",
+		Capacity: i.UpdateFields.Capacity,
+		Regions: []schemas.RegionConfig{
+			{
+				Region: region,
+			},
+		},
+	}
+
+	if len(group.TargetGroupARNs) > 0 {
+		s.Regions[0].HealthcheckTargetGroup = *(group.TargetGroupARNs[0])
+	}
+
+	if len(group.LoadBalancerNames) > 0 {
+		s.Regions[0].HealthcheckLB = *(group.LoadBalancerNames[0])
+	}
+
+	return s
 }

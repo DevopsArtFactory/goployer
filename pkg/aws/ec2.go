@@ -778,7 +778,7 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 }
 
 // Update Autoscaling Group size
-func (e EC2Client) UpdateAutoScalingGroup(asg string, min, max, desired, retry int64) (error, int64) {
+func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, retry int64) (error, int64) {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
 		MaxSize:              aws.Int64(max),
@@ -943,4 +943,21 @@ func getSingleAutoScalingGroup(client *autoscaling.AutoScaling, asgName string) 
 	}
 
 	return ret.AutoScalingGroups[0], nil
+}
+
+// Update Autoscaling Group information
+func (e EC2Client) UpdateAutoScalingGroup(asg string, capacity schemas.Capacity) error {
+	input := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asg),
+		MaxSize:              aws.Int64(capacity.Max),
+		MinSize:              aws.Int64(capacity.Min),
+		DesiredCapacity:      aws.Int64(capacity.Desired),
+	}
+
+	_, err := e.AsClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
