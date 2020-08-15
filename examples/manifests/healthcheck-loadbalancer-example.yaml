@@ -73,6 +73,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2

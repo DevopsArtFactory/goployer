@@ -125,6 +125,7 @@ upload-release-only: version
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf manifest
+	rm -rf manifests
 	rm -rf scripts
 
 .PHONY: version

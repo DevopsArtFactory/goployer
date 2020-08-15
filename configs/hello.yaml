@@ -162,6 +162,10 @@ stacks:
         # If you want to use public subnet, then you should set this value to ture.
         use_public_subnets: true
 
+        # Whether or not to use detailed monitoring
+        # By default, detailed monitoring is disabled
+        detailed_monitoring_enabled: false
+
         # You can use VPC id(vpc-xxx)
         # If you specify the name of VPC, then deployer will find the VPC id with it.
         # In this case, only one VPC should exist.
@@ -220,6 +224,7 @@ stacks:
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true
         vpc: vpc-05be14885b028018d
+        detailed_monitoring_enabled: true
         healthcheck_load_balancer: test
         security_groups:
           - hello-artd_apnortheast2

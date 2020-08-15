@@ -118,6 +118,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			securityGroups,
 			blockDevices,
 			b.Stack.InstanceMarketOptions,
+			region.DetailedMonitoringEnabled,
 		)
 
 		if !ret {
