@@ -287,51 +287,54 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 		return nil
 	}
 
+	skipped := false
 	if len(b.Stack.Autoscaling) == 0 {
 		b.Logger.Debug("No scaling policy exists")
-		return nil
+		skipped = true
 	}
 
 	if len(config.Region) > 0 && !CheckRegionExist(config.Region, b.Stack.Regions) {
-		return nil
+		skipped = true
 	}
 
-	//Apply AutoScaling Policies
-	for _, region := range b.Stack.Regions {
-		//If region id is passed from command line, then deployer will deploy in that region only.
-		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Debug("This region is skipped by user : " + region.Region)
-			continue
-		}
+	if !skipped {
+		//Apply AutoScaling Policies
+		for _, region := range b.Stack.Regions {
+			//If region id is passed from command line, then deployer will deploy in that region only.
+			if config.Region != "" && config.Region != region.Region {
+				b.Logger.Debug("This region is skipped by user : " + region.Region)
+				continue
+			}
 
-		b.Logger.Info("Attaching autoscaling policies : " + region.Region)
+			b.Logger.Info("Attaching autoscaling policies : " + region.Region)
 
-		//select client
-		client, err := selectClientFromList(b.AWSClients, region.Region)
-		if err != nil {
-			tool.ErrorLogging(err.Error())
-		}
-
-		//putting autoscaling group policies
-		policies := []string{}
-		policyArns := map[string]string{}
-		for _, policy := range b.Stack.Autoscaling {
-			policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
+			//select client
+			client, err := selectClientFromList(b.AWSClients, region.Region)
 			if err != nil {
 				tool.ErrorLogging(err.Error())
+			}
+
+			//putting autoscaling group policies
+			policies := []string{}
+			policyArns := map[string]string{}
+			for _, policy := range b.Stack.Autoscaling {
+				policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
+				if err != nil {
+					return err
+				}
+				policyArns[policy.Name] = *policyArn
+				policies = append(policies, policy.Name)
+			}
+
+			if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
 				return err
 			}
-			policyArns[policy.Name] = *policyArn
-			policies = append(policies, policy.Name)
+
+			if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
+				return err
+			}
 		}
 
-		if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
-			return err
-		}
-
-		if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
-			return nil
-		}
 	}
 
 	Logger.Debug("Finish additional works.")
@@ -345,40 +348,40 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 		return nil
 	}
 
+	skipped := false
 	if &b.Stack.LifecycleCallbacks == nil || len(b.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
 		b.Logger.Debugf("no lifecycle callbacks in %s\n", b.Stack.Stack)
-		return nil
+		skipped = true
 	}
 
 	if len(config.Region) > 0 {
 		if !CheckRegionExist(config.Region, b.Stack.Regions) {
 			b.Logger.Debugf("region [ %s ] is not in the stack [ %s ].", config.Region, b.Stack.Stack)
-			return nil
+			skipped = true
 		}
 	}
 
-	for _, region := range b.Stack.Regions {
-		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Debug("This region is skipped by user : " + region.Region)
-			continue
+	if !skipped {
+		for _, region := range b.Stack.Regions {
+			if config.Region != "" && config.Region != region.Region {
+				b.Logger.Debug("This region is skipped by user : " + region.Region)
+				continue
+			}
+
+			//select client
+			client, err := selectClientFromList(b.AWSClients, region.Region)
+			if err != nil {
+				tool.ErrorLogging(err.Error())
+			}
+
+			if len(b.PrevInstances[region.Region]) > 0 {
+				b.Deployer.RunLifecycleCallbacks(client, b.PrevInstances[region.Region])
+			} else {
+				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+			}
 		}
-
-		//select client
-		client, err := selectClientFromList(b.AWSClients, region.Region)
-		if err != nil {
-			tool.ErrorLogging(err.Error())
-		}
-
-		if len(b.PrevInstances[region.Region]) > 0 {
-			b.Deployer.RunLifecycleCallbacks(client, b.PrevInstances[region.Region])
-		} else {
-
-			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
-		}
-
 	}
-
 	b.StepStatus[tool.STEP_TRIGGER_LIFECYCLE_CALLBACK] = true
 	return nil
 }
@@ -390,40 +393,42 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 	}
 	b.Logger.Debug("Delete Mode is " + b.Mode)
 
+	skipped := false
 	if len(config.Region) > 0 {
 		if !CheckRegionExist(config.Region, b.Stack.Regions) {
-			return nil
+			skipped = true
 		}
 	}
 
-	for _, region := range b.Stack.Regions {
-		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Debug("This region is skipped by user : " + region.Region)
-			continue
-		}
-
-		b.Logger.Infof("[%s]The number of previous versions to delete is %d", region.Region, len(b.PrevAsgs[region.Region]))
-
-		//select client
-		client, err := selectClientFromList(b.AWSClients, region.Region)
-		if err != nil {
-			tool.ErrorLogging(err.Error())
-		}
-
-		// First make autoscaling group size to 0
-		if len(b.PrevAsgs[region.Region]) > 0 {
-			for _, asg := range b.PrevAsgs[region.Region] {
-				b.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
-				if err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg); err != nil {
-					b.Logger.Errorf(err.Error())
-				}
+	if !skipped {
+		for _, region := range b.Stack.Regions {
+			if config.Region != "" && config.Region != region.Region {
+				b.Logger.Debug("This region is skipped by user : " + region.Region)
+				continue
 			}
-		} else {
-			b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-			b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+
+			b.Logger.Infof("[%s]The number of previous versions to delete is %d", region.Region, len(b.PrevAsgs[region.Region]))
+
+			//select client
+			client, err := selectClientFromList(b.AWSClients, region.Region)
+			if err != nil {
+				tool.ErrorLogging(err.Error())
+			}
+
+			// First make autoscaling group size to 0
+			if len(b.PrevAsgs[region.Region]) > 0 {
+				for _, asg := range b.PrevAsgs[region.Region] {
+					b.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
+					if err := b.ResizingAutoScalingGroupToZero(client, b.Stack.Stack, asg); err != nil {
+						b.Logger.Errorf(err.Error())
+					}
+				}
+			} else {
+				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+			}
 		}
 	}
-
 	b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] = true
 	return nil
 }
@@ -470,12 +475,6 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 		targets := b.PrevAsgs[region.Region]
 		if len(targets) == 0 {
 			Logger.Info("No target to delete : ", region.Region)
-			//if err := b.Deployer.CleanAutoscalingSet(client, ); err != nil {
-			//	b.Logger.Errorf(err.Error())
-			//	return map[string]bool{
-			//		stackName: false,
-			//	}
-			//}
 			finished = append(finished, region.Region)
 			continue
 		}

@@ -141,10 +141,6 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 	}
 
 	for i, _ := range stacks {
-		if len(b.Config.Env) > 0 {
-			stacks[i].Env = b.Config.Env
-		}
-
 		if b.Config.PollingInterval > 0 {
 			stacks[i].PollingInterval = b.Config.PollingInterval
 		}
