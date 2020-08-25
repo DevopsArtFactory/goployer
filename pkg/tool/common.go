@@ -18,6 +18,7 @@ var (
 	HOURTOSEC               = int64(3600)
 	allowedAnswerYes        = []string{"y", "yes"}
 	allowedAnswerNo         = []string{"n", "no"}
+	DaysOfWeek              = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "0", "1", "2", "3", "4", "5", "6", "7"}
 	LogLevelMapper          = map[string]Logger.Level{
 		"info":  Logger.InfoLevel,
 		"debug": Logger.DebugLevel,

@@ -41,6 +41,33 @@ tags:
   - project=test
   - repo=hello-deploy
 
+
+scheduled_actions:
+  - name: scale_in_during_weekend
+    # The recurring schedule for the action, in Unix cron syntax format. This format
+    # consists of five fields separated by white spaces: [Minute] [Hour] [Day_of_Month]
+    # [Month_of_Year] [Day_of_Week]. The value must be in quotes (for example,
+    # "30 0 1 1,6,12 *"). For more information about this format, see Crontab (http://crontab.org).
+    #
+    # When StartTime and EndTime are specified with Recurrence, they form the boundaries
+    # of when the recurring action starts and stops.
+    recurrence: "0 9 * * SAT"
+
+    # Capacity of autoscaling group
+    capacity:
+      min: 0
+      max: 0
+      desired: 0
+
+  - name: scale_out_during_weekday
+    recurrence: "0 9 * * MON"
+
+    # Capacity of autoscaling group
+    capacity:
+      min: 3
+      max: 3
+      desired: 3
+
 stacks:
   - stack: artd
 
@@ -165,6 +192,12 @@ stacks:
         # Whether or not to use detailed monitoring
         # By default, detailed monitoring is disabled
         detailed_monitoring_enabled: false
+
+        # List of scheduled actions
+        # Elements of this list should be defined in "scheduled_actions" field
+        scheduled_actions:
+          - scale_in_during_weekend
+          - scale_out_during_weekday
 
         # You can use VPC id(vpc-xxx)
         # If you specify the name of VPC, then deployer will find the VPC id with it.

@@ -13,14 +13,18 @@ type YamlConfig struct {
 	// Autoscaling tag list. This is attached to EC2 instance
 	Tags []string `yaml:"tags"`
 
+	// List of scheduled actions
+	ScheduledActions []ScheduledAction `yaml:"scheduled_actions"`
+
 	// List of stack configuration
 	Stacks []Stack `yaml:"stacks"`
 }
 
 type AWSConfig struct {
-	Name     string
-	Userdata Userdata
-	Tags     []string
+	Name             string
+	Userdata         Userdata
+	Tags             []string
+	ScheduledActions []ScheduledAction
 }
 
 // Userdata configuration
@@ -30,6 +34,18 @@ type Userdata struct {
 
 	// Path of userdata file
 	Path string `yaml:"path"`
+}
+
+// Scheduled Action configurations
+type ScheduledAction struct {
+	// Name of scheduled update action
+	Name string `yaml:"name"`
+
+	// The recurring schedule for the action, in Unix cron syntax format.
+	Recurrence string `yaml:"recurrence"`
+
+	// Capacity of autoscaling group when action is triggered
+	Capacity *Capacity `yaml:"capacity"`
 }
 
 // Stack configuration
@@ -230,6 +246,9 @@ type RegionConfig struct {
 
 	// List of security group name
 	SecurityGroups []string `yaml:"security_groups"`
+
+	// List of scheduled actions
+	ScheduledActions []string `yaml:"scheduled_actions"`
 
 	// Class load balancer name for healthcheck
 	HealthcheckLB string `yaml:"healthcheck_load_balancer"`

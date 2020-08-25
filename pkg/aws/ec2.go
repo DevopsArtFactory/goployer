@@ -962,3 +962,32 @@ func (e EC2Client) UpdateAutoScalingGroup(asg string, capacity schemas.Capacity)
 
 	return nil
 }
+
+// CreateScheduledActions creates scheduled actions
+func (e EC2Client) CreateScheduledActions(asg string, actions []schemas.ScheduledAction) error {
+	input := &autoscaling.BatchPutScheduledUpdateGroupActionInput{
+		AutoScalingGroupName: aws.String(asg),
+	}
+
+	scheduledUpdateGroupActions := []*autoscaling.ScheduledUpdateGroupActionRequest{}
+	for _, a := range actions {
+		newSa := autoscaling.ScheduledUpdateGroupActionRequest{
+			ScheduledActionName: aws.String(a.Name),
+			Recurrence:          aws.String(a.Recurrence),
+			MinSize:             aws.Int64(a.Capacity.Min),
+			DesiredCapacity:     aws.Int64(a.Capacity.Desired),
+			MaxSize:             aws.Int64(a.Capacity.Max),
+		}
+
+		scheduledUpdateGroupActions = append(scheduledUpdateGroupActions, &newSa)
+	}
+
+	input.ScheduledUpdateGroupActions = scheduledUpdateGroupActions
+
+	_, err := e.AsClient.BatchPutScheduledUpdateGroupAction(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

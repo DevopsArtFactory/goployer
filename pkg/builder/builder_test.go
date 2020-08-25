@@ -17,7 +17,28 @@ func TestCheckValidationConfig(t *testing.T) {
 			Manifest: "config/hello.yaml",
 			Timeout:  DEFAULT_DEPLOYMENT_TIMEOUT,
 		},
+		Stacks: []schemas.Stack{
+			{
+				Stack:   "artp",
+				Account: "dev",
+				Env:     "dev",
+				Regions: []schemas.RegionConfig{
+					{
+						Region:       "ap-northeast-2",
+						AmiId:        "ami-test",
+						InstanceType: "t3.small",
+						ScheduledActions: []string{
+							"fake_action",
+						},
+					},
+				},
+			},
+		},
 	}
+	if err := b.CheckValidation(); err == nil || err.Error() != "stack does not exist: artd" {
+		t.Errorf("validation failed: stack existence check")
+	}
+	b.Stacks[0].Stack = "artd"
 
 	b.Config.Ami = "ami-test"
 	if err := b.CheckValidation(); err == nil || fmt.Sprintf("%s", err.Error()) != fmt.Sprintf("ami id cannot be used in different regions : %s", b.Config.Ami) {
@@ -60,6 +81,73 @@ func TestCheckValidationConfig(t *testing.T) {
 		t.Errorf("validation failed: metric file")
 	}
 	b.Config.DisableMetrics = true
+}
+
+func TestCheckValidationScheduledAction(t *testing.T) {
+	scheduledActionName := "scale_in_during_weekend"
+	b := Builder{
+		AwsConfig: schemas.AWSConfig{
+			Name: "hello",
+			ScheduledActions: []schemas.ScheduledAction{
+				{},
+			},
+		},
+		Config: Config{
+			Stack:           "artd",
+			Manifest:        "config/hello.yaml",
+			Timeout:         DEFAULT_DEPLOYMENT_TIMEOUT,
+			PollingInterval: DEFAULT_POLLING_INTERVAL,
+			DisableMetrics:  true,
+		},
+		MetricConfig: schemas.MetricConfig{
+			Enabled: true,
+			Region:  "ap-northeast-2",
+			Storage: schemas.Storage{
+				Name: "goployer-test",
+				Type: "dynamodb",
+			},
+		},
+		Stacks: []schemas.Stack{
+			{
+				Stack:   "artd",
+				Account: "dev",
+				Env:     "dev",
+				Regions: []schemas.RegionConfig{
+					{
+						Region:       "ap-northeast-2",
+						AmiId:        "ami-test",
+						InstanceType: "t3.small",
+						ScheduledActions: []string{
+							"fake_action",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "you have to set name of scheduled action" {
+		t.Errorf("validation failed: scheduled action name")
+	}
+	b.AwsConfig.ScheduledActions[0].Name = scheduledActionName
+
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("recurrence is required field: %s", scheduledActionName) {
+		t.Errorf("validation failed: scheduled action recurrence")
+	}
+	b.AwsConfig.ScheduledActions[0].Recurrence = "30 0 1 1,6,12 *"
+
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("capacity is required field: %s", scheduledActionName) {
+		t.Errorf("validation failed: scheduled action capacity")
+	}
+	b.AwsConfig.ScheduledActions[0].Capacity = &schemas.Capacity{
+		Min:     1,
+		Desired: 1,
+		Max:     1,
+	}
+
+	if err := b.CheckValidation(); err == nil || err.Error() != "scheduled action is not defined: fake_action" {
+		t.Errorf("validation failed: scheduled action existence")
+	}
 }
 
 func TestCheckValidationStack(t *testing.T) {
@@ -359,6 +447,144 @@ func TestHasProhibited(t *testing.T) {
 	for _, td := range testData {
 		if HasProhibited(td.input) != td.output {
 			t.Errorf("wrong validation: %s/%t", strings.Join(td.input, ","), td.output)
+		}
+	}
+}
+
+func TestValidCronExpression(t *testing.T) {
+	testData := []struct {
+		input    string
+		expected bool
+	}{
+		{
+			input:    "* * * * *",
+			expected: true,
+		},
+		{
+			input:    "* * * * * *",
+			expected: false,
+		},
+		{
+			input:    "1 * * * *",
+			expected: true,
+		},
+		{
+			input:    "-1 * * * *",
+			expected: false,
+		},
+		{
+			input:    "59 * * * *",
+			expected: true,
+		},
+		{
+			input:    "60 * * * *",
+			expected: false,
+		},
+		{
+			input:    "* 1 * * *",
+			expected: true,
+		},
+		{
+			input:    "* -1 * * *",
+			expected: false,
+		},
+		{
+			input:    "* 23 * * *",
+			expected: true,
+		},
+		{
+			input:    "* 24 * * *",
+			expected: false,
+		},
+		{
+			input:    "* * 1 * *",
+			expected: true,
+		},
+		{
+			input:    "* * 0 * *",
+			expected: false,
+		},
+		{
+			input:    "* * 31 * *",
+			expected: true,
+		},
+		{
+			input:    "* * 32 * *",
+			expected: false,
+		},
+		{
+			input:    "* * -1 * *",
+			expected: false,
+		},
+		{
+			input:    "* * * 1 *",
+			expected: true,
+		},
+		{
+			input:    "* * * 12 *",
+			expected: true,
+		},
+		{
+			input:    "* * * 0 *",
+			expected: false,
+		},
+		{
+			input:    "* * * 13 *",
+			expected: false,
+		},
+		{
+			input:    "* * * 1,12 *",
+			expected: true,
+		},
+		{
+			input:    "* * * 0,12 *",
+			expected: false,
+		},
+		{
+			input:    "* * * * MON-TUE",
+			expected: true,
+		},
+		{
+			input:    "* * * * TUE-FRI",
+			expected: true,
+		},
+		{
+			input:    "* * * * TUE-SAT",
+			expected: true,
+		},
+		{
+			input:    "* * * * TUE,SUN",
+			expected: true,
+		},
+		{
+			input:    "* * * * SUN,SAT,MON-WED",
+			expected: true,
+		},
+		{
+			input:    "* * * * SUN,SAT,MONDAY",
+			expected: false,
+		},
+		{
+			input:    "* * * * MON-SAT-SUN",
+			expected: false,
+		},
+		{
+			input:    "* * * * 0",
+			expected: true,
+		},
+		{
+			input:    "* * * * 0-3",
+			expected: true,
+		},
+		{
+			input:    "* * * * 0-8",
+			expected: false,
+		},
+	}
+
+	for _, td := range testData {
+		if result, _ := ValidCronExpression(td.input); result != td.expected {
+			t.Errorf("error occurred with input: %s", td.input)
 		}
 	}
 }
