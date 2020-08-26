@@ -337,9 +337,6 @@ stacks:
       max: 2
       desired: 1
 
-    autoscaling: *autoscaling_policy
-    alarms: *autoscaling_alarms
-
     lifecycle_callbacks:
       pre_terminate_past_cluster:
         - service hello stop
