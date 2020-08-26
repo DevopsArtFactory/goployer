@@ -2,12 +2,14 @@ package builder
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,6 +163,35 @@ func (b Builder) CheckValidation() error {
 		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
 	}
 
+	if len(b.Config.Stack) > 0 {
+		hasStack := false
+		for _, stack := range b.Stacks {
+			if stack.Stack == b.Config.Stack {
+				hasStack = true
+				break
+			}
+		}
+		if !hasStack {
+			return fmt.Errorf("stack does not exist: %s", b.Config.Stack)
+		}
+	}
+
+	if len(b.AwsConfig.ScheduledActions) > 0 {
+		for _, sa := range b.AwsConfig.ScheduledActions {
+			if len(sa.Name) == 0 {
+				return errors.New("you have to set name of scheduled action")
+			}
+
+			if len(sa.Recurrence) == 0 {
+				return fmt.Errorf("recurrence is required field: %s", sa.Name)
+			}
+
+			if sa.Capacity == nil {
+				return fmt.Errorf("capacity is required field: %s", sa.Name)
+			}
+		}
+	}
+
 	if len(b.Config.ExtraTags) > 0 && HasProhibited(strings.Split(b.Config.ExtraTags, ",")) {
 		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
 	}
@@ -172,7 +203,7 @@ func (b Builder) CheckValidation() error {
 
 	// check release notes
 	if len(b.Config.ReleaseNotes) > 0 && len(b.Config.ReleaseNotesBase64) > 0 {
-		return fmt.Errorf("you cannot specify the release-notes and release-notes-base64 at the same time")
+		return errors.New("you cannot specify the release-notes and release-notes-base64 at the same time")
 	}
 
 	// check polling interval
@@ -187,11 +218,11 @@ func (b Builder) CheckValidation() error {
 	// Check Configuration about metrics
 	if !b.Config.DisableMetrics {
 		if len(b.MetricConfig.Region) <= 0 {
-			return fmt.Errorf("you do not specify the region for metrics")
+			return errors.New("you do not specify the region for metrics")
 		}
 
 		if len(b.MetricConfig.Storage.Name) <= 0 {
-			return fmt.Errorf("you do not specify the name of storage for metrics")
+			return errors.New("you do not specify the name of storage for metrics")
 		}
 
 		if !tool.FileExists(METRIC_YAML_PATH) {
@@ -218,7 +249,7 @@ func (b Builder) CheckValidation() error {
 
 	// check validations in each stack
 	for _, stack := range b.Stacks {
-		if stack.Stack != b.Config.Stack {
+		if len(b.Config.Stack) > 0 && stack.Stack != b.Config.Stack {
 			continue
 		}
 
@@ -232,13 +263,13 @@ func (b Builder) CheckValidation() error {
 			policies := []string{}
 			for _, scaling := range stack.Autoscaling {
 				if len(scaling.Name) == 0 {
-					return fmt.Errorf("autoscaling policy doesn't have a name")
+					return errors.New("autoscaling policy doesn't have a name")
 				}
 				policies = append(policies, scaling.Name)
 			}
 			for _, alarm := range stack.Alarms {
 				if len(alarm.Name) == 0 {
-					return fmt.Errorf("cloudwatch alarm doesn't have a name")
+					return errors.New("cloudwatch alarm doesn't have a name")
 				}
 				for _, action := range alarm.AlarmActions {
 					if !tool.IsStringInArray(action, policies) {
@@ -255,11 +286,11 @@ func (b Builder) CheckValidation() error {
 			}
 
 			if stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes%60 != 0 || stack.InstanceMarketOptions.SpotOptions.BlockDurationMinutes > 360 {
-				return fmt.Errorf("block_duration_minutes should be one of [ 60, 120, 180, 240, 300, 360 ]")
+				return errors.New("block_duration_minutes should be one of [ 60, 120, 180, 240, 300, 360 ]")
 			}
 
 			if stack.InstanceMarketOptions.SpotOptions.SpotInstanceType == "persistent" && stack.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior == "terminate" {
-				return fmt.Errorf("persistent type is not allowed with terminate behavior")
+				return errors.New("persistent type is not allowed with terminate behavior")
 			}
 		}
 
@@ -268,7 +299,7 @@ func (b Builder) CheckValidation() error {
 			dNames := []string{}
 			for _, block := range stack.BlockDevices {
 				if len(block.DeviceName) == 0 {
-					return fmt.Errorf("name of device is required")
+					return errors.New("name of device is required")
 				}
 
 				if !tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
@@ -276,7 +307,7 @@ func (b Builder) CheckValidation() error {
 				}
 
 				if block.VolumeType == "st1" && block.VolumeSize < 500 {
-					return fmt.Errorf("volume size of st1 type should be larger than 500GiB")
+					return errors.New("volume size of st1 type should be larger than 500GiB")
 				}
 
 				if tool.IsStringInArray(block.DeviceName, dNames) {
@@ -324,37 +355,54 @@ func (b Builder) CheckValidation() error {
 		for _, region := range stack.Regions {
 			// Check ami id
 			if len(target_ami) == 0 && len(region.AmiId) == 0 {
-				return fmt.Errorf("you have to specify at least one ami id")
+				return errors.New("you have to specify at least one ami id")
 			}
 
 			// Check instance type
 			if len(region.InstanceType) == 0 {
-				return fmt.Errorf("you have to specify the instance type")
+				return errors.New("you have to specify the instance type")
 			}
 
 			// Check target group
 			if len(region.TargetGroups) > 0 && region.HealthcheckTargetGroup == "" {
-				return fmt.Errorf("you have to choose one target group as healthcheck_target_group")
+				return errors.New("you have to choose one target group as healthcheck_target_group")
 			}
 
 			// Check load balancer
 			if len(region.LoadBalancers) > 0 && region.HealthcheckLB == "" {
-				return fmt.Errorf("you have to choose one load balancer as healthcheck_load_balancer")
+				return errors.New("you have to choose one load balancer as healthcheck_load_balancer")
 			}
 
 			// Check load balancer
 			if region.HealthcheckLB != "" && len(region.TargetGroups) > 0 {
-				return fmt.Errorf("you cannot use healthcheck_load_balancer with target_groups")
+				return errors.New("you cannot use healthcheck_load_balancer with target_groups")
 			}
 
 			// Check load balancer and target group
 			if region.HealthcheckLB != "" && region.HealthcheckTargetGroup != "" {
-				return fmt.Errorf("you cannot use healthcheck_target_group and healthcheck_load_balancer at the same time")
+				return errors.New("you cannot use healthcheck_target_group and healthcheck_load_balancer at the same time")
 			}
 
 			// Check userdata
 			if stack.Userdata.Type == "local" && len(stack.Userdata.Path) > 0 && !tool.FileExists(stack.Userdata.Path) {
-				return fmt.Errorf("script file does not exists")
+				return errors.New("script file does not exists")
+			}
+
+			// Check scheduled actions
+			if len(region.ScheduledActions) > 0 {
+				for _, sa := range region.ScheduledActions {
+					if !ContainsActions(sa, b.AwsConfig.ScheduledActions) {
+						return fmt.Errorf("scheduled action is not defined: %s", sa)
+					}
+				}
+
+				for _, sa := range b.AwsConfig.ScheduledActions {
+					if tool.IsStringInArray(sa.Name, region.ScheduledActions) {
+						if isValid, err := ValidCronExpression(sa.Recurrence); !isValid {
+							return err
+						}
+					}
+				}
 			}
 		}
 
@@ -364,11 +412,11 @@ func (b Builder) CheckValidation() error {
 			}
 
 			if stack.MixedInstancesPolicy.SpotAllocationStrategy != "lowest-price" && stack.MixedInstancesPolicy.SpotInstancePools > 0 {
-				return fmt.Errorf("you can only set spot_instance_pools with lowest-price spot_allocation_strategy")
+				return errors.New("you can only set spot_instance_pools with lowest-price spot_allocation_strategy")
 			}
 
 			if len(stack.MixedInstancesPolicy.Override) <= 0 {
-				return fmt.Errorf("you have to set at least one instance type to use in override")
+				return errors.New("you have to set at least one instance type to use in override")
 			}
 		}
 	}
@@ -460,9 +508,10 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
 	}
 
 	awsConfig := schemas.AWSConfig{
-		Name:     yamlConfig.Name,
-		Userdata: yamlConfig.Userdata,
-		Tags:     yamlConfig.Tags,
+		Name:             yamlConfig.Name,
+		Userdata:         yamlConfig.Userdata,
+		Tags:             yamlConfig.Tags,
+		ScheduledActions: yamlConfig.ScheduledActions,
 	}
 
 	Stacks := yamlConfig.Stacks
@@ -566,4 +615,81 @@ func HasProhibited(tags []string) bool {
 	}
 
 	return false
+}
+
+func ContainsActions(target string, sas []schemas.ScheduledAction) bool {
+	for _, sa := range sas {
+		if sa.Name == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidCronExpression checks if the cron expression is valid or not
+// It should be [Minute] [Hour] [Day_of_Month] [Month_of_Year] [Day_of_Week]
+func ValidCronExpression(expression string) (bool, error) {
+	elements := strings.Split(expression, " ")
+	if len(elements) != 5 {
+		return false, fmt.Errorf("cron expression should be in the format of [Minute] [Hour] [Day_of_Month] [Month_of_Year] [Day_of_Week]: %s", expression)
+	}
+
+	// minutes
+	if len(elements[0]) > 0 && elements[0] != "*" {
+		i, _ := strconv.Atoi(elements[0])
+		if i < 0 || i > 59 {
+			return false, fmt.Errorf("first element should be from 0 to 59 or *: %s", expression)
+		}
+	}
+
+	// hours
+	if len(elements[1]) > 0 && elements[1] != "*" {
+		hours := strings.Split(elements[1], ",")
+		for _, h := range hours {
+			i, _ := strconv.Atoi(h)
+			if i < 0 || i > 23 {
+				return false, fmt.Errorf("second element should be from 0 to 23 or *: %s", expression)
+			}
+		}
+	}
+
+	// day of month
+	if len(elements[2]) > 0 && elements[2] != "*" {
+		days := strings.Split(elements[2], ",")
+		for _, d := range days {
+			i, _ := strconv.Atoi(d)
+			if i < 1 || i > 31 {
+				return false, fmt.Errorf("third element should be from 1 to 31 or *: %s", expression)
+			}
+		}
+	}
+
+	// month of year
+	if len(elements[3]) > 0 && elements[3] != "*" {
+		months := strings.Split(elements[3], ",")
+		for _, m := range months {
+			i, _ := strconv.Atoi(m)
+			if i < 1 || i > 12 {
+				return false, fmt.Errorf("fourth element should be from 1 to 12 or *: %s", expression)
+			}
+		}
+	}
+
+	// day of week
+	if len(elements[4]) > 0 && elements[4] != "*" {
+		dayOfWeeks := strings.Split(elements[4], ",")
+		for _, dow := range dayOfWeeks {
+			singleDay := strings.Split(dow, "-")
+			if len(singleDay) > 2 {
+				return false, fmt.Errorf("fifth element should be single day of week or combination of two, not more than two: %s", expression)
+			}
+			for _, s := range singleDay {
+				if !tool.IsStringInArray(s, tool.DaysOfWeek) {
+					return false, fmt.Errorf("fifth element format error: %s", expression)
+				}
+			}
+		}
+	}
+
+	return true, nil
 }

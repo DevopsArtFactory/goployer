@@ -333,6 +333,22 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 			if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
 				return err
 			}
+
+			if len(region.ScheduledActions) > 0 {
+				b.Logger.Debugf("create scheduled actions")
+				selectedActions := []schemas.ScheduledAction{}
+				for _, sa := range b.AwsConfig.ScheduledActions {
+					if tool.IsStringInArray(sa.Name, region.ScheduledActions) {
+						selectedActions = append(selectedActions, sa)
+					}
+				}
+
+				b.Logger.Debugf("selected actions [ %s ]", strings.Join(region.ScheduledActions, ","))
+				if err := client.EC2Service.CreateScheduledActions(b.AsgNames[region.Region], selectedActions); err != nil {
+					return err
+				}
+				b.Logger.Debugf("finished adding scheduled actions")
+			}
 		}
 
 	}

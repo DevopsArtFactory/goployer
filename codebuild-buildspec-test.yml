@@ -16,11 +16,7 @@ env:
     SLACK_TOKEN: "/CodeBuild/SLACK_TOKEN"
 
 phases:
-#  pre_build:
-#    commands:
   build:
     commands:
       - echo "Start Deployment"
-      - ./bin/goployer --manifest=configs/${SERVICE_NAME}.yaml --stack=${STACK} --region=${REGION} --ami=${BASE_AMI_ID}
-#  post_build:
-#    commands:
+      - ./bin/goployer deploy --manifest=configs/${SERVICE_NAME}.yaml --stack=${STACK} --region=${REGION} --ami=${BASE_AMI_ID} --auto-apply --slack-off=true
