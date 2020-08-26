@@ -288,11 +288,6 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	}
 
 	skipped := false
-	if len(b.Stack.Autoscaling) == 0 {
-		b.Logger.Debug("No scaling policy exists")
-		skipped = true
-	}
-
 	if len(config.Region) > 0 && !CheckRegionExist(config.Region, b.Stack.Regions) {
 		skipped = true
 	}
@@ -314,24 +309,28 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 				tool.ErrorLogging(err.Error())
 			}
 
-			//putting autoscaling group policies
-			policies := []string{}
-			policyArns := map[string]string{}
-			for _, policy := range b.Stack.Autoscaling {
-				policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
-				if err != nil {
+			if len(b.Stack.Autoscaling) == 0 {
+				b.Logger.Debug("No scaling policy exists")
+			} else {
+				//putting autoscaling group policies
+				policies := []string{}
+				policyArns := map[string]string{}
+				for _, policy := range b.Stack.Autoscaling {
+					policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
+					if err != nil {
+						return err
+					}
+					policyArns[policy.Name] = *policyArn
+					policies = append(policies, policy.Name)
+				}
+
+				if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
 					return err
 				}
-				policyArns[policy.Name] = *policyArn
-				policies = append(policies, policy.Name)
-			}
 
-			if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
-				return err
-			}
-
-			if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
-				return err
+				if err := client.CloudWatchService.CreateScalingAlarms(b.AsgNames[region.Region], b.Stack.Alarms, policyArns); err != nil {
+					return err
+				}
 			}
 
 			if len(region.ScheduledActions) > 0 {
@@ -350,7 +349,6 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 				b.Logger.Debugf("finished adding scheduled actions")
 			}
 		}
-
 	}
 
 	Logger.Debug("Finish additional works.")
@@ -358,7 +356,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	return nil
 }
 
-// Run lifecycle callbacks before cleaninig.
+// Run lifecycle callbacks before cleaning.
 func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 	if !b.StepStatus[tool.STEP_ADDITIONAL_WORK] {
 		return nil
