@@ -34,7 +34,7 @@ sudo install goployer /usr/local/bin/
 
 최신 **stable** 버전의 바이너리 파일은 아래 경로에서 다운로드 하실 수 있습니다.
 
-https://storage.googleapis.com/goployer/releases/latest/goployer-darwin-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64
 
 다운도르를 하신 후에 `PATH` 경로로 옮기시거나, 아래 명령어를 복사 + 붙여넣기하여 실행하시기 바랍니다.
 
@@ -45,7 +45,7 @@ sudo install goployer /usr/local/bin/
 
 가장 최신에 개발된 기능까지 포함해서 사용하고 싶으신 경우에는 **edge** 버전을 사용하시면 됩니다.
 
-https://storage.googleapis.com/goployer/edge/latest/goployer-darwin-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64
 
 ```bash
 curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64 && \

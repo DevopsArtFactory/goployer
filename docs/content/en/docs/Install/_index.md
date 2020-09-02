@@ -34,7 +34,7 @@ sudo install goployer /usr/local/bin/
 
 The latest **stable** binary can be found here:
 
-https://storage.googleapis.com/goployer/releases/latest/goployer-darwin-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64
 
 Simply download it and add it to your `PATH`. Or, copy+paste this command in your terminal:
 
@@ -45,7 +45,7 @@ sudo install goployer /usr/local/bin/
 
 We also release a **edge** build, built from the latest commit:
 
-https://storage.googleapis.com/goployer/edge/latest/goployer-darwin-amd64
+https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64
 
 ```bash
 curl -Lo goployer https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-darwin-amd64 && \
