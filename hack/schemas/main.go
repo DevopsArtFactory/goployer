@@ -1,3 +1,19 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package main
 
 import (
@@ -15,6 +31,8 @@ import (
 	"strings"
 
 	blackfriday "github.com/russross/blackfriday/v2"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 )
 
 const (
@@ -61,17 +79,16 @@ type Definition struct {
 }
 
 func main() {
-	if _, err := generateSchemas(".", false, "config", "schema"); err != nil {
-		fmt.Errorf(err.Error())
+	if err := generateSchemas(".", false, "config", "schema"); err != nil {
+		fmt.Println(err.Error())
 	}
 
-	if _, err := generateSchemas(".", false, "metric_config", "metric"); err != nil {
-		fmt.Errorf(err.Error())
+	if err := generateSchemas(".", false, "metric_config", "metric"); err != nil {
+		fmt.Println(err.Error())
 	}
 }
 
-func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bool, error) {
-
+func generateSchemas(root string, dryRun bool, inputFile, outputFile string) error {
 	input := filepath.Join(root, "pkg", "schemas", inputFile+".go")
 	output := filepath.Join(root, "docs", "content", "en", "schemas", outputFile+".json")
 
@@ -79,7 +96,7 @@ func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bo
 
 	buf, err := generator.Apply(input)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	var current []byte
@@ -87,23 +104,26 @@ func generateSchemas(root string, dryRun bool, inputFile, outputFile string) (bo
 		var err error
 		current, err = ioutil.ReadFile(output)
 		if err != nil {
-			return false, fmt.Errorf("unable to read existing config schema: %w", err)
+			return fmt.Errorf("unable to read existing config schema: %w", err)
 		}
 	} else if !os.IsNotExist(err) {
-		return false, fmt.Errorf("unable to check that file exists %q: %w", output, err)
+		return fmt.Errorf("unable to check that file exists %q: %w", output, err)
 	}
 
 	current = bytes.Replace(current, []byte("\r\n"), []byte("\n"), -1)
 
 	if !dryRun {
 		if err := ioutil.WriteFile(output, buf, os.ModePerm); err != nil {
-			return false, fmt.Errorf("unable to write schema %q: %w", output, err)
+			return fmt.Errorf("unable to write schema %q: %w", output, err)
 		}
 	}
 
 	same := string(current) == string(buf)
+	if same {
+		return nil
+	}
 
-	return same, nil
+	return nil
 }
 
 func (g Generator) Apply(input string) ([]byte, error) {
@@ -129,12 +149,12 @@ func (g Generator) Apply(input string) ([]byte, error) {
 			}
 
 			comment := declaration.Doc.Text()
-			if len(comment) <= 0 {
+			if len(comment) == 0 {
 				continue
 			}
 			name := ts.Name.Name
 			preferredOrder = append(preferredOrder, name)
-			definitions[name] = g.ParseDefinition(name, ts.Type, comment, "")
+			definitions[name] = g.ParseDefinition(name, ts.Type, comment)
 		}
 	}
 
@@ -245,7 +265,7 @@ func (g Generator) Apply(input string) ([]byte, error) {
 	return toJSON(schema)
 }
 
-func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag string) *Definition {
+func (g Generator) ParseDefinition(name string, t ast.Expr, comment string) *Definition {
 	def := &Definition{}
 
 	switch tt := t.(type) {
@@ -254,12 +274,12 @@ func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag 
 		setTypeOrRef(def, typeName)
 
 		switch typeName {
-		case "string":
-			// def.Default = "\"\""
+		case constants.StringText:
+			def.Default = "\"\""
 		case "bool":
 			def.Default = "false"
 		case "int", "int64":
-			// def.Default = "0"
+			def.Default = "0"
 		}
 
 	case *ast.StarExpr:
@@ -270,7 +290,7 @@ func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag 
 
 	case *ast.ArrayType:
 		def.Type = "array"
-		def.Items = g.ParseDefinition("", tt.Elt, "", "")
+		def.Items = g.ParseDefinition("", tt.Elt, "")
 		if def.Items != nil {
 			if def.Items.Ref == "" {
 				def.Default = "[]"
@@ -280,7 +300,7 @@ func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag 
 	case *ast.MapType:
 		def.Type = "object"
 		def.Default = "{}"
-		def.AdditionalProperties = g.ParseDefinition("", tt.Value, "", "")
+		def.AdditionalProperties = g.ParseDefinition("", tt.Value, "")
 
 	case *ast.StructType:
 		for _, field := range tt.Fields.List {
@@ -310,7 +330,7 @@ func (g Generator) ParseDefinition(name string, t ast.Expr, comment string, tag 
 			}
 
 			def.PreferredOrder = append(def.PreferredOrder, yamlName)
-			def.Properties[yamlName] = g.ParseDefinition(field.Names[0].Name, field.Type, field.Doc.Text(), field.Tag.Value)
+			def.Properties[yamlName] = g.ParseDefinition(field.Names[0].Name, field.Type, field.Doc.Text())
 			def.AdditionalProperties = false
 		}
 	}
@@ -371,8 +391,8 @@ func setTypeOrRef(def *Definition, typeName string) {
 	switch typeName {
 	// Special case for ResourceType that is an alias of string.
 	// Fixes #3623
-	case "string", "ResourceType":
-		def.Type = "string"
+	case constants.StringText, "ResourceType":
+		def.Type = constants.StringText
 	case "bool":
 		def.Type = "boolean"
 	case "int", "int64", "int32":

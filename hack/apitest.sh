@@ -1,3 +1,17 @@
+# Copyright 2020 The Goployer Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #!/bin/bash
 set -e
 
@@ -25,36 +39,14 @@ if [[ $? -ne 0 ]];then
     exit 1
 fi
 
-# api test
-#lastStack=""
-#for stack in "${stacks[@]}"; do
-#    echo "stack: $stack"
-#    ./$BUILD_DIR/goployer deploy --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --stack=$stack --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
-#    if [[ $? -eq 0 ]]; then
-#        echo "$stack is deployed"
-#        for ((i=1;i<=10;i++)); do
-#            curl -s $URL > /dev/null
-#            if [[ $? -ne 0 ]]; then
-#                echo "error occurred"
-#                exit 1
-#            fi
-#            echo "done $stack $i"
-#            sleep 1
-#        done
-#        echo "healthcheck is done"
-#    fi
-#    lastStack=$stack
-#    sleep 15
-#done
-
 # Multistack
 echo "test with multistack"
-./$BUILD_DIR/goployer deploy --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
+./$BUILD_DIR/goployer deploy --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s --profile=art-id
 
 echo "API deployment test is done"
 
 echo  "delete test autoscaling group"
-./$BUILD_DIR/goployer delete --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
+./$BUILD_DIR/goployer delete --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s --profile=art-id
 
 rm -rf $BUILD_DIR
 

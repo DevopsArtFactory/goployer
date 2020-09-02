@@ -1,20 +1,40 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package builder
 
 import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	Logger "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"gopkg.in/ini.v1"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type Builder struct { // Do not add comments for this struct
@@ -32,48 +52,36 @@ type Builder struct { // Do not add comments for this struct
 }
 
 type Config struct { // Do not add comments for this struct
-	Manifest               string        `json:"manifest"`
-	ManifestS3Region       string        `json:"manifest_s3_region"`
-	Ami                    string        `json:"ami"`
-	Env                    string        `json:"env"`
-	Stack                  string        `json:"stack"`
-	AssumeRole             string        `json:"assume_role"`
+	Manifest               string `json:"manifest"`
+	ManifestS3Region       string `json:"manifest_s3_region"`
+	Ami                    string `json:"ami"`
+	Env                    string `json:"env"`
+	Stack                  string `json:"stack"`
+	AssumeRole             string `json:"assume_role"`
+	Region                 string `json:"region"`
+	LogLevel               string `json:"log_level"`
+	ExtraTags              string `json:"extra_tags"`
+	AnsibleExtraVars       string `json:"ansible_extra_vars"`
+	OverrideInstanceType   string `json:"override_instance_type"`
+	ReleaseNotes           string `json:"release_notes"`
+	ReleaseNotesBase64     string `json:"release_notes_base64"`
+	Application            string
+	TargetAutoscalingGroup string
+	Min                    int64 `json:"min"`
+	Max                    int64 `json:"max"`
+	Desired                int64 `json:"desired"`
+	StartTimestamp         int64
 	Timeout                time.Duration `json:"timeout"`
-	Region                 string        `json:"region"`
-	SlackOff               bool          `json:"slack_off"`
-	LogLevel               string        `json:"log_level"`
-	ExtraTags              string        `json:"extra_tags"`
-	AnsibleExtraVars       string        `json:"ansible_extra_vars"`
-	OverrideInstanceType   string        `json:"override_instance_type"`
-	DisableMetrics         bool          `json:"disable_metrics"`
-	ReleaseNotes           string        `json:"release_notes"`
-	ReleaseNotesBase64     string        `json:"release_notes_base64"`
-	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
 	PollingInterval        time.Duration `json:"polling_interval"`
 	AutoApply              bool          `json:"auto-apply"`
-	Min                    int64         `json:"min"`
-	Max                    int64         `json:"max"`
-	Desired                int64         `json:"desired"`
-	Application            string        `,inline`
-	StartTimestamp         int64         `,inline`
-	TargetAutoscalingGroup string        `,inline`
-	DownSizingUpdate       bool          `,inline`
+	DisableMetrics         bool          `json:"disable_metrics"`
+	SlackOff               bool          `json:"slack_off"`
+	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
+	DownSizingUpdate       bool
 }
 
-var (
-	NO_MANIFEST_EXISTS               = "Manifest file does not exist"
-	DEFAULT_SPOT_ALLOCATION_STRATEGY = "lowest-price"
-	DEFAULT_DEPLOYMENT_TIMEOUT       = 60 * time.Minute
-	DEFAULT_POLLING_INTERVAL         = 60 * time.Second
-	MIN_POLLING_INTERVAL             = 5 * time.Second
-	S3_PREFIX                        = "s3://"
-	availableBlockTypes              = []string{"io1", "gp2", "st1", "sc1"}
-	timeFields                       = []string{"timeout", "polling-interval"}
-	prohibitedTags                   = []string{"Name", "stack"}
-)
-
 type UserdataProvider interface {
-	Provide() string
+	Provide() (string, error)
 }
 
 type LocalProvider struct {
@@ -84,32 +92,39 @@ type S3Provider struct {
 	Path string
 }
 
-func (l LocalProvider) Provide() string {
+// Provide provides userdata from local file
+func (l LocalProvider) Provide() (string, error) {
 	if l.Path == "" {
-		tool.ErrorLogging("Please specify userdata script path")
+		return constants.EmptyString, errors.New("please specify userdata script path")
 	}
-	if !tool.FileExists(l.Path) {
-		tool.ErrorLogging(fmt.Sprintf("File does not exist in %s", l.Path))
+	if !tool.CheckFileExists(l.Path) {
+		return constants.EmptyString, fmt.Errorf("file does not exist in %s", l.Path)
 	}
 
 	userdata, err := ioutil.ReadFile(l.Path)
 	if err != nil {
-		tool.ErrorLogging("Error reading userdata file")
+		return constants.EmptyString, errors.New("error reading userdata file")
 	}
 
-	return base64.StdEncoding.EncodeToString(userdata)
+	return base64.StdEncoding.EncodeToString(userdata), nil
 }
 
-func (s S3Provider) Provide() string {
-	return ""
+// Provide provides userdata from s3
+// Need to develop
+func (s S3Provider) Provide() (string, error) {
+	return constants.EmptyString, nil
 }
 
+// NewBuilder create new builder
 func NewBuilder(config *Config) (Builder, error) {
 	builder := Builder{}
 
 	// parsing argument
 	if config == nil {
-		c := argumentParsing()
+		c, err := argumentParsing()
+		if err != nil {
+			return builder, err
+		}
 		config = &c
 	}
 
@@ -119,6 +134,7 @@ func NewBuilder(config *Config) (Builder, error) {
 	return builder, nil
 }
 
+// SetManifestConfig set manifest configuration from local file
 func (b Builder) SetManifestConfig() Builder {
 	awsConfig, stacks := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
@@ -126,6 +142,7 @@ func (b Builder) SetManifestConfig() Builder {
 	return b.SetStacks(stacks)
 }
 
+// SetManifestConfigWithS3 set manifest configuration with s3
 func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
 	awsConfig, stacks := buildStructFromYaml(fileBytes)
 	b.AwsConfig = awsConfig
@@ -135,14 +152,13 @@ func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
 
 // SetStacks set stack information
 func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
-
 	if len(b.Config.AssumeRole) > 0 {
-		for i, _ := range stacks {
+		for i := range stacks {
 			stacks[i].AssumeRole = b.Config.AssumeRole
 		}
 	}
 
-	for i, _ := range stacks {
+	for i := range stacks {
 		if b.Config.PollingInterval > 0 {
 			stacks[i].PollingInterval = b.Config.PollingInterval
 		}
@@ -153,14 +169,14 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 	return b
 }
 
-// Validation Check
+// CheckValidation validates all configurations
 func (b Builder) CheckValidation() error {
-	target_ami := b.Config.Ami
-	target_region := b.Config.Region
+	targetAmi := b.Config.Ami
+	targetRegion := b.Config.Region
 
 	// check configurations
 	if len(b.AwsConfig.Tags) > 0 && HasProhibited(b.AwsConfig.Tags) {
-		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
+		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(constants.ProhibitedTags, ","))
 	}
 
 	if len(b.Config.Stack) > 0 {
@@ -193,12 +209,12 @@ func (b Builder) CheckValidation() error {
 	}
 
 	if len(b.Config.ExtraTags) > 0 && HasProhibited(strings.Split(b.Config.ExtraTags, ",")) {
-		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
+		return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(constants.ProhibitedTags, ","))
 	}
 
 	// global AMI check
-	if len(target_region) == 0 && len(target_ami) != 0 && strings.HasPrefix(target_ami, "ami-") {
-		return fmt.Errorf("ami id cannot be used in different regions : %s", target_ami)
+	if len(targetRegion) == 0 && len(targetAmi) != 0 && strings.HasPrefix(targetAmi, "ami-") {
+		return fmt.Errorf("ami id cannot be used in different regions : %s", targetAmi)
 	}
 
 	// check release notes
@@ -207,8 +223,8 @@ func (b Builder) CheckValidation() error {
 	}
 
 	// check polling interval
-	if b.Config.PollingInterval < MIN_POLLING_INTERVAL {
-		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds())
+	if b.Config.PollingInterval < constants.MinPollingInterval {
+		return fmt.Errorf("polling interval cannot be smaller than %.0f sec", constants.MinPollingInterval.Seconds())
 	}
 
 	if b.Config.PollingInterval >= b.Config.Timeout {
@@ -217,16 +233,16 @@ func (b Builder) CheckValidation() error {
 
 	// Check Configuration about metrics
 	if !b.Config.DisableMetrics {
-		if len(b.MetricConfig.Region) <= 0 {
+		if len(b.MetricConfig.Region) == 0 {
 			return errors.New("you do not specify the region for metrics")
 		}
 
-		if len(b.MetricConfig.Storage.Name) <= 0 {
+		if len(b.MetricConfig.Storage.Name) == 0 {
 			return errors.New("you do not specify the name of storage for metrics")
 		}
 
-		if !tool.FileExists(METRIC_YAML_PATH) {
-			return fmt.Errorf("no %s file exists", METRIC_YAML_PATH)
+		if !tool.CheckFileExists(constants.MetricYamlPath) {
+			return fmt.Errorf("no %s file exists", constants.MetricYamlPath)
 		}
 	}
 
@@ -236,7 +252,7 @@ func (b Builder) CheckValidation() error {
 		if stackMap[stack.Stack] >= 1 {
 			return fmt.Errorf("duplicated stack key between stacks : %s", stack.Stack)
 		}
-		stackMap[stack.Stack] += 1
+		stackMap[stack.Stack]++
 	}
 
 	stackMap = map[string]int{}
@@ -244,7 +260,7 @@ func (b Builder) CheckValidation() error {
 		if stackMap[stack.Env] >= 1 {
 			return fmt.Errorf("duplicated env between stacks : %s", stack.Env)
 		}
-		stackMap[stack.Env] += 1
+		stackMap[stack.Env]++
 	}
 
 	// check validations in each stack
@@ -254,7 +270,7 @@ func (b Builder) CheckValidation() error {
 		}
 
 		if len(stack.Tags) > 0 && HasProhibited(stack.Tags) {
-			return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(prohibitedTags, ","))
+			return fmt.Errorf("you cannot use prohibited tags : %s", strings.Join(constants.ProhibitedTags, ","))
 		}
 
 		// Check AMI
@@ -302,7 +318,7 @@ func (b Builder) CheckValidation() error {
 					return errors.New("name of device is required")
 				}
 
-				if !tool.IsStringInArray(block.VolumeType, availableBlockTypes) {
+				if !tool.IsStringInArray(block.VolumeType, constants.AvailableBlockTypes) {
 					return fmt.Errorf("not available volume type : %s", block.VolumeType)
 				}
 
@@ -312,13 +328,12 @@ func (b Builder) CheckValidation() error {
 
 				if tool.IsStringInArray(block.DeviceName, dNames) {
 					return fmt.Errorf("device names are duplicated : %s", block.DeviceName)
-				} else {
-					dNames = append(dNames, block.DeviceName)
 				}
+				dNames = append(dNames, block.DeviceName)
 			}
 		}
 
-		if &stack.LifecycleHooks != nil {
+		if stack.LifecycleHooks != nil {
 			if len(stack.LifecycleHooks.LaunchTransition) > 0 {
 				for _, l := range stack.LifecycleHooks.LaunchTransition {
 					if len(l.NotificationTargetARN) > 0 && len(l.RoleARN) == 0 {
@@ -354,7 +369,7 @@ func (b Builder) CheckValidation() error {
 
 		for _, region := range stack.Regions {
 			// Check ami id
-			if len(target_ami) == 0 && len(region.AmiId) == 0 {
+			if len(targetAmi) == 0 && len(region.AmiID) == 0 {
 				return errors.New("you have to specify at least one ami id")
 			}
 
@@ -384,7 +399,7 @@ func (b Builder) CheckValidation() error {
 			}
 
 			// Check userdata
-			if stack.Userdata.Type == "local" && len(stack.Userdata.Path) > 0 && !tool.FileExists(stack.Userdata.Path) {
+			if stack.Userdata.Type == "local" && len(stack.Userdata.Path) > 0 && !tool.CheckFileExists(stack.Userdata.Path) {
 				return errors.New("script file does not exists")
 			}
 
@@ -408,14 +423,14 @@ func (b Builder) CheckValidation() error {
 
 		if stack.MixedInstancesPolicy.Enabled {
 			if len(stack.MixedInstancesPolicy.SpotAllocationStrategy) == 0 {
-				stack.MixedInstancesPolicy.SpotAllocationStrategy = DEFAULT_SPOT_ALLOCATION_STRATEGY
+				stack.MixedInstancesPolicy.SpotAllocationStrategy = constants.DefaultSpotAllocationStrategy
 			}
 
 			if stack.MixedInstancesPolicy.SpotAllocationStrategy != "lowest-price" && stack.MixedInstancesPolicy.SpotInstancePools > 0 {
 				return errors.New("you can only set spot_instance_pools with lowest-price spot_allocation_strategy")
 			}
 
-			if len(stack.MixedInstancesPolicy.Override) <= 0 {
+			if len(stack.MixedInstancesPolicy.Override) == 0 {
 				return errors.New("you have to set at least one instance type to use in override")
 			}
 		}
@@ -424,8 +439,8 @@ func (b Builder) CheckValidation() error {
 	return nil
 }
 
-// Print Summary
-func (b Builder) MakeSummary(target_stack string) string {
+// MakeSummary prints all configurations in summary
+func (b Builder) MakeSummary(targetStack string) string {
 	summary := []string{}
 	formatting := `
 ============================================================
@@ -444,7 +459,7 @@ Stack
 	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout.Minutes(), b.Config.PollingInterval.Seconds(), b.Config.AssumeRole, b.Config.AnsibleExtraVars, b.Config.ExtraTags))
 
 	for _, stack := range b.Stacks {
-		if stack.Stack == target_stack {
+		if stack.Stack == targetStack {
 			summary = append(summary, printEnvironment(stack))
 		}
 	}
@@ -452,6 +467,7 @@ Stack
 	return strings.Join(summary, "\n")
 }
 
+// printEnvironment prints configurations of environment
 func printEnvironment(stack schemas.Stack) string {
 	formatting := `[ %s ]
 Account             	: %s
@@ -500,7 +516,6 @@ func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack) {
 }
 
 func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
-
 	yamlConfig := schemas.YamlConfig{}
 	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
@@ -519,8 +534,8 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
 	return awsConfig, Stacks
 }
 
-// Parsing Config from command
-func argumentParsing() Config {
+// argumentParsing parses arguments from command
+func argumentParsing() (Config, error) {
 	keys := viper.AllKeys()
 	config := Config{}
 
@@ -537,7 +552,7 @@ func argumentParsing() Config {
 				case reflect.Int:
 					t.SetInt(viper.GetInt64(key))
 				case reflect.Int64: // should use int64 not, int
-					if tool.IsStringInArray(key, timeFields) {
+					if tool.IsStringInArray(key, constants.TimeFields) {
 						t.SetInt(int64(viper.GetDuration(key)))
 					} else {
 						t.SetInt(viper.GetInt64(key))
@@ -553,14 +568,14 @@ func argumentParsing() Config {
 }
 
 // Set Userdata provider
-func SetUserdataProvider(userdata schemas.Userdata, default_userdata schemas.Userdata) UserdataProvider {
+func SetUserdataProvider(userdata schemas.Userdata, defaultUserdata schemas.Userdata) UserdataProvider {
 	//Set default if no userdata exists in the stack
 	if userdata.Type == "" {
-		userdata.Type = default_userdata.Type
+		userdata.Type = defaultUserdata.Type
 	}
 
 	if userdata.Path == "" {
-		userdata.Path = default_userdata.Path
+		userdata.Path = defaultUserdata.Path
 	}
 
 	if userdata.Type == "s3" {
@@ -572,44 +587,55 @@ func SetUserdataProvider(userdata schemas.Userdata, default_userdata schemas.Use
 	}
 }
 
+// PreConfigValidation validates manifest existence
 func (b Builder) PreConfigValidation() error {
 	// check manifest file
-	if len(b.Config.Manifest) <= 0 {
-		return fmt.Errorf("you should specify manifest file")
+	if len(b.Config.Manifest) == 0 {
+		return errors.New("you should specify manifest file")
 	}
 
-	if strings.HasPrefix(b.Config.Manifest, S3_PREFIX) && len(b.Config.ManifestS3Region) <= 0 {
-		return fmt.Errorf("you have to specify region of s3 bucket: --manifest-s3-region")
+	if strings.HasPrefix(b.Config.Manifest, constants.S3Prefix) && len(b.Config.ManifestS3Region) == 0 {
+		return errors.New("you have to specify region of s3 bucket: --manifest-s3-region")
 	}
 
-	if len(b.Config.Manifest) <= 0 || (!strings.HasPrefix(b.Config.Manifest, S3_PREFIX) && !tool.FileExists(b.Config.Manifest)) {
-		return fmt.Errorf(NO_MANIFEST_EXISTS)
+	if len(b.Config.Manifest) == 0 || (!strings.HasPrefix(b.Config.Manifest, constants.S3Prefix) && !tool.CheckFileExists(b.Config.Manifest)) {
+		return errors.New(constants.NoManifestFileExists)
 	}
 
 	return nil
 }
 
 // RefineConfig refines the values for clear setting
-func RefineConfig(config Config) Config {
+func RefineConfig(config Config) (Config, error) {
 	if config.Timeout < time.Minute {
-		config.Timeout = config.Timeout * time.Minute
+		config.Timeout *= time.Minute
 	}
 
 	if config.PollingInterval < time.Second {
-		config.PollingInterval = config.PollingInterval * time.Second
+		config.PollingInterval *= time.Second
 	}
 
 	config.StartTimestamp = time.Now().Unix()
 
-	return config
+	if len(config.Region) == 0 {
+		regionConfig, err := setDefaultRegion("default")
+		if err != nil {
+			return config, err
+		}
+
+		config.Region = regionConfig
+	}
+
+	return config, nil
 }
 
+// HasProhibited checks if there is any prohibited tags
 func HasProhibited(tags []string) bool {
 	for _, t := range tags {
 		arr := strings.Split(t, "=")
 		k := arr[0]
 
-		if tool.IsStringInArray(k, prohibitedTags) {
+		if tool.IsStringInArray(k, constants.ProhibitedTags) {
 			return true
 		}
 	}
@@ -617,6 +643,7 @@ func HasProhibited(tags []string) bool {
 	return false
 }
 
+// ContainsActions checks if scheduled action is specified
 func ContainsActions(target string, sas []schemas.ScheduledAction) bool {
 	for _, sa := range sas {
 		if sa.Name == target {
@@ -684,7 +711,7 @@ func ValidCronExpression(expression string) (bool, error) {
 				return false, fmt.Errorf("fifth element should be single day of week or combination of two, not more than two: %s", expression)
 			}
 			for _, s := range singleDay {
-				if !tool.IsStringInArray(s, tool.DaysOfWeek) {
+				if !tool.IsStringInArray(s, constants.DaysOfWeek) {
 					return false, fmt.Errorf("fifth element format error: %s", expression)
 				}
 			}
@@ -692,4 +719,61 @@ func ValidCronExpression(expression string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// setDefaultRegion gets default region with env or configuration file
+func setDefaultRegion(profile string) (string, error) {
+	if len(os.Getenv(constants.DefaultRegionVariable)) > 0 {
+		return os.Getenv(constants.DefaultRegionVariable), nil
+	}
+
+	functions := []func() (*ini.File, error){
+		ReadAWSCredentials,
+		ReadAWSConfig,
+	}
+
+	for _, f := range functions {
+		cfg, err := f()
+		if err != nil {
+			return constants.EmptyString, err
+		}
+
+		section, err := cfg.GetSection(profile)
+		if err != nil {
+			return constants.EmptyString, err
+		}
+
+		if _, err := section.GetKey("region"); err == nil && len(section.Key("region").String()) > 0 {
+			return section.Key("region").String(), nil
+		}
+	}
+	return constants.EmptyString, errors.New("no aws region configuration exists")
+}
+
+// ReadAWSCredentials parse an aws credentials
+func ReadAWSCredentials() (*ini.File, error) {
+	if !tool.CheckFileExists(constants.AWSCredentialsPath) {
+		return ReadAWSConfig()
+	}
+
+	cfg, err := ini.Load(constants.AWSCredentialsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// ReadAWSConfig parse an aws configuration
+func ReadAWSConfig() (*ini.File, error) {
+	if !tool.CheckFileExists(constants.AWSConfigPath) {
+		return nil, fmt.Errorf("no aws configuration file exists in $HOME/%s", constants.AWSConfigPath)
+	}
+
+	cfg, err := ini.Load(constants.AWSConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }

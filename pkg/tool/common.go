@@ -1,65 +1,32 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package tool
 
 import (
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	Logger "github.com/sirupsen/logrus"
 	"log"
 	"os"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 )
-
-var (
-	NO_ERROR_MESSAGE_PASSED = "No Error Message exists"
-	INITIAL_STATUS          = "Not Found"
-	DAYTOSEC                = int64(86400)
-	HOURTOSEC               = int64(3600)
-	allowedAnswerYes        = []string{"y", "yes"}
-	allowedAnswerNo         = []string{"n", "no"}
-	DaysOfWeek              = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "0", "1", "2", "3", "4", "5", "6", "7"}
-	LogLevelMapper          = map[string]Logger.Level{
-		"info":  Logger.InfoLevel,
-		"debug": Logger.DebugLevel,
-		"warn":  Logger.WarnLevel,
-		"trace": Logger.TraceLevel,
-		"fatal": Logger.FatalLevel,
-		"error": Logger.ErrorLevel,
-	}
-	// STEP_CHECK_PREVIOUS = CheckPrevious
-	STEP_CHECK_PREVIOUS = int64(1)
-	// STEP_DEPLOY = Deploy
-	STEP_DEPLOY = int64(2)
-	// STEP_ADDITIONAL_WORK = FinishAdditionalWork
-	STEP_ADDITIONAL_WORK = int64(3)
-	// STEP_TRIGGER_LIFECYCLE_CALLBACK = TriggerLifecycleCallbacks
-	STEP_TRIGGER_LIFECYCLE_CALLBACK = int64(4)
-	// STEP_CLEAN_PREVIOUS_VERSION = CleanPreviousVersion
-	STEP_CLEAN_PREVIOUS_VERSION = int64(5)
-)
-
-var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
-var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
-
-// Check if file exists
-func FileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
-}
-
-// Error Logging
-func ErrorLogging(msg string) {
-	if len(msg) == 0 {
-		Red.Fprintln(os.Stderr, NO_ERROR_MESSAGE_PASSED)
-	} else {
-		Red.Fprintln(os.Stderr, msg)
-	}
-	os.Exit(1)
-}
 
 // Fatal Error
 func FatalError(err error) {
@@ -77,7 +44,7 @@ func IsStringInArray(s string, arr []string) bool {
 	return false
 }
 
-//Check timeout
+//CheckTimeout compares now-start time with timeout
 func CheckTimeout(start int64, timeout time.Duration) (bool, error) {
 	now := time.Now().Unix()
 	timeoutSec := int64(timeout / time.Second)
@@ -90,25 +57,30 @@ func CheckTimeout(start int64, timeout time.Duration) (bool, error) {
 	return false, nil
 }
 
-func GetBaseTimeWithTimestamp(timezone string) time.Time {
+// GetBaseTimeWithTimezone returns time with timezone
+func GetBaseTimeWithTimezone(timezone string) time.Time {
 	now := time.Now()
 
 	loc, _ := time.LoadLocation(timezone)
 	return now.In(loc)
 }
 
+// GetBaseTime generates base time format
 func GetBaseTime(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
+// GetBaseStartTime generates start time
 func GetBaseStartTime(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, t.Location()).Add(1 * time.Hour)
 }
 
+// GetTimePrefix returns time prefix
 func GetTimePrefix(t time.Time) string {
 	return fmt.Sprintf("%d%02d%02d", t.Year(), t.Month(), t.Day())
 }
 
+// AskContinue asks a user whether or not to continue the process
 func AskContinue(message string) bool {
 	var answer string
 	prompt := &survey.Input{
@@ -119,13 +91,14 @@ func AskContinue(message string) bool {
 		return false
 	}
 
-	if IsStringInArray(answer, allowedAnswerYes) {
+	if IsStringInArray(answer, constants.AllowedAnswerYes) {
 		return true
 	}
 
 	return false
 }
 
+// CheckFileExists checks if a file or a directory exists or not
 func CheckFileExists(filePath string) bool {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return false

@@ -1,38 +1,47 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package aws
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	Logger "github.com/sirupsen/logrus"
-	"time"
-)
 
-var (
-	hashKey            = "identifier"
-	statusTimeStampKey = map[string]string{
-		"deployed":   "deployed_date",
-		"terminated": "terminated_date",
-	}
-	DEFAULT_READ_THROUGHPUT  = int64(5)
-	DEFAULT_WRITE_THROUGHPUT = int64(5)
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type DynamoDBClient struct {
 	Client *dynamodb.DynamoDB
 }
 
-func NewDynamoDBClient(session *session.Session, region string, creds *credentials.Credentials) DynamoDBClient {
+func NewDynamoDBClient(session client.ConfigProvider, region string, creds *credentials.Credentials) DynamoDBClient {
 	return DynamoDBClient{
 		Client: getDynamoDBClientFn(session, region, creds),
 	}
 }
 
-func getDynamoDBClientFn(session *session.Session, region string, creds *credentials.Credentials) *dynamodb.DynamoDB {
+func getDynamoDBClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *dynamodb.DynamoDB {
 	if creds == nil {
 		return dynamodb.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -75,19 +84,19 @@ func (d DynamoDBClient) CreateTable(tableName string) error {
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{
-				AttributeName: aws.String(hashKey),
+				AttributeName: aws.String(constants.HashKey),
 				AttributeType: aws.String("S"),
 			},
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
-				AttributeName: aws.String(hashKey),
+				AttributeName: aws.String(constants.HashKey),
 				KeyType:       aws.String("HASH"),
 			},
 		},
 		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(DEFAULT_WRITE_THROUGHPUT),
-			WriteCapacityUnits: aws.Int64(DEFAULT_READ_THROUGHPUT),
+			ReadCapacityUnits:  aws.Int64(constants.DefaultWriteThroughput),
+			WriteCapacityUnits: aws.Int64(constants.DefaultReadThroughput),
 		},
 		TableName: aws.String(tableName),
 	}
@@ -132,7 +141,7 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 				S: aws.String(config),
 			},
 			"start_date": {
-				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
+				S: aws.String(tool.GetBaseTimeWithTimezone(timezone).Format(time.RFC3339)),
 			},
 			"tag": {
 				S: aws.String(tags),
@@ -141,10 +150,8 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 		TableName: aws.String(tableName),
 	}
 
-	if additionalFields != nil && len(additionalFields) > 0 {
-		for k, v := range additionalFields {
-			input.Item[k] = &dynamodb.AttributeValue{S: aws.String(v)}
-		}
+	for k, v := range additionalFields {
+		input.Item[k] = &dynamodb.AttributeValue{S: aws.String(v)}
 	}
 
 	_, err := d.Client.PutItem(input)
@@ -187,18 +194,18 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 	input := &dynamodb.UpdateItemInput{
 		ExpressionAttributeNames: map[string]*string{
 			"#S": aws.String(updateKey),
-			"#T": aws.String(statusTimeStampKey[status]),
+			"#T": aws.String(constants.StatusTimeStampKey[status]),
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":status": {
 				S: aws.String(status),
 			},
 			":timestamp": {
-				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
+				S: aws.String(tool.GetBaseTimeWithTimezone(timezone).Format(time.RFC3339)),
 			},
 		},
 		Key: map[string]*dynamodb.AttributeValue{
-			hashKey: {
+			constants.HashKey: {
 				S: aws.String(asg),
 			},
 		},
@@ -206,7 +213,7 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 		UpdateExpression: aws.String(baseEx),
 	}
 
-	if updateFields != nil && len(updateFields) > 0 {
+	if updateFields != nil {
 		ex := baseEx
 		for k, v := range updateFields {
 			ex = fmt.Sprintf("%s, #%s = :%s", ex, k, k)
@@ -261,7 +268,7 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 func (d DynamoDBClient) GetSingleItem(asg, tableName string) (map[string]*dynamodb.AttributeValue, error) {
 	input := &dynamodb.GetItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
-			hashKey: {
+			constants.HashKey: {
 				S: aws.String(asg),
 			},
 		},
@@ -270,30 +277,13 @@ func (d DynamoDBClient) GetSingleItem(asg, tableName string) (map[string]*dynamo
 
 	result, err := d.Client.GetItem(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			case dynamodb.ErrCodeRequestLimitExceeded:
-				fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
-		}
 		return nil, err
 	}
 
 	return result.Item, err
 }
 
+// UpdateStatistics updates the status value on metric table
 func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string, updateFields map[string]interface{}) error {
 	baseEx := "SET #T = :statisticsRecordTime"
 
@@ -303,11 +293,11 @@ func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string,
 		},
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":statisticsRecordTime": {
-				S: aws.String(tool.GetBaseTimeWithTimestamp(timezone).Format(time.RFC3339)),
+				S: aws.String(tool.GetBaseTimeWithTimezone(timezone).Format(time.RFC3339)),
 			},
 		},
 		Key: map[string]*dynamodb.AttributeValue{
-			hashKey: {
+			constants.HashKey: {
 				S: aws.String(asg),
 			},
 		},
@@ -315,7 +305,7 @@ func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string,
 		UpdateExpression: aws.String(baseEx),
 	}
 
-	if updateFields != nil && len(updateFields) > 0 {
+	if updateFields != nil {
 		ex := baseEx
 		for k, v := range updateFields {
 			ex = fmt.Sprintf("%s, #%s = :%s", ex, k, k)
@@ -349,30 +339,6 @@ func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string,
 
 	_, err := d.Client.UpdateItem(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeConditionalCheckFailedException:
-				fmt.Println(dynamodb.ErrCodeConditionalCheckFailedException, aerr.Error())
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-				fmt.Println(dynamodb.ErrCodeItemCollectionSizeLimitExceededException, aerr.Error())
-			case dynamodb.ErrCodeTransactionConflictException:
-				fmt.Println(dynamodb.ErrCodeTransactionConflictException, aerr.Error())
-			case dynamodb.ErrCodeRequestLimitExceeded:
-				fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
-		}
 		return err
 	}
 

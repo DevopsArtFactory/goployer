@@ -1,3 +1,19 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package schemas
 
 import "time"
@@ -102,10 +118,10 @@ type Stack struct {
 	Alarms []AlarmConfigs `yaml:"alarms,omitempty"`
 
 	// List of commands which will be run before terminating instances
-	LifecycleCallbacks LifecycleCallbacks `yaml:"lifecycle_callbacks,omitempty"`
+	LifecycleCallbacks *LifecycleCallbacks `yaml:"lifecycle_callbacks,omitempty"`
 
 	// Lifecycle hooks of autoscaling group
-	LifecycleHooks LifecycleHooks `yaml:"lifecycle_hooks,omitempty"`
+	LifecycleHooks *LifecycleHooks `yaml:"lifecycle_hooks,omitempty"`
 
 	// List of region configurations
 	Regions []RegionConfig `yaml:"regions"`
@@ -204,7 +220,7 @@ type AlarmConfigs struct {
 	// Type of statistics for metrics
 	Statistic string
 
-	// Comparsion operator for triggering alarm
+	// Comparison operator for triggering alarm
 	Comparison string
 
 	// Threshold of alarm trigger
@@ -226,35 +242,29 @@ type RegionConfig struct {
 	// Region name
 	Region string `yaml:"region"`
 
-	// Whether or not to use public subnets
-	UsePublicSubnets bool `yaml:"use_public_subnets"`
-
 	// Type of EC2 instance
 	InstanceType string `yaml:"instance_type"`
 
 	// Key name of SSH access
-	SshKey string `yaml:"ssh_key"`
+	SSHKey string `yaml:"ssh_key"`
 
 	// Amazon AMI ID
-	AmiId string `yaml:"ami_id"`
+	AmiID string `yaml:"ami_id"`
 
 	// Name of VPC
 	VPC string `yaml:"vpc"`
-
-	// Detailed Monitoring Enabled
-	DetailedMonitoringEnabled bool `yaml:"detailed_monitoring_enabled"`
-
-	// List of security group name
-	SecurityGroups []string `yaml:"security_groups"`
-
-	// List of scheduled actions
-	ScheduledActions []string `yaml:"scheduled_actions"`
 
 	// Class load balancer name for healthcheck
 	HealthcheckLB string `yaml:"healthcheck_load_balancer"`
 
 	// Target group name for healthcheck
 	HealthcheckTargetGroup string `yaml:"healthcheck_target_group"`
+
+	// List of security group name
+	SecurityGroups []string `yaml:"security_groups"`
+
+	// List of scheduled actions
+	ScheduledActions []string `yaml:"scheduled_actions"`
 
 	// Target group list of load balancer
 	TargetGroups []string `yaml:"target_groups"`
@@ -264,6 +274,12 @@ type RegionConfig struct {
 
 	// Availability zones for autoscaling group
 	AvailabilityZones []string `yaml:"availability_zones"`
+
+	// Whether or not to use public subnets
+	UsePublicSubnets bool `yaml:"use_public_subnets"`
+
+	// Detailed Monitoring Enabled
+	DetailedMonitoringEnabled bool `yaml:"detailed_monitoring_enabled"`
 }
 
 // Instance capacity of autoscaling group

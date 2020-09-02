@@ -1,19 +1,38 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package aws
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
+	"regexp"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	Logger "github.com/sirupsen/logrus"
-	"os"
-	"regexp"
-	"strings"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type EC2Client struct {
@@ -21,21 +40,21 @@ type EC2Client struct {
 	AsClient *autoscaling.AutoScaling
 }
 
-func NewEC2Client(session *session.Session, region string, creds *credentials.Credentials) EC2Client {
+func NewEC2Client(session client.ConfigProvider, region string, creds *credentials.Credentials) EC2Client {
 	return EC2Client{
 		Client:   getEC2ClientFn(session, region, creds),
 		AsClient: getAsgClientFn(session, region, creds),
 	}
 }
 
-func getEC2ClientFn(session *session.Session, region string, creds *credentials.Credentials) *ec2.EC2 {
+func getEC2ClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *ec2.EC2 {
 	if creds == nil {
 		return ec2.New(session, &aws.Config{Region: aws.String(region)})
 	}
 	return ec2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
-func getAsgClientFn(session *session.Session, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
+func getAsgClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
 	if creds == nil {
 		return autoscaling.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -52,11 +71,11 @@ func (e EC2Client) GetMatchingAutoscalingGroup(name string) (*autoscaling.Group,
 }
 
 // Delete All Launch Configurations belongs to the autoscaling group
-func (e EC2Client) DeleteLaunchConfigurations(asg_name string) error {
+func (e EC2Client) DeleteLaunchConfigurations(asgName string) error {
 	lcs := getAllLaunchConfigurations(e.AsClient, []*autoscaling.LaunchConfiguration{}, nil)
 
 	for _, lc := range lcs {
-		if strings.HasPrefix(*lc.LaunchConfigurationName, asg_name) {
+		if strings.HasPrefix(*lc.LaunchConfigurationName, asgName) {
 			err := deleteLaunchConfiguration(e.AsClient, *lc.LaunchConfigurationName)
 			if err != nil {
 				return err
@@ -68,11 +87,11 @@ func (e EC2Client) DeleteLaunchConfigurations(asg_name string) error {
 }
 
 // Delete all launch template belongs to the autoscaling group
-func (e EC2Client) DeleteLaunchTemplates(asg_name string) error {
+func (e EC2Client) DeleteLaunchTemplates(asgName string) error {
 	lts := getAllLaunchTemplates(e.Client, []*ec2.LaunchTemplate{}, nil)
 
 	for _, lt := range lts {
-		if strings.HasPrefix(*lt.LaunchTemplateName, asg_name) {
+		if strings.HasPrefix(*lt.LaunchTemplateName, asgName) {
 			err := deleteLaunchTemplate(e.Client, *lt.LaunchTemplateName)
 			if err != nil {
 				return err
@@ -86,9 +105,9 @@ func (e EC2Client) DeleteLaunchTemplates(asg_name string) error {
 // Delete Autoscaling group Set
 // 1. Autoscaling Group
 // 2. Luanch Configurations in asg
-func (e EC2Client) DeleteAutoscalingSet(asg_name string) error {
+func (e EC2Client) DeleteAutoscalingSet(asgName string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
-		AutoScalingGroupName: aws.String(asg_name),
+		AutoScalingGroupName: aws.String(asgName),
 	}
 
 	_, err := e.AsClient.DeleteAutoScalingGroup(input)
@@ -177,14 +196,6 @@ func getAllLaunchTemplates(client *ec2.EC2, lts []*ec2.LaunchTemplate, nextToken
 
 	ret, err := client.DescribeLaunchTemplates(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			Logger.Errorln(err.Error())
-		}
 		return nil
 	}
 
@@ -198,27 +209,13 @@ func getAllLaunchTemplates(client *ec2.EC2, lts []*ec2.LaunchTemplate, nextToken
 }
 
 // Delete Single Launch Configuration
-func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) error {
+func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lcName string) error {
 	input := &autoscaling.DeleteLaunchConfigurationInput{
-		LaunchConfigurationName: aws.String(lc_name),
+		LaunchConfigurationName: aws.String(lcName),
 	}
 
 	_, err := client.DeleteLaunchConfiguration(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeResourceInUseFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceInUseFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
 		return err
 	}
 
@@ -226,21 +223,13 @@ func deleteLaunchConfiguration(client *autoscaling.AutoScaling, lc_name string) 
 }
 
 // Delete Single Launch Template
-func deleteLaunchTemplate(client *ec2.EC2, lt_name string) error {
+func deleteLaunchTemplate(client *ec2.EC2, ltName string) error {
 	input := &ec2.DeleteLaunchTemplateInput{
-		LaunchTemplateName: aws.String(lt_name),
+		LaunchTemplateName: aws.String(ltName),
 	}
 
 	_, err := client.DeleteLaunchTemplate(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			Logger.Errorln(err.Error())
-		}
 		return err
 	}
 
@@ -288,7 +277,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 }
 
 // Create New Launch Template
-func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions, detailedMonitoringEnabled bool) bool {
+func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions, detailedMonitoringEnabled bool) error {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
@@ -326,31 +315,24 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 
 	_, err := e.Client.CreateLaunchTemplate(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		return false
+		return err
 	}
 
 	Logger.Info("Successfully create new launch template : ", name)
 
-	return true
+	return nil
 }
 
 // Get All Security Group Information New Launch Configuration
-func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
+func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) ([]*string, error) {
 	if len(sgList) == 0 {
-		tool.ErrorLogging("Need to specify at least one security group")
+		return nil, errors.New("need to specify at least one security group")
 	}
 
-	vpcId := e.GetVPCId(vpc)
+	vpcID, err := e.GetVPCId(vpc)
+	if err != nil {
+		return nil, err
+	}
 
 	var retList []*string
 	for _, sg := range sgList {
@@ -370,7 +352,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 				{
 					Name: aws.String("vpc-id"),
 					Values: []*string{
-						aws.String(vpcId),
+						aws.String(vpcID),
 					},
 				},
 			},
@@ -378,18 +360,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 
 		result, err := e.Client.DescribeSecurityGroups(input)
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				default:
-					Logger.Errorln(aerr.Error())
-				}
-			} else {
-				// Print the error, cast err to awserr.Error to get the Code and
-				// Message from an error.
-				Logger.Errorln(err.Error())
-			}
-
-			os.Exit(1)
+			return nil, err
 		}
 
 		//If it matches 0 or more than 1, it is wrong
@@ -398,13 +369,13 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) []*string {
 			for _, s := range result.SecurityGroups {
 				matched = append(matched, *s.GroupName)
 			}
-			tool.ErrorLogging(fmt.Sprintf("Expected only one security group on name lookup for \"%s\" got \"%s\"", sg, strings.Join(matched, ",")))
+			return nil, fmt.Errorf("expected only one security group on name lookup for \"%s\" got \"%s\"", sg, strings.Join(matched, ","))
 		}
 
 		retList = append(retList, aws.String(*result.SecurityGroups[0].GroupId))
 	}
 
-	return retList
+	return retList, nil
 }
 
 // MakeBlockDevices returns list of block device mapping for launch configuration
@@ -469,15 +440,14 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 	return ret
 }
 
-func (e EC2Client) GetVPCId(vpc string) string {
+func (e EC2Client) GetVPCId(vpc string) (string, error) {
 	ret, err := regexp.MatchString("vpc-[0-9A-Fa-f]{17}", vpc)
 	if err != nil {
-		fmt.Errorf("Error occurs when checking regex %v", err.Error())
-		os.Exit(1)
+		return constants.EmptyString, fmt.Errorf("error occurs when checking regex %v", err.Error())
 	}
 
 	if ret {
-		return vpc
+		return vpc, nil
 	}
 
 	input := &ec2.DescribeVpcsInput{
@@ -493,43 +463,34 @@ func (e EC2Client) GetVPCId(vpc string) string {
 
 	result, err := e.Client.DescribeVpcs(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		os.Exit(1)
+		return constants.EmptyString, err
 	}
 
 	// More than 1 vpc..
 	if len(result.Vpcs) > 1 {
-		tool.ErrorLogging(fmt.Sprintf("Expected only one VPC on name lookup for %v", vpc))
+		return constants.EmptyString, fmt.Errorf("expected only one VPC on name lookup for %v", vpc)
 	}
 
 	// No VPC found
 	if len(result.Vpcs) < 1 {
-		tool.ErrorLogging(fmt.Sprintf("Unable to find VPC on name lookup for %v", vpc))
+		return constants.EmptyString, fmt.Errorf("unable to find VPC on name lookup for %v", vpc)
 	}
 
-	return *result.Vpcs[0].VpcId
+	return *result.Vpcs[0].VpcId, nil
 }
 
-func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthcheck_type string,
-	healthcheck_grace_period int64,
+// CreateAutoScalingGroup creates new autoscaling group
+func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckType string,
+	healthcheckGracePeriod int64,
 	capacity schemas.Capacity,
-	loadbalancers, target_group_arns, termination_policies, availability_zones []*string,
+	loadbalancers, availabilityZones []string,
+	targetGroupArns, terminationPolicies []*string,
 	tags []*(autoscaling.Tag),
 	subnets []string,
 	mixedInstancePolicy schemas.MixedInstancesPolicy,
 	hooks []*autoscaling.LifecycleHookSpecification) (bool, error) {
-
 	lt := autoscaling.LaunchTemplateSpecification{
-		LaunchTemplateName: aws.String(launch_template_name),
+		LaunchTemplateName: aws.String(launchTemplateName),
 	}
 
 	input := &autoscaling.CreateAutoScalingGroupInput{
@@ -537,20 +498,20 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 		MaxSize:                aws.Int64(capacity.Max),
 		MinSize:                aws.Int64(capacity.Min),
 		DesiredCapacity:        aws.Int64(capacity.Desired),
-		AvailabilityZones:      availability_zones,
-		HealthCheckType:        aws.String(healthcheck_type),
-		HealthCheckGracePeriod: aws.Int64(healthcheck_grace_period),
-		TerminationPolicies:    termination_policies,
+		AvailabilityZones:      aws.StringSlice(availabilityZones),
+		HealthCheckType:        aws.String(healthcheckType),
+		HealthCheckGracePeriod: aws.Int64(healthcheckGracePeriod),
+		TerminationPolicies:    terminationPolicies,
 		Tags:                   tags,
 		VPCZoneIdentifier:      aws.String(strings.Join(subnets, ",")),
 	}
 
 	if len(loadbalancers) > 0 {
-		input.LoadBalancerNames = loadbalancers
+		input.LoadBalancerNames = aws.StringSlice(loadbalancers)
 	}
 
-	if len(target_group_arns) > 0 {
-		input.TargetGroupARNs = target_group_arns
+	if len(targetGroupArns) > 0 {
+		input.TargetGroupARNs = targetGroupArns
 	}
 
 	if mixedInstancePolicy.Enabled {
@@ -567,7 +528,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 		}
 
 		if len(mixedInstancePolicy.Override) != 0 {
-			overrides := []*autoscaling.LaunchTemplateOverrides{}
+			var overrides []*autoscaling.LaunchTemplateOverrides
 			for _, o := range mixedInstancePolicy.Override {
 				overrides = append(overrides, &autoscaling.LaunchTemplateOverrides{
 					InstanceType: aws.String(o),
@@ -576,7 +537,6 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 
 			input.MixedInstancesPolicy.LaunchTemplate.Overrides = overrides
 		}
-
 	} else {
 		input.LaunchTemplate = &lt
 	}
@@ -595,7 +555,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launch_template_name, healthchec
 }
 
 // GenerateTags creates tag list for autoscaling group
-func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleTags string, stackTags []string, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
+func (e EC2Client) GenerateTags(tagList []string, asgName, app, stack, ansibleTags string, stackTags []string, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
 	ret := []*autoscaling.Tag{}
 	keyList := []string{}
 
@@ -614,7 +574,7 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 	// Add Name
 	ret = append(ret, &autoscaling.Tag{
 		Key:   aws.String("Name"),
-		Value: aws.String(asg_name),
+		Value: aws.String(asgName),
 	})
 
 	// Add stack name
@@ -674,7 +634,6 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 					Value: aws.String(kv[1]),
 				})
 			}
-
 		}
 	}
 
@@ -689,16 +648,20 @@ func (e EC2Client) GenerateTags(tagList []string, asg_name, app, stack, ansibleT
 	return ret
 }
 
-func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
-	ret := []string{}
-	vpcId := e.GetVPCId(vpc)
+// GetAvailabilityZones get all available availability zones
+func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) ([]string, error) {
+	var ret []string
+	vpcID, err := e.GetVPCId(vpc)
+	if err != nil {
+		return nil, err
+	}
 
 	input := &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name: aws.String("vpc-id"),
 				Values: []*string{
-					aws.String(vpcId),
+					aws.String(vpcID),
 				},
 			},
 		},
@@ -706,17 +669,7 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 
 	result, err := e.Client.DescribeSubnets(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		os.Exit(1)
+		return nil, err
 	}
 
 	for _, subnet := range result.Subnets {
@@ -726,18 +679,22 @@ func (e EC2Client) GetAvailabilityZones(vpc string, azs []string) []string {
 		ret = append(ret, *subnet.AvailabilityZone)
 	}
 
-	return ret
+	return ret, nil
 }
 
-func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string) []string {
-	vpcId := e.GetVPCId(vpc)
+// GetSubnets retrieves all subnets available
+func (e EC2Client) GetSubnets(vpc string, usePublicSubnets bool, azs []string) ([]string, error) {
+	vpcID, err := e.GetVPCId(vpc)
+	if err != nil {
+		return nil, err
+	}
 
 	input := &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name: aws.String("vpc-id"),
 				Values: []*string{
-					aws.String(vpcId),
+					aws.String(vpcID),
 				},
 			},
 		},
@@ -745,22 +702,12 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 
 	result, err := e.Client.DescribeSubnets(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
-		os.Exit(1)
+		return nil, err
 	}
 
 	ret := []string{}
 	subnetType := "private"
-	if use_public_subnets {
+	if usePublicSubnets {
 		subnetType = "public"
 	}
 	for _, subnet := range result.Subnets {
@@ -775,11 +722,11 @@ func (e EC2Client) GetSubnets(vpc string, use_public_subnets bool, azs []string)
 		}
 	}
 
-	return ret
+	return ret, nil
 }
 
 // Update Autoscaling Group size
-func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, retry int64) (error, int64) {
+func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, retry int64) (int64, error) {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
 		MaxSize:              aws.Int64(max),
@@ -789,17 +736,17 @@ func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, ret
 
 	_, err := e.AsClient.UpdateAutoScalingGroup(input)
 	if err != nil {
-		return err, retry - 1
+		return retry - 1, err
 	}
 
-	return nil, 0
+	return 0, nil
 }
 
 //CreateScalingPolicy creates scaling policy
-func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asg_name string) (*string, error) {
+func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asgName string) (*string, error) {
 	input := &autoscaling.PutScalingPolicyInput{
 		AdjustmentType:       aws.String(policy.AdjustmentType),
-		AutoScalingGroupName: aws.String(asg_name),
+		AutoScalingGroupName: aws.String(asgName),
 		PolicyName:           aws.String(policy.Name),
 		ScalingAdjustment:    aws.Int64(policy.ScalingAdjustment),
 		Cooldown:             aws.Int64(policy.Cooldown),
@@ -807,22 +754,6 @@ func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asg_name stri
 
 	result, err := e.AsClient.PutScalingPolicy(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeLimitExceededFault:
-				Logger.Errorln(autoscaling.ErrCodeLimitExceededFault, aerr.Error())
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			case autoscaling.ErrCodeServiceLinkedRoleFailure:
-				Logger.Errorln(autoscaling.ErrCodeServiceLinkedRoleFailure, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
 		return nil, err
 	}
 
@@ -830,37 +761,25 @@ func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asg_name stri
 }
 
 // EnableMetrics enables metric monitoring of autoscaling group
-func (e EC2Client) EnableMetrics(asg_name string) error {
+func (e EC2Client) EnableMetrics(asgName string) error {
 	input := &autoscaling.EnableMetricsCollectionInput{
-		AutoScalingGroupName: aws.String(asg_name),
+		AutoScalingGroupName: aws.String(asgName),
 		Granularity:          aws.String("1Minute"),
 	}
 
 	_, err := e.AsClient.EnableMetricsCollection(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case autoscaling.ErrCodeResourceContentionFault:
-				Logger.Errorln(autoscaling.ErrCodeResourceContentionFault, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
 		return err
 	}
 
-	Logger.Info(fmt.Sprintf("Metrics monitoring of autoscaling group is enabled : %s", asg_name))
+	Logger.Info(fmt.Sprintf("Metrics monitoring of autoscaling group is enabled : %s", asgName))
 
 	return nil
 }
 
 // Generate Lifecycle Hooks
 func (e EC2Client) GenerateLifecycleHooks(hooks schemas.LifecycleHooks) []*autoscaling.LifecycleHookSpecification {
-	ret := []*autoscaling.LifecycleHookSpecification{}
+	var ret []*autoscaling.LifecycleHookSpecification
 
 	if len(hooks.LaunchTransition) > 0 {
 		for _, l := range hooks.LaunchTransition {
@@ -879,6 +798,7 @@ func (e EC2Client) GenerateLifecycleHooks(hooks schemas.LifecycleHooks) []*autos
 	return ret
 }
 
+// createSingleLifecycleHookSpecification create a lifecycle hook specification
 func createSingleLifecycleHookSpecification(l schemas.LifecycleHookSpecification, transition string) autoscaling.LifecycleHookSpecification {
 	lhs := autoscaling.LifecycleHookSpecification{
 		LifecycleHookName:   aws.String(l.LifecycleHookName),
@@ -932,7 +852,7 @@ func (e EC2Client) GetTargetGroups(asgName string) ([]*string, error) {
 // getSingleAutoScalingGroup return detailed information of autoscaling group
 func getSingleAutoScalingGroup(client *autoscaling.AutoScaling, asgName string) (*autoscaling.Group, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{
-		AutoScalingGroupNames: MakeStringArrayToAwsStrings([]string{asgName}),
+		AutoScalingGroupNames: aws.StringSlice([]string{asgName}),
 	}
 	ret, err := client.DescribeAutoScalingGroups(input)
 	if err != nil {

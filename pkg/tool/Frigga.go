@@ -1,3 +1,19 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package tool
 
 import (
@@ -5,18 +21,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
-
-var (
-	COUNTRIES      = 'c'
-	DEV_PHASE      = 'd'
-	HARDWARE       = 'h'
-	PARTNERS       = 'p'
-	REVISION       = 'r'
-	USED_BY        = 'u'
-	RED_BLACK_SWAP = 'w'
-	ZONE           = 'z'
-	VERSION        = 'v'
 )
 
 type Frigga struct {
@@ -47,8 +51,8 @@ func GenerateAsgName(prefix string, version int) string {
 }
 
 // GenerateLcName generates new launch configuration name
-func GenerateLcName(asg_name string) string {
+func GenerateLcName(asgName string) string {
 	now := time.Now()
 	secs := now.Unix()
-	return fmt.Sprintf("%s-%d", asg_name, secs)
+	return fmt.Sprintf("%s-%d", asgName, secs)
 }
