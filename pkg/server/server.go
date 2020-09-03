@@ -1,13 +1,32 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package server
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
-	"github.com/DevopsArtFactory/goployer/pkg/runner"
-	Logger "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
+
+	Logger "github.com/sirupsen/logrus"
+
+	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/runner"
 )
 
 var (
@@ -17,12 +36,12 @@ var (
 )
 
 type Server struct {
-	ServerConfig ServerConfig
+	ServerConfig Config
 	Router       *http.ServeMux
 	Logger       *Logger.Logger
 }
 
-type ServerConfig struct {
+type Config struct {
 	Addr string
 	Port int64
 }
@@ -35,7 +54,7 @@ func New() Server {
 	return Server{
 		Router: http.NewServeMux(),
 		Logger: Logger.New(),
-		ServerConfig: ServerConfig{
+		ServerConfig: Config{
 			Addr: defaultServerAddr,
 			Port: defaultServerPort,
 		},
@@ -59,7 +78,6 @@ func (s Server) SetDefaultSetting() Server {
 
 func (s Server) Healthcheck(w http.ResponseWriter, req *http.Request) {
 	s.Logger.Infof("%s %s healthy", req.RemoteAddr, req.Method)
-	return
 }
 
 func (s Server) TriggerDeploy(w http.ResponseWriter, req *http.Request) {
@@ -86,7 +104,7 @@ func (s Server) GetAddr() string {
 }
 
 //parameterParsing returns RequestBody
-func parameterParsing(body io.ReadCloser) (RequestBody, error) {
+func parameterParsing(body io.Reader) (RequestBody, error) {
 	decoder := json.NewDecoder(body)
 
 	r := RequestBody{}
@@ -96,14 +114,17 @@ func parameterParsing(body io.ReadCloser) (RequestBody, error) {
 	}
 
 	if r.Config.Timeout <= 0 {
-		r.Config.Timeout = builder.DEFAULT_DEPLOYMENT_TIMEOUT
+		r.Config.Timeout = constants.DefaultDeploymentTimeout
 	}
 
 	if r.Config.PollingInterval <= 0 {
-		r.Config.PollingInterval = builder.DEFAULT_POLLING_INTERVAL
+		r.Config.PollingInterval = constants.DefaultPollingInterval
 	}
 
-	r.Config = builder.RefineConfig(r.Config)
+	r.Config, err = builder.RefineConfig(r.Config)
+	if err != nil {
+		return r, err
+	}
 
 	return r, nil
 }

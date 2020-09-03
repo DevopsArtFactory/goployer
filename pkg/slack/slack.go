@@ -1,19 +1,38 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package slack
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/slack-go/slack"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/slack-go/slack"
 )
 
 var (
-	SLACK_TOKEN       = "SLACK_TOKEN"
-	SLACK_CHANNEL     = "SLACK_CHANNEL"
-	SLACK_WEBHOOK_URL = "SLACK_WEBHOOK_URL"
+	slackToken      = "SLACK_TOKEN"
+	slackChannel    = "SLACK_CHANNEL"
+	slackWebhookURL = "SLACK_WEBHOOK_URL"
 
 	colorMapping = map[string]string{
 		"prod":  "#ff0000",
@@ -28,22 +47,22 @@ var (
 type Slack struct {
 	Client     *slack.Client
 	Token      string
-	ChannelId  string
-	WebhookUrl string
+	ChannelID  string
+	WebhookURL string
 	SlackOff   bool
 }
 
 func NewSlackClient(slackOff bool) Slack {
 	return Slack{
-		Client:     slack.New(os.Getenv(SLACK_TOKEN)),
-		Token:      os.Getenv(SLACK_TOKEN),
-		WebhookUrl: os.Getenv(SLACK_WEBHOOK_URL),
-		ChannelId:  os.Getenv(SLACK_CHANNEL),
+		Client:     slack.New(os.Getenv(slackToken)),
+		Token:      os.Getenv(slackToken),
+		WebhookURL: os.Getenv(slackWebhookURL),
+		ChannelID:  os.Getenv(slackChannel),
 		SlackOff:   slackOff,
 	}
 }
 
-type SlackBody struct {
+type Body struct {
 	Attachments []Attachment `json:"attachments"`
 }
 
@@ -56,7 +75,7 @@ func (s Slack) SendSimpleMessage(message string, env string) error {
 	if !s.ValidClient() {
 		return nil
 	}
-	if len(s.WebhookUrl) > 0 {
+	if len(s.WebhookURL) > 0 {
 		if err := s.SendMessageWithWebhook(message, env); err != nil {
 			return err
 		}
@@ -85,7 +104,7 @@ func (s Slack) SendMessageWithWebhook(msg, env string) error {
 		color = "#ff0000"
 	}
 
-	slackBody, _ := json.Marshal(SlackBody{
+	slackBody, _ := json.Marshal(Body{
 		Attachments: []Attachment{
 			{
 				Text:  msg,
@@ -93,7 +112,7 @@ func (s Slack) SendMessageWithWebhook(msg, env string) error {
 			},
 		},
 	})
-	req, err := http.NewRequest(http.MethodPost, s.WebhookUrl, bytes.NewBuffer(slackBody))
+	req, err := http.NewRequest(http.MethodPost, s.WebhookURL, bytes.NewBuffer(slackBody))
 	if err != nil {
 		return err
 	}
@@ -109,16 +128,21 @@ func (s Slack) SendMessageWithWebhook(msg, env string) error {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(resp.Body)
 	if buf.String() != "ok" {
-		return fmt.Errorf("Non-ok response returned from Slack")
+		return errors.New("non-ok response returned from Slack")
 	}
+
+	resp.Body.Close()
+
 	return nil
 }
 
 func (s Slack) SendMessage(msgOpt slack.MsgOption) error {
-	_, _, _, err := s.Client.SendMessage(s.ChannelId, msgOpt)
+	channel, timestamp, text, err := s.Client.SendMessage(s.ChannelID, msgOpt)
 	if err != nil {
 		return err
 	}
+
+	logrus.Debugf("channel: %s, timestamp: %s, text: %s", channel, timestamp, text)
 
 	return nil
 }
@@ -153,7 +177,7 @@ func (s Slack) CreateSimpleAttachments(title, text string) slack.MsgOption {
 
 //ValidClient validates slack variables
 func (s Slack) ValidClient() bool {
-	if (len(s.WebhookUrl) == 0 && (len(s.Token) == 0 || len(s.ChannelId) == 0)) || s.SlackOff {
+	if (len(s.WebhookURL) == 0 && (len(s.Token) == 0 || len(s.ChannelID) == 0)) || s.SlackOff {
 		return false
 	}
 

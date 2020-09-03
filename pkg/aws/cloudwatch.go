@@ -1,30 +1,49 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package aws
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	Logger "github.com/sirupsen/logrus"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	Logger "github.com/sirupsen/logrus"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type CloudWatchClient struct {
 	Client *cloudwatch.CloudWatch
 }
 
-func NewCloudWatchClient(session *session.Session, region string, creds *credentials.Credentials) CloudWatchClient {
+func NewCloudWatchClient(session client.ConfigProvider, region string, creds *credentials.Credentials) CloudWatchClient {
 	return CloudWatchClient{
 		Client: getCloudwatchClientFn(session, region, creds),
 	}
 }
 
-func getCloudwatchClientFn(session *session.Session, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
+func getCloudwatchClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
 	if creds == nil {
 		return cloudwatch.New(session, &aws.Config{Region: aws.String(region)})
 	}
@@ -32,7 +51,7 @@ func getCloudwatchClientFn(session *session.Session, region string, creds *crede
 }
 
 //CreateScalingAlarms creates scaling alarms
-func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []schemas.AlarmConfigs, policyArns map[string]string) error {
+func (c CloudWatchClient) CreateScalingAlarms(asgName string, alarms []schemas.AlarmConfigs, policyArns map[string]string) error {
 	if len(alarms) == 0 {
 		return nil
 	}
@@ -44,7 +63,7 @@ func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []schemas.
 			arns = append(arns, policyArns[action])
 		}
 		alarm.AlarmActions = arns
-		if err := c.CreateCloudWatchAlarm(asg_name, alarm); err != nil {
+		if err := c.CreateCloudWatchAlarm(asgName, alarm); err != nil {
 			return err
 		}
 	}
@@ -53,10 +72,10 @@ func (c CloudWatchClient) CreateScalingAlarms(asg_name string, alarms []schemas.
 }
 
 // Create cloudwatch alarms for autoscaling group
-func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm schemas.AlarmConfigs) error {
+func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.AlarmConfigs) error {
 	input := &cloudwatch.PutMetricAlarmInput{
 		AlarmName:          aws.String(alarm.Name),
-		AlarmActions:       MakeStringArrayToAwsStrings(alarm.AlarmActions),
+		AlarmActions:       aws.StringSlice(alarm.AlarmActions),
 		MetricName:         aws.String(alarm.Metric),
 		Namespace:          aws.String(alarm.Namespace),
 		Statistic:          aws.String(alarm.Statistic),
@@ -67,7 +86,7 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm schemas.A
 		Dimensions: []*cloudwatch.Dimension{
 			{
 				Name:  aws.String("AutoScalingGroupName"),
-				Value: aws.String(asg_name),
+				Value: aws.String(asgName),
 			},
 		},
 	}
@@ -89,7 +108,7 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asg_name string, alarm schemas.A
 		return err
 	}
 
-	Logger.Info(fmt.Sprintf("New metric alarm is created : %s / asg : %s", alarm.Name, asg_name))
+	Logger.Info(fmt.Sprintf("New metric alarm is created : %s / asg : %s", alarm.Name, asgName))
 
 	return nil
 }
@@ -104,7 +123,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 			tgName := (*tg)[strings.LastIndex(*tg, ":")+1:]
 			logger.Debugf("GetRequestStatistics: %s", tgName)
 
-			appliedPeriod := tool.HOURTOSEC
+			appliedPeriod := constants.HourToSec
 			vSum := float64(0)
 
 			startTime = resetStartTime
@@ -113,7 +132,7 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 				id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
 				logger.Debugf("Metric id : %s", id)
 
-				endTime := tool.GetBaseTime(startTime.Add(time.Duration(tool.DAYTOSEC) * time.Second)).Add(-1 * time.Second)
+				endTime := tool.GetBaseTime(startTime.Add(time.Duration(constants.DayToSec) * time.Second)).Add(-1 * time.Second)
 				if CheckMetricTimeValidation(terminatedDate, endTime) {
 					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
 					endTime = terminatedDate
@@ -156,7 +175,6 @@ func (c CloudWatchClient) GetRequestStatistics(tgs []*string, startTime, termina
 
 // GetOneDayStatistics returns all stats of one day
 func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time.Time, period int64, id string) (map[string]float64, float64, error) {
-
 	input := &cloudwatch.GetMetricDataInput{
 		StartTime: aws.Time(startTime),
 		EndTime:   aws.Time(endTime),
@@ -206,7 +224,7 @@ func (c CloudWatchClient) GetOneDayStatistics(tg string, startTime, endTime time
 	sum := float64(0)
 	for i, t := range result.MetricDataResults[0].Timestamps {
 		val := *result.MetricDataResults[0].Values[i]
-		ret[fmt.Sprintf("%s", t.Format(time.RFC3339))] = val
+		ret[t.Format(time.RFC3339)] = val
 		sum += val
 	}
 

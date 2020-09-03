@@ -1,18 +1,37 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package inspector
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/fatih/color"
+
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
 type Inspector struct {
-	AWSClient     aws.AWSClient
+	AWSClient     aws.Client
 	StatusSummary StatusSummary
 	UpdateFields  UpdateFields
 }
@@ -32,12 +51,14 @@ type UpdateFields struct {
 	Capacity        schemas.Capacity
 }
 
+// New creates new Inspector
 func New(region string) Inspector {
 	return Inspector{
-		AWSClient: aws.BootstrapServices(region, ""),
+		AWSClient: aws.BootstrapServices(region, constants.EmptyString),
 	}
 }
 
+// SelectStack selects a stack
 func (i Inspector) SelectStack(application string) (string, error) {
 	asgOptions, err := i.GetStacks(application)
 	if err != nil {
@@ -53,11 +74,10 @@ func (i Inspector) SelectStack(application string) (string, error) {
 			Options: asgOptions,
 		}
 		survey.AskOne(prompt, &target)
-
 	}
 
-	if target == "" {
-		return "", fmt.Errorf("you have to choose at least one autoscaling group")
+	if target == constants.EmptyString {
+		return constants.EmptyString, errors.New("you have to choose at least one autoscaling group")
 	}
 
 	return target, nil

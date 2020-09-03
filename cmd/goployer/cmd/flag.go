@@ -1,12 +1,31 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package cmd
 
 import (
+	"reflect"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"reflect"
-	"time"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 )
 
 type Flag struct {
@@ -23,7 +42,6 @@ type Flag struct {
 }
 
 const (
-	noString        = ""
 	timeout         = 60 * time.Minute
 	pollingInterval = 60 * time.Second
 )
@@ -32,57 +50,68 @@ var zeroTimeout = 0 * time.Minute
 var zeroPollingInterval = 0 * time.Second
 
 var flagKey = map[string]string{
-	"deploy": "fullset",
-	"delete": "fullset",
-	"init":   "initset",
-	"status": "statusset",
-	"update": "updateset",
-	"add":    "addset",
+	"deploy": "fullSet",
+	"delete": "fullSet",
+	"init":   "initSet",
+	"status": "statusSet",
+	"update": "updateSet",
+	"add":    "addSet",
+}
+
+var CommonFlagRegistry = []Flag{
+	{
+		Name:          "profile",
+		Shorthand:     "p",
+		Usage:         "Profile configuration of AWS",
+		Value:         aws.String(constants.EmptyString),
+		DefValue:      constants.DefaultProfile,
+		FlagAddMethod: "StringVar",
+	},
 }
 
 var FlagRegistry = map[string][]Flag{
-	"fullset": []Flag{
+	"fullSet": {
 		{
 			Name:          "manifest",
 			Shorthand:     "m",
 			Usage:         "The manifest configuration file to use. (required)",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "manifest-s3-region",
 			Usage:         "Region of bucket containing the manifest configuration file to use. (required if –manifest starts with s3://)",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "stack",
 			Usage:         "stack that should be deployed.(required)",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "ami",
 			Usage:         "Amazon AMI to use.",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "env",
 			Usage:         "The environment that is being deployed into.",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "assume-role",
 			Usage:         "The Role ARN to assume into.",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -95,8 +124,8 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "region",
 			Usage:         "The region to deploy into, if undefined, then the deployment will run against all regions for the given environment.",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -109,29 +138,29 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
-			Value:         aws.String(noString),
+			Value:         aws.String(constants.EmptyString),
 			DefValue:      "info",
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "extra-tags",
 			Usage:         "Extra tags to add to autoscaling group tags",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "ansible-extra-vars",
 			Usage:         "Extra variables for ansible",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "override-instance-type",
 			Usage:         "Instance Type to override",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -144,15 +173,15 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "release-notes",
 			Usage:         "Release note for the current deployment",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
 			Name:          "release-notes-base64",
 			Usage:         "Base64 encoded string of release note for the current deployment",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -177,39 +206,39 @@ var FlagRegistry = map[string][]Flag{
 			FlagAddMethod: "BoolVar",
 		},
 	},
-	"initset": []Flag{
+	"initSet": {
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
-			Value:         aws.String(noString),
+			Value:         aws.String(constants.EmptyString),
 			DefValue:      "info",
 			FlagAddMethod: "StringVar",
 		},
 	},
-	"addset": []Flag{
+	"addSet": {
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
-			Value:         aws.String(noString),
+			Value:         aws.String(constants.EmptyString),
 			DefValue:      "info",
 			FlagAddMethod: "StringVar",
 		},
 	},
-	"statusset": []Flag{
+	"statusSet": {
 		{
 			Name:          "region",
 			Usage:         "Region of autoscaling group",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 	},
-	"updateset": []Flag{
+	"updateSet": {
 		{
 			Name:          "region",
 			Usage:         "Region of autoscaling group",
-			Value:         aws.String(noString),
-			DefValue:      "",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -271,7 +300,7 @@ func (fl *Flag) flag() *pflag.Flag {
 	fs := pflag.NewFlagSet(fl.Name, pflag.ContinueOnError)
 	reflect.ValueOf(fs).MethodByName(fl.FlagAddMethod).Call(reflectValueOf(inputs))
 	f := fs.Lookup(fl.Name)
-	if fl.Shorthand != "" {
+	if fl.Shorthand != constants.EmptyString {
 		f.Shorthand = fl.Shorthand
 	}
 	f.Hidden = fl.Hidden
@@ -291,8 +320,10 @@ func reflectValueOf(values []interface{}) []reflect.Value {
 //Add command flags
 func SetCommandFlags(cmd *cobra.Command) {
 	var flagsForCommand []*Flag
-	for i := range FlagRegistry[flagKey[cmd.Use]] {
-		fl := &FlagRegistry[flagKey[cmd.Use]][i]
+
+	FlagRegistries := append(CommonFlagRegistry, FlagRegistry[flagKey[cmd.Use]]...)
+	for i := range FlagRegistries {
+		fl := &FlagRegistries[i]
 		cmd.PersistentFlags().AddFlag(fl.flag())
 		flagsForCommand = append(flagsForCommand, fl)
 	}

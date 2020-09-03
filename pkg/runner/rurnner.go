@@ -1,26 +1,45 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package runner
 
 import (
+	"errors"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
-	"github.com/DevopsArtFactory/goployer/pkg/slack"
-	"github.com/GwonsooLee/kubenx/pkg/color"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/GwonsooLee/kubenx/pkg/color"
+	Logger "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
 	"github.com/DevopsArtFactory/goployer/pkg/initializer"
 	"github.com/DevopsArtFactory/goployer/pkg/inspector"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
-	Logger "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 type Runner struct {
@@ -31,6 +50,7 @@ type Runner struct {
 	FuncMapper map[string]func() error
 }
 
+// SetupBuilder setup builder struct for configuration
 func SetupBuilder(mode string) (builder.Builder, error) {
 	// Create new builder
 	builderSt, err := builder.NewBuilder(nil)
@@ -38,7 +58,7 @@ func SetupBuilder(mode string) (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	if !checkMode(mode) {
+	if !checkManifestCommands(mode) {
 		return builderSt, nil
 	}
 
@@ -51,7 +71,7 @@ func SetupBuilder(mode string) (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, builder.METRIC_YAML_PATH)
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, constants.MetricYamlPath)
 	if err != nil {
 		return builder.Builder{}, err
 	}
@@ -61,6 +81,7 @@ func SetupBuilder(mode string) (builder.Builder, error) {
 	return builderSt, nil
 }
 
+// ServerSetup setup a goployer server
 func ServerSetup(config builder.Config) (builder.Builder, error) {
 	// Create new builder
 	builderSt, err := builder.NewBuilder(&config)
@@ -73,7 +94,7 @@ func ServerSetup(config builder.Config) (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, builder.METRIC_YAML_PATH)
+	m, err := builder.ParseMetricConfig(builderSt.Config.DisableMetrics, constants.MetricYamlPath)
 	if err != nil {
 		return builder.Builder{}, err
 	}
@@ -83,8 +104,9 @@ func ServerSetup(config builder.Config) (builder.Builder, error) {
 	return builderSt, nil
 }
 
+// setManifestToBuilder creates builderSt with manifest configurations
 func setManifestToBuilder(builderSt builder.Builder) (builder.Builder, error) {
-	if !strings.HasPrefix(builderSt.Config.Manifest, builder.S3_PREFIX) {
+	if !strings.HasPrefix(builderSt.Config.Manifest, constants.S3Prefix) {
 		builderSt = builderSt.SetManifestConfig()
 	} else {
 		s := aws.BootstrapManifestService(builderSt.Config.ManifestS3Region, "")
@@ -105,11 +127,11 @@ func Initialize(args []string) error {
 
 	// validation
 	if len(args) > 1 {
-		return fmt.Errorf("usage: goployer init <application name>")
+		return errors.New("usage: goployer init <application name>")
 	}
 
 	if len(args) == 0 {
-		appName, err = getApplicationName()
+		appName, err = askApplicationName()
 		if err != nil {
 			return err
 		}
@@ -118,7 +140,7 @@ func Initialize(args []string) error {
 	}
 
 	i := initializer.NewInitializer(appName)
-	i.Logger.SetLevel(tool.LogLevelMapper[viper.GetString("log-level")])
+	i.Logger.SetLevel(constants.LogLevelMapper[viper.GetString("log-level")])
 
 	if err := i.RunInit(); err != nil {
 		return err
@@ -134,11 +156,11 @@ func AddManifest(args []string) error {
 
 	// validation
 	if len(args) > 1 {
-		return fmt.Errorf("usage: goployer add <application name>")
+		return errors.New("usage: goployer add <application name>")
 	}
 
 	if len(args) == 0 {
-		appName, err = getApplicationName()
+		appName, err = askApplicationName()
 		if err != nil {
 			return err
 		}
@@ -147,7 +169,7 @@ func AddManifest(args []string) error {
 	}
 
 	i := initializer.NewInitializer(appName)
-	i.Logger.SetLevel(tool.LogLevelMapper[viper.GetString("log-level")])
+	i.Logger.SetLevel(constants.LogLevelMapper[viper.GetString("log-level")])
 
 	if err := i.RunAdd(); err != nil {
 		return err
@@ -156,10 +178,9 @@ func AddManifest(args []string) error {
 	return nil
 }
 
-//Start function is the starting point of all processes.
+// Start function is the starting point of all processes.
 func Start(builderSt builder.Builder, mode string) error {
-
-	if checkMode(mode) {
+	if checkManifestCommands(mode) {
 		// Check validation of configurations
 		if err := builderSt.CheckValidation(); err != nil {
 			return err
@@ -183,7 +204,7 @@ func Start(builderSt builder.Builder, mode string) error {
 	})
 }
 
-//withRunner creates runner and runs the deployment process
+// withRunner creates runner and runs the deployment process
 func withRunner(builderSt builder.Builder, mode string, postAction func(slacker slack.Slack) error) error {
 	runner, err := NewRunner(builderSt, mode)
 	if err != nil {
@@ -198,7 +219,7 @@ func withRunner(builderSt builder.Builder, mode string, postAction func(slacker 
 	return postAction(runner.Slacker)
 }
 
-//NewRunner creates a new runner
+// NewRunner creates a new runner
 func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 	newRunner := Runner{
 		Logger:  Logger.New(),
@@ -206,7 +227,7 @@ func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 		Slacker: slack.NewSlackClient(newBuilder.Config.SlackOff),
 	}
 
-	if checkMode(mode) {
+	if checkManifestCommands(mode) {
 		newRunner.Collector = collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole)
 	}
 
@@ -220,10 +241,10 @@ func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 	return newRunner, nil
 }
 
-// Set log format
+// LogFormatting sets log format
 func (r Runner) LogFormatting(logLevel string) {
 	r.Logger.SetOutput(os.Stdout)
-	r.Logger.SetLevel(tool.LogLevelMapper[logLevel])
+	r.Logger.SetLevel(constants.LogLevelMapper[logLevel])
 }
 
 // Run executes all required steps for deployments
@@ -235,6 +256,7 @@ func (r Runner) Run(mode string) error {
 	return f()
 }
 
+// Deploy is the main function of `goployer deploy`
 func (r Runner) Deploy() error {
 	defer func() {
 		if err := recover(); err != nil {
@@ -283,7 +305,7 @@ func (r Runner) Deploy() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector))
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector))
 	}
 
 	r.Logger.Debugf("successfully assign deployer to stacks")
@@ -294,11 +316,11 @@ func (r Runner) Deploy() error {
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
 			}
 
 			if err := deployer.Deploy(r.Builder.Config); err != nil {
-				r.Logger.Errorf("[STEP_DEPLOY] deploy step error occurred: %s", err.Error())
+				r.Logger.Errorf("[StepDeploy] deploy step error occurred: %s", err.Error())
 			}
 		}(d)
 	}
@@ -351,6 +373,7 @@ func (r Runner) Deploy() error {
 	return nil
 }
 
+// Delete is the main function for `goployer delete`
 func (r Runner) Delete() error {
 	defer func() {
 		if err := recover(); err != nil {
@@ -387,7 +410,7 @@ func (r Runner) Delete() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector)
+		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
@@ -399,7 +422,7 @@ func (r Runner) Delete() error {
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
-				r.Logger.Errorf("[STEP_CHECK_PREVIOUS] check previous deployer error occurred: %s", err.Error())
+				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
 			}
 
 			deployer.SkipDeployStep()
@@ -413,7 +436,6 @@ func (r Runner) Delete() error {
 			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
 				r.Logger.Errorf(err.Error())
 			}
-
 		}(d)
 	}
 	wg.Wait()
@@ -511,7 +533,7 @@ func (r Runner) Update() error {
 
 	r.Logger.Debugf("create deployer for update")
 	deployers := []deployer.DeployManager{
-		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Slacker, r.Collector),
+		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector),
 	}
 
 	// healthcheck
@@ -527,12 +549,13 @@ func (r Runner) Update() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, slack slack.Slack, c collector.Collector) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,
 		awsConfig,
 		stack,
+		region,
 	)
 
 	deployer.Slack = slack
@@ -554,7 +577,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 		logger.Debugf("Start Timestamp: %d, timeout: %s", config.StartTimestamp, config.Timeout)
 		isTimeout, _ := tool.CheckTimeout(config.StartTimestamp, config.Timeout)
 		if isTimeout {
-			return fmt.Errorf("Timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
+			return fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
 		}
 
 		for _, d := range deployers {
@@ -562,7 +585,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 				continue
 			}
 
-			count += 1
+			count++
 
 			//Start healthcheck thread
 			go func(deployer deployer.DeployManager) {
@@ -573,7 +596,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 		for count > 0 {
 			ret := <-ch
 			if ret["error"] {
-				return fmt.Errorf("error happened while healthchecking")
+				return errors.New("error happened while healthchecking")
 			}
 			for key, val := range ret {
 				if key == "error" {
@@ -583,7 +606,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 					healthyStackList = append(healthyStackList, key)
 				}
 			}
-			count -= 1
+			count--
 		}
 
 		if len(healthyStackList) == len(deployers) {
@@ -612,7 +635,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config, lo
 				continue
 			}
 
-			count += 1
+			count++
 
 			//Start terminateChecking thread
 			go func(deployer deployer.DeployManager) {
@@ -628,7 +651,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config, lo
 					doneStackList = append(doneStackList, stack)
 				}
 			}
-			count -= 1
+			count--
 		}
 
 		if len(doneStackList) == len(deployers) {
@@ -643,6 +666,7 @@ func cleanChecking(deployers []deployer.DeployManager, config builder.Config, lo
 	return nil
 }
 
+// CheckEnabledMetrics checks if metrics configuration is enabled or not
 func (r Runner) CheckEnabledMetrics() error {
 	r.Logger.Infof("Metric Measurement is enabled")
 
@@ -654,27 +678,30 @@ func (r Runner) CheckEnabledMetrics() error {
 	return nil
 }
 
+// FilterS3Path detects s3 path
 func FilterS3Path(path string) (string, string) {
-	path = strings.ReplaceAll(path, builder.S3_PREFIX, "")
+	path = strings.ReplaceAll(path, constants.S3Prefix, "")
 	split := strings.Split(path, "/")
 
 	return split[0], strings.Join(split[1:], "/")
 }
 
-func getApplicationName() (string, error) {
+// askApplicationName gets application name from interactive terminal
+func askApplicationName() (string, error) {
 	var answer string
 	prompt := &survey.Input{
 		Message: "What is application name? ",
 	}
 	survey.AskOne(prompt, &answer)
-	if answer == "" {
-		return "", fmt.Errorf("canceled")
+	if answer == constants.EmptyString {
+		return constants.EmptyString, errors.New("canceled")
 	}
 
 	return answer, nil
 }
 
-func checkMode(mode string) bool {
+// checkManifestCommands checks if mode is needed to run manifest validation
+func checkManifestCommands(mode string) bool {
 	return tool.IsStringInArray(mode, []string{"deploy", "delete"})
 }
 
@@ -682,7 +709,7 @@ func (r Runner) LocalCheck(message string) error {
 	// From local os, you need to ensure that this command is intended
 	if runtime.GOOS == "darwin" && !r.Builder.Config.AutoApply {
 		if !tool.AskContinue(message) {
-			return fmt.Errorf("you declined to run command")
+			return errors.New("you declined to run command")
 		}
 	}
 	return nil
@@ -691,19 +718,19 @@ func (r Runner) LocalCheck(message string) error {
 // CheckUpdateInformation checks if updated information is valid or not
 func CheckUpdateInformation(old, new schemas.Capacity) error {
 	if new.Min > new.Max {
-		return fmt.Errorf("minimum value cannot be larger than maximum value")
+		return errors.New("minimum value cannot be larger than maximum value")
 	}
 
 	if new.Min > new.Desired {
-		return fmt.Errorf("desired value cannot be smaller than maximum value")
+		return errors.New("desired value cannot be smaller than maximum value")
 	}
 
 	if new.Desired > new.Max {
-		return fmt.Errorf("desired value cannot be larger than max value")
+		return errors.New("desired value cannot be larger than max value")
 	}
 
 	if old == new {
-		return fmt.Errorf("nothing is updated")
+		return errors.New("nothing is updated")
 	}
 	return nil
 }

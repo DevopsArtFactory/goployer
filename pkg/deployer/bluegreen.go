@@ -1,22 +1,48 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package deployer
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	Logger "github.com/sirupsen/logrus"
+
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
-	Logger "github.com/sirupsen/logrus"
-	"strings"
 )
 
 type BlueGreen struct {
 	Deployer
 }
 
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, stack schemas.Stack) BlueGreen {
-	awsClients := []aws.AWSClient{}
+// NewBlueGrean creates new BlueGreen deployment deployer
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, stack schemas.Stack, regionSelected string) BlueGreen {
+	awsClients := []aws.Client{}
 	for _, region := range stack.Regions {
+		if len(regionSelected) > 0 && regionSelected != region.Region {
+			Logger.Debugf("skip creating aws clients in %s region", region.Region)
+			continue
+		}
 		awsClients = append(awsClients, aws.BootstrapServices(region.Region, stack.AssumeRole))
 	}
 	return BlueGreen{
@@ -32,11 +58,11 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 			PrevVersions:      map[string][]int{},
 			Stack:             stack,
 			StepStatus: map[int64]bool{
-				tool.STEP_CHECK_PREVIOUS:             false,
-				tool.STEP_DEPLOY:                     false,
-				tool.STEP_ADDITIONAL_WORK:            false,
-				tool.STEP_TRIGGER_LIFECYCLE_CALLBACK: false,
-				tool.STEP_CLEAN_PREVIOUS_VERSION:     false,
+				constants.StepCheckPrevious:            false,
+				constants.StepDeploy:                   false,
+				constants.StepAdditionalWork:           false,
+				constants.StepTriggerLifecycleCallback: false,
+				constants.StepCleanPreviousVersion:     false,
 			},
 		},
 	}
@@ -44,7 +70,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 
 // Deploy function
 func (b BlueGreen) Deploy(config builder.Config) error {
-	if !b.StepStatus[tool.STEP_CHECK_PREVIOUS] {
+	if !b.StepStatus[constants.StepCheckPrevious] {
 		return nil
 	}
 
@@ -81,17 +107,23 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		if len(config.Ami) > 0 {
 			ami = config.Ami
 		} else {
-			ami = region.AmiId
+			ami = region.AmiID
 		}
 
 		// Generate new name for autoscaling group and launch configuration
-		new_asg_name := tool.GenerateAsgName(frigga.Prefix, curVersion)
-		launch_template_name := tool.GenerateLcName(new_asg_name)
+		newAsgName := tool.GenerateAsgName(frigga.Prefix, curVersion)
+		launchTemplateName := tool.GenerateLcName(newAsgName)
 
-		userdata := (b.LocalProvider).Provide()
+		userdata, err := (b.LocalProvider).Provide()
+		if err != nil {
+			return err
+		}
 
 		//Stack check
-		securityGroups := client.EC2Service.GetSecurityGroupList(region.VPC, region.SecurityGroups)
+		securityGroups, err := client.EC2Service.GetSecurityGroupList(region.VPC, region.SecurityGroups)
+		if err != nil {
+			return err
+		}
 		blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(b.Stack.BlockDevices)
 		ebsOptimized := b.Stack.EbsOptimized
 
@@ -106,11 +138,11 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 		}
 
 		// LaunchTemplate
-		ret := client.EC2Service.CreateNewLaunchTemplate(
-			launch_template_name,
+		err = client.EC2Service.CreateNewLaunchTemplate(
+			launchTemplateName,
 			ami,
 			instanceType,
-			region.SshKey,
+			region.SSHKey,
 			b.Stack.IamInstanceProfile,
 			userdata,
 			ebsOptimized,
@@ -121,8 +153,8 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			region.DetailedMonitoringEnabled,
 		)
 
-		if !ret {
-			return fmt.Errorf("unknown error happened creating new launch template")
+		if err != nil {
+			return errors.New("unknown error happened creating new launch template")
 		}
 
 		healthElb := region.HealthcheckLB
@@ -137,14 +169,19 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 			targetGroups = append(targetGroups, healthcheckTargetGroup)
 		}
 
-		usePublicSubnets := region.UsePublicSubnets
-		healthcheckType := aws.DEFAULT_HEALTHCHECK_TYPE
-		healthcheckGracePeriod := int64(aws.DEFAULT_HEALTHCHECK_GRACE_PERIOD)
 		terminationPolicies := []*string{}
-		availabilityZones := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
-		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, new_asg_name, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, b.Stack.Tags, config.ExtraTags, config.AnsibleExtraVars, region.Region)
-		subnets := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
-		lifecycleHooksSpecificationList := client.EC2Service.GenerateLifecycleHooks(b.Stack.LifecycleHooks)
+		usePublicSubnets := region.UsePublicSubnets
+		healthcheckType := constants.DefaultHealthcheckType
+		healthcheckGracePeriod := int64(constants.DefaultHealthcheckGracePeriod)
+		availabilityZones, err := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
+		if err != nil {
+			return err
+		}
+		tags := client.EC2Service.GenerateTags(b.AwsConfig.Tags, newAsgName, b.AwsConfig.Name, config.Stack, b.Stack.AnsibleTags, b.Stack.Tags, config.ExtraTags, config.AnsibleExtraVars, region.Region)
+		subnets, err := client.EC2Service.GetSubnets(region.VPC, usePublicSubnets, availabilityZones)
+		if err != nil {
+			return err
+		}
 		targetGroupArns, err := client.ELBV2Service.GetTargetGroupARNs(targetGroups)
 		if err != nil {
 			return err
@@ -160,16 +197,21 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 
 		b.Logger.Infof("Applied instance capacity - Min: %d, Desired: %d, Max: %d", appliedCapacity.Min, appliedCapacity.Desired, appliedCapacity.Max)
 
-		ret, err = client.EC2Service.CreateAutoScalingGroup(
-			new_asg_name,
-			launch_template_name,
+		var lifecycleHooksSpecificationList []*autoscaling.LifecycleHookSpecification
+		if b.Stack.LifecycleHooks != nil {
+			lifecycleHooksSpecificationList = client.EC2Service.GenerateLifecycleHooks(*b.Stack.LifecycleHooks)
+		}
+
+		_, err = client.EC2Service.CreateAutoScalingGroup(
+			newAsgName,
+			launchTemplateName,
 			healthcheckType,
 			healthcheckGracePeriod,
 			appliedCapacity,
-			aws.MakeStringArrayToAwsStrings(loadbalancers),
+			loadbalancers,
+			availabilityZones,
 			targetGroupArns,
 			terminationPolicies,
-			aws.MakeStringArrayToAwsStrings(availabilityZones),
 			tags,
 			subnets,
 			b.Stack.MixedInstancesPolicy,
@@ -194,14 +236,14 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 				additionalFields["userdata"] = userdata
 			}
 
-			b.Collector.StampDeployment(b.Stack, config, tags, new_asg_name, "creating", additionalFields)
+			b.Collector.StampDeployment(b.Stack, config, tags, newAsgName, "creating", additionalFields)
 		}
 
-		b.AsgNames[region.Region] = new_asg_name
+		b.AsgNames[region.Region] = newAsgName
 		b.Stack.Capacity.Desired = appliedCapacity.Desired
 	}
 
-	b.StepStatus[tool.STEP_DEPLOY] = true
+	b.StepStatus[constants.StepDeploy] = true
 	return nil
 }
 
@@ -209,10 +251,10 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	isUpdate := len(config.TargetAutoscalingGroup) > 0
 	stackName := b.GetStackName()
-	if !b.StepStatus[tool.STEP_DEPLOY] && !isUpdate {
+	if !b.StepStatus[constants.StepDeploy] && !isUpdate {
 		return map[string]bool{stackName: true}
 	}
-	Logger.Debug(fmt.Sprintf("Healthchecking for stack starts : %s", stackName))
+	b.Logger.Debugf("Healthchecking for stack starts : %s", stackName)
 	finished := []string{}
 
 	//Valid Count
@@ -231,11 +273,11 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 		//Region check
 		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
-			b.Logger.Debug("This region is skipped by user : " + region.Region)
+			b.Logger.Debugf("This region is skipped by user: %s", region.Region)
 			continue
 		}
 
-		b.Logger.Debug("Healthchecking for region starts : " + region.Region)
+		b.Logger.Debugf("Healthchecking for region starts: %s", region.Region)
 
 		//select client
 		client, err := selectClientFromList(b.AWSClients, region.Region)
@@ -276,14 +318,14 @@ func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
 	return map[string]bool{stackName: false, "error": false}
 }
 
-//Stack Name Getter
+// GetStackName returns name of stack
 func (b BlueGreen) GetStackName() string {
 	return b.Stack.Stack
 }
 
-//BlueGreen finish final work
+// FinishAdditionalWork processes final work
 func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
-	if !b.StepStatus[tool.STEP_DEPLOY] {
+	if !b.StepStatus[constants.StepDeploy] {
 		return nil
 	}
 
@@ -306,14 +348,13 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 			//select client
 			client, err := selectClientFromList(b.AWSClients, region.Region)
 			if err != nil {
-				tool.ErrorLogging(err.Error())
+				return err
 			}
 
 			if len(b.Stack.Autoscaling) == 0 {
 				b.Logger.Debug("No scaling policy exists")
 			} else {
 				//putting autoscaling group policies
-				policies := []string{}
 				policyArns := map[string]string{}
 				for _, policy := range b.Stack.Autoscaling {
 					policyArn, err := client.EC2Service.CreateScalingPolicy(policy, b.AsgNames[region.Region])
@@ -321,7 +362,6 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 						return err
 					}
 					policyArns[policy.Name] = *policyArn
-					policies = append(policies, policy.Name)
 				}
 
 				if err := client.EC2Service.EnableMetrics(b.AsgNames[region.Region]); err != nil {
@@ -352,18 +392,18 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 	}
 
 	Logger.Debug("Finish additional works.")
-	b.StepStatus[tool.STEP_ADDITIONAL_WORK] = true
+	b.StepStatus[constants.StepAdditionalWork] = true
 	return nil
 }
 
-// Run lifecycle callbacks before cleaning.
+// TriggerLifecycleCallbacks runs lifecycle callbacks before cleaning.
 func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
-	if !b.StepStatus[tool.STEP_ADDITIONAL_WORK] {
+	if !b.StepStatus[constants.StepAdditionalWork] {
 		return nil
 	}
 
 	skipped := false
-	if &b.Stack.LifecycleCallbacks == nil || len(b.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
+	if b.Stack.LifecycleCallbacks == nil || len(b.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
 		b.Logger.Debugf("no lifecycle callbacks in %s\n", b.Stack.Stack)
 		skipped = true
 	}
@@ -385,7 +425,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 			//select client
 			client, err := selectClientFromList(b.AWSClients, region.Region)
 			if err != nil {
-				tool.ErrorLogging(err.Error())
+				return err
 			}
 
 			if len(b.PrevInstances[region.Region]) > 0 {
@@ -396,13 +436,13 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 			}
 		}
 	}
-	b.StepStatus[tool.STEP_TRIGGER_LIFECYCLE_CALLBACK] = true
+	b.StepStatus[constants.StepTriggerLifecycleCallback] = true
 	return nil
 }
 
 //Clean Previous Version
 func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
-	if !b.StepStatus[tool.STEP_TRIGGER_LIFECYCLE_CALLBACK] {
+	if !b.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil
 	}
 	b.Logger.Debug("Delete Mode is " + b.Mode)
@@ -426,7 +466,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			//select client
 			client, err := selectClientFromList(b.AWSClients, region.Region)
 			if err != nil {
-				tool.ErrorLogging(err.Error())
+				return err
 			}
 
 			// First make autoscaling group size to 0
@@ -443,14 +483,14 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 			}
 		}
 	}
-	b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] = true
+	b.StepStatus[constants.StepCleanPreviousVersion] = true
 	return nil
 }
 
-// Clean Termination Checking
+// TerminateChecking checks Termination status
 func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 	stackName := b.GetStackName()
-	if !b.StepStatus[tool.STEP_CLEAN_PREVIOUS_VERSION] {
+	if !b.StepStatus[constants.StepCleanPreviousVersion] {
 		return map[string]bool{stackName: true}
 	}
 	b.Logger.Info(fmt.Sprintf("Termination Checking for %s starts...", stackName))
@@ -493,16 +533,16 @@ func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
 			continue
 		}
 
-		ok_count := 0
+		okCount := 0
 		for _, target := range targets {
 			ok := b.Deployer.CheckTerminating(client, target, config.DisableMetrics)
 			if ok {
 				b.Logger.Info("finished : ", target)
-				ok_count++
+				okCount++
 			}
 		}
 
-		if ok_count == len(targets) {
+		if okCount == len(targets) {
 			finished = append(finished, region.Region)
 		}
 	}
@@ -554,21 +594,21 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 		}
 
 		if len(b.PrevAsgs[region.Region]) > 0 {
-			var errors []error
+			var errorList []error
 			for _, asg := range b.PrevAsgs[region.Region] {
 				b.Logger.Debugf("Start gathering metrics about autoscaling group : %s", asg)
 				err := b.Deployer.GatherMetrics(client, asg)
 				if err != nil {
-					errors = append(errors, err)
+					errorList = append(errorList, err)
 				}
 				b.Logger.Debugf("Finish gathering metrics about autoscaling group %s.", asg)
 			}
 
-			if len(errors) > 0 {
-				for _, e := range errors {
+			if len(errorList) > 0 {
+				for _, e := range errorList {
 					b.Logger.Errorf(e.Error())
 				}
-				return fmt.Errorf("error occurred on gathering metrics")
+				return errors.New("error occurred on gathering metrics")
 			}
 		} else {
 			b.Logger.Debugf("No previous versions to gather metrics : %s\n", region.Region)
@@ -578,7 +618,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 	return nil
 }
 
-// Deploy function
+// CheckPrevious checks if there is any previous version of autoscaling group
 func (b BlueGreen) CheckPrevious(config builder.Config) error {
 	// Make Frigga
 	frigga := tool.Frigga{}
@@ -626,11 +666,11 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 		b.PrevInstanceCount[region.Region] = prevInstanceCount
 	}
 
-	b.StepStatus[tool.STEP_CHECK_PREVIOUS] = true
+	b.StepStatus[constants.StepCheckPrevious] = true
 	return nil
 }
 
 func (b BlueGreen) SkipDeployStep() {
-	b.StepStatus[tool.STEP_DEPLOY] = true
-	b.StepStatus[tool.STEP_ADDITIONAL_WORK] = true
+	b.StepStatus[constants.StepDeploy] = true
+	b.StepStatus[constants.StepAdditionalWork] = true
 }

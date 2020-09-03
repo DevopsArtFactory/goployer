@@ -1,13 +1,32 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package builder
 
 import (
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-test/deep"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
 func TestCheckValidationConfig(t *testing.T) {
@@ -15,7 +34,7 @@ func TestCheckValidationConfig(t *testing.T) {
 		Config: Config{
 			Stack:    "artd",
 			Manifest: "config/hello.yaml",
-			Timeout:  DEFAULT_DEPLOYMENT_TIMEOUT,
+			Timeout:  constants.DefaultDeploymentTimeout,
 		},
 		Stacks: []schemas.Stack{
 			{
@@ -25,7 +44,7 @@ func TestCheckValidationConfig(t *testing.T) {
 				Regions: []schemas.RegionConfig{
 					{
 						Region:       "ap-northeast-2",
-						AmiId:        "ami-test",
+						AmiID:        "ami-test",
 						InstanceType: "t3.small",
 						ScheduledActions: []string{
 							"fake_action",
@@ -41,23 +60,23 @@ func TestCheckValidationConfig(t *testing.T) {
 	b.Stacks[0].Stack = "artd"
 
 	b.Config.Ami = "ami-test"
-	if err := b.CheckValidation(); err == nil || fmt.Sprintf("%s", err.Error()) != fmt.Sprintf("ami id cannot be used in different regions : %s", b.Config.Ami) {
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("ami id cannot be used in different regions : %s", b.Config.Ami) {
 		t.Errorf("validation failed: global ami")
 	}
 	b.Config.Region = "ap-northeast-2"
 
 	b.Config.ReleaseNotesBase64 = "test-base64"
-	b.Config.ReleaseNotes = "test"
+	b.Config.ReleaseNotes = constants.TestString
 	if err := b.CheckValidation(); err == nil || err.Error() != "you cannot specify the release-notes and release-notes-base64 at the same time" {
 		t.Errorf("validation failed: release notes")
 	}
 
 	b.Config.ReleaseNotesBase64 = ""
-	b.Config.PollingInterval = MIN_POLLING_INTERVAL - 1
-	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("polling interval cannot be smaller than %.0f sec", MIN_POLLING_INTERVAL.Seconds()) {
+	b.Config.PollingInterval = constants.MinPollingInterval - 1
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("polling interval cannot be smaller than %.0f sec", constants.MinPollingInterval.Seconds()) {
 		t.Errorf("validation failed: min polling interval")
 	}
-	b.Config.PollingInterval = MIN_POLLING_INTERVAL
+	b.Config.PollingInterval = constants.MinPollingInterval
 
 	b.Config.PollingInterval = b.Config.Timeout + 1
 	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("polling interval should be lower than %.0f min", b.Config.Timeout.Minutes()) {
@@ -77,7 +96,7 @@ func TestCheckValidationConfig(t *testing.T) {
 	}
 	b.MetricConfig.Storage.Name = "goployer-test"
 
-	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("no %s file exists", METRIC_YAML_PATH) {
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("no %s file exists", constants.MetricYamlPath) {
 		t.Errorf("validation failed: metric file")
 	}
 	b.Config.DisableMetrics = true
@@ -95,8 +114,8 @@ func TestCheckValidationScheduledAction(t *testing.T) {
 		Config: Config{
 			Stack:           "artd",
 			Manifest:        "config/hello.yaml",
-			Timeout:         DEFAULT_DEPLOYMENT_TIMEOUT,
-			PollingInterval: DEFAULT_POLLING_INTERVAL,
+			Timeout:         constants.DefaultDeploymentTimeout,
+			PollingInterval: constants.DefaultPollingInterval,
 			DisableMetrics:  true,
 		},
 		MetricConfig: schemas.MetricConfig{
@@ -115,7 +134,7 @@ func TestCheckValidationScheduledAction(t *testing.T) {
 				Regions: []schemas.RegionConfig{
 					{
 						Region:       "ap-northeast-2",
-						AmiId:        "ami-test",
+						AmiID:        "ami-test",
 						InstanceType: "t3.small",
 						ScheduledActions: []string{
 							"fake_action",
@@ -155,8 +174,8 @@ func TestCheckValidationStack(t *testing.T) {
 		Config: Config{
 			Stack:           "artd",
 			Manifest:        "config/hello.yaml",
-			Timeout:         DEFAULT_DEPLOYMENT_TIMEOUT,
-			PollingInterval: DEFAULT_POLLING_INTERVAL,
+			Timeout:         constants.DefaultDeploymentTimeout,
+			PollingInterval: constants.DefaultPollingInterval,
 			DisableMetrics:  true,
 		},
 		MetricConfig: schemas.MetricConfig{
@@ -215,18 +234,18 @@ func TestCheckValidationStack(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != "autoscaling policy doesn't have a name" {
 		t.Errorf("validation failed: stack-autoscaling")
 	}
-	b.Stacks[0].Autoscaling[0].Name = "test"
+	b.Stacks[0].Autoscaling[0].Name = constants.TestString
 
 	if err := b.CheckValidation(); err == nil || err.Error() != "cloudwatch alarm doesn't have a name" {
 		t.Errorf("validation failed: stack-cloudwatch alarm")
 	}
-	b.Stacks[0].Alarms[0].Name = "test"
+	b.Stacks[0].Alarms[0].Name = constants.TestString
 	b.Stacks[0].Alarms[0].AlarmActions = []string{"test2"}
 
 	if err := b.CheckValidation(); err == nil || err.Error() != "no scaling action exists : test2" {
 		t.Errorf("validation failed: stack-cloudwatch alarm mapping")
 	}
-	b.Stacks[0].Alarms[0].AlarmActions = []string{"test"}
+	b.Stacks[0].Alarms[0].AlarmActions = []string{constants.TestString}
 
 	b.Stacks[0].InstanceMarketOptions = &schemas.InstanceMarketOptions{
 		MarketType:  "not spot",
@@ -290,7 +309,7 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].BlockDevices[1].DeviceName = "/dev/xvdb"
 
-	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{
+	b.Stacks[0].LifecycleHooks = &schemas.LifecycleHooks{
 		LaunchTransition: []schemas.LifecycleHookSpecification{
 			{
 				LifecycleHookName:     "test",
@@ -302,7 +321,7 @@ func TestCheckValidationStack(t *testing.T) {
 		t.Errorf("validation failed: lifecycle hook notification")
 	}
 
-	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{
+	b.Stacks[0].LifecycleHooks = &schemas.LifecycleHooks{
 		LaunchTransition: []schemas.LifecycleHookSpecification{
 			{
 				LifecycleHookName: "test",
@@ -313,18 +332,18 @@ func TestCheckValidationStack(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != "notification_target_arn is needed if role_arn is not empty : test" {
 		t.Errorf("validation failed: lifecycle hook role")
 	}
-	b.Stacks[0].LifecycleHooks = schemas.LifecycleHooks{}
+	b.Stacks[0].LifecycleHooks = nil
 
 	b.Stacks[0].Regions = []schemas.RegionConfig{
 		{
 			Region: "ap-northeast-2",
-			AmiId:  "",
+			AmiID:  "",
 		},
 	}
 	if err := b.CheckValidation(); err == nil || err.Error() != "you have to specify at least one ami id" {
 		t.Errorf("validation failed: ami")
 	}
-	b.Stacks[0].Regions[0].AmiId = "ami-test"
+	b.Stacks[0].Regions[0].AmiID = "ami-test"
 
 	if err := b.CheckValidation(); err == nil || err.Error() != "you have to specify the instance type" {
 		t.Errorf("validation failed: instance type")
@@ -373,7 +392,7 @@ func TestCheckValidationStack(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != "you can only set spot_instance_pools with lowest-price spot_allocation_strategy" {
 		t.Errorf("validation failed: spot allocation strategy")
 	}
-	b.Stacks[0].MixedInstancesPolicy.SpotAllocationStrategy = DEFAULT_SPOT_ALLOCATION_STRATEGY
+	b.Stacks[0].MixedInstancesPolicy.SpotAllocationStrategy = constants.DefaultSpotAllocationStrategy
 
 	if err := b.CheckValidation(); err == nil || err.Error() != "you have to set at least one instance type to use in override" {
 		t.Errorf("validation failed: override")
@@ -395,27 +414,48 @@ func TestRefineConfig(t *testing.T) {
 		{
 			input: Config{
 				Timeout: 5,
+				Region:  "ap-northeast-2",
 			},
 			output: Config{
 				Timeout: 5 * time.Minute,
+				Region:  "ap-northeast-2",
 			},
 		},
 		{
 			input: Config{
 				PollingInterval: 5,
+				Region:          "ap-northeast-2",
 			},
 			output: Config{
 				PollingInterval: 5 * time.Second,
+				Region:          "ap-northeast-2",
 			},
 		},
 	}
 
 	for _, td := range testData {
-		r := RefineConfig(td.input)
+		r, _ := RefineConfig(td.input)
 		td.output.StartTimestamp = r.StartTimestamp
 		if diff := deep.Equal(r, td.output); diff != nil {
 			t.Error(diff)
 		}
+	}
+
+	regionTest := TestData{
+		input: Config{
+			Timeout: 5,
+		},
+		output: Config{
+			Timeout: 5 * time.Minute,
+			Region:  "us-east-2",
+		},
+	}
+
+	os.Setenv("AWS_DEFAULT_REGION", "us-east-2")
+	r, _ := RefineConfig(regionTest.input)
+	regionTest.output.StartTimestamp = r.StartTimestamp
+	if diff := deep.Equal(r, regionTest.output); diff != nil {
+		t.Error(diff)
 	}
 }
 

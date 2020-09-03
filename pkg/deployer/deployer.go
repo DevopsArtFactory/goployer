@@ -1,17 +1,36 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package deployer
 
 import (
 	"errors"
 	"fmt"
+	"time"
+
+	eaws "github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	Logger "github.com/sirupsen/logrus"
+
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	Logger "github.com/sirupsen/logrus"
-	"time"
 )
 
 // Deployer per stack
@@ -25,7 +44,7 @@ type Deployer struct {
 	Logger            *Logger.Logger
 	Stack             schemas.Stack
 	AwsConfig         schemas.AWSConfig
-	AWSClients        []aws.AWSClient
+	AWSClients        []aws.Client
 	LocalProvider     builder.UserdataProvider
 	Slack             slack.Slack
 	Collector         collector.Collector
@@ -40,8 +59,8 @@ func getCurrentVersion(prevVersions []int) int {
 	return (prevVersions[len(prevVersions)-1] + 1) % 1000
 }
 
-// Polling for healthcheck
-func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.AWSClient, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
+// polling is polling healthy information from instance/target group
+func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.Client, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
 	if *asg.AutoScalingGroupName == "" {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
@@ -61,6 +80,8 @@ func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, c
 	var targetHosts []aws.HealthcheckHost
 	var err error
 	validHostCount := int64(0)
+
+	d.Logger.Debugf("[Checking healthy host count] Autoscaling Group: %s", *asg.AutoScalingGroupName)
 	if region.HealthcheckTargetGroup != "" {
 		var healthcheckTargetGroupArn *string
 		if tool.IsTargetGroupArn(region.HealthcheckTargetGroup, region.Region) {
@@ -75,13 +96,11 @@ func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, c
 			healthcheckTargetGroupArn = tgArns[0]
 		}
 
-		d.Logger.Debugf("[Checking healthy host count] Autoscaling Group: %s", *asg.AutoScalingGroupName)
 		targetHosts, err = client.ELBV2Service.GetHostInTarget(asg, healthcheckTargetGroupArn, isUpdate, downsizingUpdate)
 		if err != nil {
 			return false, err
 		}
 	} else if region.HealthcheckLB != "" {
-		d.Logger.Debugf("[Checking healthy host count] Autoscaling Group: %s", *asg.AutoScalingGroupName)
 		targetHosts, err = client.ELBService.GetHealthyHostInELB(asg, region.HealthcheckLB)
 		if err != nil {
 			return false, err
@@ -91,26 +110,25 @@ func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, c
 
 	if isUpdate {
 		if validHostCount == threshold {
-			d.Logger.Info(fmt.Sprintf("[Update completed] current / desired : %d/%d", validHostCount, threshold))
+			d.Logger.Infof("[Update completed] current / desired : %d/%d", validHostCount, threshold)
 			return true, nil
 		}
-		d.Logger.Info(fmt.Sprintf("Desired count does not meet the requirement: %d/%d", validHostCount, threshold))
-
+		d.Logger.Infof("Desired count does not meet the requirement: %d/%d", validHostCount, threshold)
 	} else {
 		if validHostCount >= threshold {
-			d.Logger.Info(fmt.Sprintf("Healthy Count for %s : %d/%d", d.AsgNames[region.Region], validHostCount, threshold))
+			d.Logger.Infof("Healthy Count for %s : %d/%d", d.AsgNames[region.Region], validHostCount, threshold)
 			d.Slack.SendSimpleMessage(fmt.Sprintf("All instances are healthy in %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold), d.Stack.Env)
 			return true, nil
 		}
 
-		d.Logger.Info(fmt.Sprintf("Healthy count does not meet the requirement(%s) : %d/%d", d.AsgNames[region.Region], validHostCount, threshold))
+		d.Logger.Infof("Healthy count does not meet the requirement(%s) : %d/%d", d.AsgNames[region.Region], validHostCount, threshold)
 		d.Slack.SendSimpleMessage(fmt.Sprintf("Waiting for healthy instances %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold), d.Stack.Env)
 	}
 	return false, nil
 }
 
 // CheckTerminating checks if all of instances are terminated well
-func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableMetrics bool) bool {
+func (d Deployer) CheckTerminating(client aws.Client, target string, disableMetrics bool) bool {
 	asgInfo, err := client.EC2Service.GetMatchingAutoscalingGroup(target)
 	if err != nil {
 		d.Logger.Errorf(err.Error())
@@ -155,7 +173,7 @@ func (d Deployer) CheckTerminating(client aws.AWSClient, target string, disableM
 	return true
 }
 
-func (d Deployer) CleanAutoscalingSet(client aws.AWSClient, target string) error {
+func (d Deployer) CleanAutoscalingSet(client aws.Client, target string) error {
 	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
 	if err := client.EC2Service.DeleteAutoscalingSet(target); err != nil {
 		return err
@@ -166,14 +184,14 @@ func (d Deployer) CleanAutoscalingSet(client aws.AWSClient, target string) error
 }
 
 // ResizingAutoScalingGroupToZero set autoscaling group instance count to 0
-func (d Deployer) ResizingAutoScalingGroupToZero(client aws.AWSClient, stack, asg string) error {
+func (d Deployer) ResizingAutoScalingGroupToZero(client aws.Client, stack, asg string) error {
 	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s(%s)", asg, stack))
 	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s/%s", asg, stack), d.Stack.Env)
 
 	retry := int64(3)
 	var err error
 	for {
-		err, retry = client.EC2Service.UpdateAutoScalingGroupSize(asg, 0, 0, 0, retry)
+		retry, err = client.EC2Service.UpdateAutoScalingGroupSize(asg, 0, 0, 0, retry)
 		if err != nil {
 			if retry > 0 {
 				d.Logger.Debugf("error occurred and remained retry count is %d", retry)
@@ -192,41 +210,36 @@ func (d Deployer) ResizingAutoScalingGroupToZero(client aws.AWSClient, stack, as
 }
 
 // RunLifecycleCallbacks runs commands before terminating.
-func (d Deployer) RunLifecycleCallbacks(client aws.AWSClient, target []string) bool {
-
+func (d Deployer) RunLifecycleCallbacks(client aws.Client, target []string) bool {
 	if len(target) == 0 {
 		d.Logger.Debugf("no target instance exists\n")
 		return false
 	}
 
-	commands := []string{}
-
-	for _, command := range d.Stack.LifecycleCallbacks.PreTerminatePastClusters {
-		commands = append(commands, command)
-	}
+	commands := d.Stack.LifecycleCallbacks.PreTerminatePastClusters
 
 	d.Logger.Debugf("run lifecycle callbacks before termination : %s", target)
 	client.SSMService.SendCommand(
-		aws.MakeStringArrayToAwsStrings(target),
-		aws.MakeStringArrayToAwsStrings(commands),
+		eaws.StringSlice(target),
+		eaws.StringSlice(commands),
 	)
 
 	return false
 }
 
 // selectClientFromList get aws client.
-func selectClientFromList(awsClients []aws.AWSClient, region string) (aws.AWSClient, error) {
+func selectClientFromList(awsClients []aws.Client, region string) (aws.Client, error) {
 	for _, c := range awsClients {
 		if c.Region == region {
 			return c, nil
 		}
 	}
-	return aws.AWSClient{}, errors.New("no AWS Client is selected")
+	return aws.Client{}, errors.New("no AWS Client is selected")
 }
 
 // CheckTerminating checks if all of instances are terminated well
-func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
-	targetGroups, err := client.EC2Service.GetTargetGroups(target)
+func (d Deployer) GatherMetrics(client aws.Client, asg string) error {
+	targetGroups, err := client.EC2Service.GetTargetGroups(asg)
 	if err != nil {
 		return err
 	}
@@ -237,13 +250,13 @@ func (d Deployer) GatherMetrics(client aws.AWSClient, target string) error {
 	}
 
 	d.Logger.Debugf("start retrieving additional metrics")
-	metricData, err := d.Collector.GetAdditionalMetric(target, targetGroups, d.Logger)
+	metricData, err := d.Collector.GetAdditionalMetric(asg, targetGroups, d.Logger)
 	if err != nil {
 		return err
 	}
 
 	d.Logger.Debugf("start updating additional metrics to DynamoDB")
-	if err := d.Collector.UpdateStatistics(target, metricData); err != nil {
+	if err := d.Collector.UpdateStatistics(asg, metricData); err != nil {
 		return err
 	}
 	d.Logger.Debugf("finish updating additional metrics to DynamoDB")
@@ -257,7 +270,7 @@ func getValidHostCount(targetHosts []aws.HealthcheckHost) int64 {
 	for _, host := range targetHosts {
 		Logger.Info(fmt.Sprintf("%+v", host))
 		if host.Valid {
-			ret += 1
+			ret++
 		}
 	}
 

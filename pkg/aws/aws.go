@@ -1,18 +1,31 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package aws
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/spf13/viper"
 )
 
-var (
-	DEFAULT_HEALTHCHECK_TYPE         = "EC2"
-	DEFAULT_HEALTHCHECK_GRACE_PERIOD = 300
-)
-
-type AWSClient struct {
+type Client struct {
 	Region            string
 	EC2Service        EC2Client
 	ELBV2Service      ELBV2Client
@@ -32,75 +45,73 @@ type ManifestClient struct {
 	S3Service S3Client
 }
 
+// GetAwsSession generates new aws session
 func GetAwsSession() *session.Session {
-	mySession := session.Must(session.NewSession())
+	profile := viper.GetString("profile")
+
+	mySession := session.Must(
+		session.NewSession(&aws.Config{
+			Credentials: credentials.NewCredentials(&credentials.SharedCredentialsProvider{
+				Filename: defaults.SharedCredentialsFilename(),
+				Profile:  profile,
+			}),
+		}),
+	)
 	return mySession
 }
 
-func MakeStringArrayToAwsStrings(arr []string) []*string {
-	if len(arr) == 0 {
-		return nil
-	}
-
-	ret := []*string{}
-	for _, s := range arr {
-		ret = append(ret, aws.String(s))
-	}
-
-	return ret
-}
-
-func BootstrapServices(region string, assume_role string) AWSClient {
-	aws_session := GetAwsSession()
+// BootstrapServices creates AWS client list
+func BootstrapServices(region string, assumeRole string) Client {
+	awsSession := GetAwsSession()
 
 	var creds *credentials.Credentials
-	if len(assume_role) != 0 {
-		creds = stscreds.NewCredentials(aws_session, assume_role)
+	if len(assumeRole) != 0 {
+		creds = stscreds.NewCredentials(awsSession, assumeRole)
 	}
 
 	//Get all clients
-	client := AWSClient{
+	client := Client{
 		Region:            region,
-		EC2Service:        NewEC2Client(aws_session, region, creds),
-		ELBV2Service:      NewELBV2Client(aws_session, region, creds),
-		ELBService:        NewELBClient(aws_session, region, creds),
-		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
-		SSMService:        NewSSMClient(aws_session, region, creds),
+		EC2Service:        NewEC2Client(awsSession, region, creds),
+		ELBV2Service:      NewELBV2Client(awsSession, region, creds),
+		ELBService:        NewELBClient(awsSession, region, creds),
+		CloudWatchService: NewCloudWatchClient(awsSession, region, creds),
+		SSMService:        NewSSMClient(awsSession, region, creds),
 	}
 
 	return client
 }
 
-func BootstrapMetricService(region string, assume_role string) MetricClient {
-	aws_session := GetAwsSession()
+func BootstrapMetricService(region string, assumeRole string) MetricClient {
+	awsSession := GetAwsSession()
 
 	var creds *credentials.Credentials
-	if len(assume_role) != 0 {
-		creds = stscreds.NewCredentials(aws_session, assume_role)
+	if len(assumeRole) != 0 {
+		creds = stscreds.NewCredentials(awsSession, assumeRole)
 	}
 
 	//Get all clients
 	client := MetricClient{
 		Region:            region,
-		DynamoDBService:   NewDynamoDBClient(aws_session, region, nil),
-		CloudWatchService: NewCloudWatchClient(aws_session, region, creds),
+		DynamoDBService:   NewDynamoDBClient(awsSession, region, nil),
+		CloudWatchService: NewCloudWatchClient(awsSession, region, creds),
 	}
 
 	return client
 }
 
-func BootstrapManifestService(region string, assume_role string) ManifestClient {
-	aws_session := GetAwsSession()
+func BootstrapManifestService(region string, assumeRole string) ManifestClient {
+	awsSession := GetAwsSession()
 
 	var creds *credentials.Credentials
-	if len(assume_role) != 0 {
-		creds = stscreds.NewCredentials(aws_session, assume_role)
+	if len(assumeRole) != 0 {
+		creds = stscreds.NewCredentials(awsSession, assumeRole)
 	}
 
 	//Get all clients
 	client := ManifestClient{
 		Region:    region,
-		S3Service: NewS3Client(aws_session, region, creds),
+		S3Service: NewS3Client(awsSession, region, creds),
 	}
 
 	return client

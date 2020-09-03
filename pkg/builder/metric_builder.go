@@ -1,16 +1,29 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package builder
 
 import (
-	"github.com/DevopsArtFactory/goployer/pkg/schemas"
-	"github.com/DevopsArtFactory/goployer/pkg/tool"
+	"io/ioutil"
+
 	Logger "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-)
 
-var (
-	METRIC_YAML_PATH            = "metrics.yaml"
-	DEFAULT_METRIC_STORAGE_TYPE = "dynamodb"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricConfig, error) {
@@ -18,7 +31,7 @@ func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricCon
 		return schemas.MetricConfig{Enabled: false}, nil
 	}
 
-	if !tool.FileExists(filename) {
+	if !tool.CheckFileExists(filename) {
 		return schemas.MetricConfig{Enabled: false}, nil
 	}
 
@@ -35,7 +48,7 @@ func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricCon
 		return metricConfig, err
 	}
 
-	if len(metricConfig.Metrics.BaseTimezone) <= 0 {
+	if len(metricConfig.Metrics.BaseTimezone) == 0 {
 		metricConfig.Metrics.BaseTimezone = "UTC"
 	}
 

@@ -1,21 +1,42 @@
+/*
+copyright 2020 the Goployer authors
+
+licensed under the apache license, version 2.0 (the "license");
+you may not use this file except in compliance with the license.
+you may obtain a copy of the license at
+
+    http://www.apache.org/licenses/license-2.0
+
+unless required by applicable law or agreed to in writing, software
+distributed under the license is distributed on an "as is" basis,
+without warranties or conditions of any kind, either express or implied.
+see the license for the specific language governing permissions and
+limitations under the license.
+*/
+
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"github.com/mitchellh/go-homedir"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"io"
 	"os"
+
+	"github.com/mitchellh/go-homedir"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/version"
 )
 
 var (
 	cfgFile string
+	v       string
 )
 
-// Get root command
-func NewRootCommand(_, _ io.Writer) *cobra.Command {
+// NewRootCommand creates new root command
+func NewRootCommand(_, stderr io.Writer) *cobra.Command {
 	cobra.OnInitialize(initConfig)
 	rootCmd := &cobra.Command{
 		Use:   "goployer",
@@ -25,11 +46,20 @@ func NewRootCommand(_, _ io.Writer) *cobra.Command {
 You can find more information in https://goployer.dev`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Setup logs
+			if err := setUpLogs(stderr, v); err != nil {
+				return err
+			}
+
+			version := version.Get()
+
+			logrus.Infof("Goployer %+v", version)
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
-		},
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return nil
 		},
 	}
 
@@ -40,6 +70,8 @@ You can find more information in https://goployer.dev`,
 	rootCmd.AddCommand(NewStatusCommand())
 	rootCmd.AddCommand(NewAddCommand())
 	rootCmd.AddCommand(NewUpdateCommand())
+
+	rootCmd.PersistentFlags().StringVarP(&v, "verbosity", "v", constants.DefaultLogLevel.String(), "Log level (debug, info, warn, error, fatal, panic)")
 
 	return rootCmd
 }
@@ -61,10 +93,13 @@ func initConfig() {
 	viper.AutomaticEnv() // read in environment variables that match
 }
 
-func alwaysSucceedWhenCancelled(ctx context.Context, err error) error {
-	// if the context was cancelled act as if all is well
-	if err != nil && ctx.Err() == context.Canceled {
-		return nil
+// setUpLogs setup log level
+func setUpLogs(stdErr io.Writer, level string) error {
+	logrus.SetOutput(stdErr)
+	lvl, err := logrus.ParseLevel(level)
+	if err != nil {
+		return fmt.Errorf("parsing log level: %w", err)
 	}
-	return err
+	logrus.SetLevel(lvl)
+	return nil
 }
