@@ -55,3 +55,54 @@ func (c Color) Fprintf(out io.Writer, format string, a ...interface{}) {
 
 	fmt.Fprint(out, c.color.Sprintf(format+"\n", a...))
 }
+
+// DecorateAttr decorate strings with a color or an emoji, respecting the user
+// preference if no colour needed.
+func DecorateAttr(attrString, message string) string {
+	if color.NoColor {
+		return message
+	}
+
+	switch attrString {
+	case "bullet":
+		return fmt.Sprintf("∙ %s", message)
+	case "check":
+		return "✔ "
+	case "capacity":
+		return "📦 "
+	case "tags":
+		return "⚓ "
+	case "instance_statistics":
+		return "🖥 "
+	case "message":
+		return "💌 "
+	}
+
+	attr := color.Reset
+	switch attrString {
+	case "underline":
+		attr = color.Underline
+	case "underline bold":
+		return color.New(color.Underline).Add(color.Bold).Sprintf(message)
+	case "bold":
+		attr = color.Bold
+	case "yellow":
+		attr = color.FgHiYellow
+	case "green":
+		attr = color.FgHiGreen
+	case "red":
+		attr = color.FgHiRed
+	case "blue":
+		attr = color.FgHiBlue
+	case "magenta":
+		attr = color.FgHiMagenta
+	case "cyan":
+		attr = color.FgHiCyan
+	case "black":
+		attr = color.FgHiBlack
+	case "white":
+		attr = color.FgHiWhite
+	}
+
+	return color.New(attr).Sprintf(message)
+}
