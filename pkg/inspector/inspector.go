@@ -19,16 +19,48 @@ package inspector
 import (
 	"errors"
 	"fmt"
+	"os"
+	"text/tabwriter"
+	"text/template"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/fatih/color"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
+
+const templ = `{{decorate "bold" "Name"}}:	{{ .Summary.Name }}
+{{decorate "bold" "Created Time"}}:	{{ .Summary.CreatedTime }}
+
+{{decorate "capacity" ""}}{{decorate "underline bold" "Capacity"}}
+MINIMUM 	DESIRED 	MAXIMUM
+{{ .Summary.Capacity.Min }}	{{ .Summary.Capacity.Desired }}	{{ .Summary.Capacity.Max }}
+
+{{decorate "instance_statistics" ""}}{{decorate "underline bold" "Instance Statistics"}}
+
+{{- if eq (len .Summary.InstanceType) 0 }}
+ No instance exists
+{{- else }}
+{{- range $k, $v := .Summary.InstanceType }}
+ {{decorate "bullet" $k }}: {{ $v }}
+{{- end }}
+{{- end }}
+
+{{decorate "tags" ""}}{{decorate "underline bold" "Tags"}}
+
+{{- if eq (len .Summary.Tags) 0 }}
+ No tag
+{{- else }}
+{{- range $result := .Summary.Tags }}
+ {{decorate "bullet" $result }}
+{{- end }}
+{{- end }}
+
+`
 
 type Inspector struct {
 	AWSClient     aws.Client
@@ -37,13 +69,11 @@ type Inspector struct {
 }
 
 type StatusSummary struct {
-	Name           string
-	Capacity       schemas.Capacity
-	UpdateCapacity schemas.Capacity
-	CreatedTime    time.Time
-	UpdateTime     time.Time
-	InstanceType   map[string]int64
-	Tags           []string
+	Name         string
+	Capacity     schemas.Capacity
+	CreatedTime  time.Time
+	InstanceType map[string]int64
+	Tags         []string
 }
 
 type UpdateFields struct {
@@ -164,28 +194,26 @@ func (i Inspector) SetUpdateSummary(asg *autoscaling.Group) StatusSummary {
 	return summary
 }
 
+// Print prints the current status of deployment
 func (i Inspector) Print() error {
-	color.Blue("Name: %s", i.StatusSummary.Name)
-	color.Black("Min/Desired/Max: %d/%d/%d", i.StatusSummary.Capacity.Min, i.StatusSummary.Capacity.Desired, i.StatusSummary.Capacity.Max)
-	color.Black("Created: %s", i.StatusSummary.CreatedTime)
-
-	if len(i.StatusSummary.InstanceType) > 0 {
-		color.Black("Instance Statistics: ")
-		for k, v := range i.StatusSummary.InstanceType {
-			color.Black(" - type:%s, count:%d", k, v)
-		}
+	var data = struct {
+		Summary StatusSummary
+	}{
+		Summary: i.StatusSummary,
 	}
 
-	if len(i.StatusSummary.Tags) > 0 {
-		color.Black("Tags: ")
-		for _, t := range i.StatusSummary.Tags {
-			color.Black(" - %s", t)
-		}
+	funcMap := template.FuncMap{
+		"decorate": tool.DecorateAttr,
 	}
 
-	fmt.Println()
+	w := tabwriter.NewWriter(os.Stdout, 0, 5, 3, ' ', tabwriter.TabIndent)
+	t := template.Must(template.New("Describe status of deployment").Funcs(funcMap).Parse(templ))
 
-	return nil
+	err := t.Execute(w, data)
+	if err != nil {
+		return err
+	}
+	return w.Flush()
 }
 
 func (i Inspector) Update() error {
