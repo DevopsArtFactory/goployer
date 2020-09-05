@@ -24,6 +24,9 @@ import (
 )
 
 const (
+	// Current Base Year
+	YearNow = 2020
+
 	// DefaultLogLevel is the default global verbosity
 	DefaultLogLevel = logrus.WarnLevel
 
@@ -32,6 +35,9 @@ const (
 
 	// EmptyString is the empty string
 	EmptyString = ""
+
+	// ZeroFloat64 means 0 in float64 format
+	ZeroFloat64 = float64(0)
 
 	// DefaultProfile is the default aws profile
 	DefaultProfile = "default"
@@ -90,6 +96,9 @@ const (
 	// InitialStatus is the initial status of instances in classic LB
 	InitialStatus = "Not Found"
 
+	// MonthToSec changes a month to seconds
+	MonthToSec = float64(2592000)
+
 	// DayToSec changes a day to seconds
 	DayToSec = int64(86400)
 
@@ -110,6 +119,9 @@ const (
 
 	// StepCleanPreviousVersion = CleanPreviousVersion
 	StepCleanPreviousVersion = int64(5)
+
+	// DefaultEnableStats is whether or not to enable gathering stats
+	DefaultEnableStats = true
 )
 
 var (
@@ -149,6 +161,9 @@ var (
 
 	// DaysOfWeek is a list of possible string value for cron expression
 	DaysOfWeek = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "0", "1", "2", "3", "4", "5", "6", "7"}
+
+	// MinTimestamp means minimum timestamp YEAR/01/01 00:00:00 UTC
+	MinTimestamp = time.Date(YearNow, time.January, 1, 0, 0, 0, 0, time.UTC)
 )
 
 // Get Home Directory

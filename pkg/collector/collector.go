@@ -31,25 +31,67 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
-var (
-	MONTH        = float64(2592000)
-	enableStats  = true
-	yearNow      = 2020
-	minTimestamp = time.Date(yearNow, time.January, 1, 0, 0, 0, 0, time.UTC)
-)
-
 type Collector struct {
-	MetricConfig schemas.MetricConfig
-	MetricClient aws.MetricClient
+	MetricConfig      schemas.MetricConfig
+	MetricClient      aws.MetricClient
+	TargetMetricsList []TargetMetrics
 }
 
+// Detailed metric structure
+type TargetMetrics struct {
+	// Metric name
+	Name string
+
+	// Enable
+	Enable bool
+
+	// Mapping function for metric
+	MappingFunction func(*HelperStruct, *Logger.Logger, aws.MetricClient, string) (map[string]interface{}, error)
+}
+
+type HelperStruct struct {
+	BaseTimeDuration float64
+	StartDate        time.Time
+	AutoScalingGroup string
+	CurrentTime      time.Time
+	TargetGroups     []*string
+	LoadBalancers    []*string
+	Storage          string
+}
+
+// NewCollector creates new collector
 func NewCollector(mc schemas.MetricConfig, assumeRole string) Collector {
 	return Collector{
-		MetricConfig: mc,
-		MetricClient: aws.BootstrapMetricService(mc.Region, assumeRole),
+		MetricConfig:      mc,
+		MetricClient:      aws.BootstrapMetricService(mc.Region, assumeRole),
+		TargetMetricsList: SetTargetMetrics(),
 	}
 }
 
+// SetTargetMetrics sets what collector will gather for measurement
+func SetTargetMetrics() []TargetMetrics {
+	tm := []TargetMetrics{
+		{
+			Name:            "uptime",
+			Enable:          true,
+			MappingFunction: GatherUptime,
+		},
+		{
+			Name:            "tg_request_count",
+			Enable:          true,
+			MappingFunction: GetTargetGroupRequestCount,
+		},
+		{
+			Name:            "lb_request_count",
+			Enable:          true,
+			MappingFunction: GetLoadBalancerRequestCount,
+		},
+	}
+
+	return tm
+}
+
+// CheckStorage is for checking metrics storage
 func (c Collector) CheckStorage(logger *Logger.Logger) error {
 	if len(c.MetricConfig.Storage.Type) == 0 {
 		logger.Warnf("you did not specify the storage type so that default storage type will be applied : %s", constants.DefaultMetricStorageType)
@@ -75,6 +117,7 @@ func (c Collector) CheckStorage(logger *Logger.Logger) error {
 	return nil
 }
 
+// StampDeployment records deployment information to storage
 func (c Collector) StampDeployment(stack schemas.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
 	tagsMap := map[string]string{}
 
@@ -127,51 +170,114 @@ func (c Collector) UpdateStatistics(asg string, updateFields map[string]interfac
 }
 
 // GetAdditionalMetric retrieves additional metrics to store
-func (c Collector) GetAdditionalMetric(asg string, tgs []*string, logger *Logger.Logger) (map[string]interface{}, error) {
-	item, err := c.MetricClient.DynamoDBService.GetSingleItem(asg, c.MetricConfig.Storage.Name)
+func (c Collector) GetAdditionalMetric(asg string, tgs []*string, lbs []*string, logger *Logger.Logger) (map[string]interface{}, error) {
+	ret := map[string]interface{}{}
+	hs := HelperStruct{
+		BaseTimeDuration: constants.ZeroFloat64,
+		StartDate:        time.Now(),
+		AutoScalingGroup: asg,
+		CurrentTime:      tool.GetBaseTimeWithTimezone(c.MetricConfig.Metrics.BaseTimezone),
+		TargetGroups:     tgs,
+		LoadBalancers:    lbs,
+		Storage:          c.MetricConfig.Storage.Name,
+	}
+
+	logger.Debugf("current time in timezone %s : %s", c.MetricConfig.Metrics.BaseTimezone, hs.CurrentTime)
+
+	for _, f := range c.TargetMetricsList {
+		if f.Enable {
+			temp, err := f.MappingFunction(&hs, logger, c.MetricClient, f.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			for k, v := range temp {
+				ret[k] = v
+			}
+		}
+	}
+
+	return ret, nil
+}
+
+// GatherUptime gathers uptime information about autoscaling group
+func GatherUptime(hs *HelperStruct, _ *Logger.Logger, client aws.MetricClient, name string) (map[string]interface{}, error) {
+	item, err := client.DynamoDBService.GetSingleItem(hs.AutoScalingGroup, hs.Storage)
 	if err != nil {
 		return nil, err
 	}
 
-	var baseTimeDuration float64
-	var startDate time.Time
-
-	curr := tool.GetBaseTimeWithTimezone(c.MetricConfig.Metrics.BaseTimezone)
-	logger.Debugf("current time in timezone %s : %s", c.MetricConfig.Metrics.BaseTimezone, curr)
+	if item == nil {
+		return nil, fmt.Errorf("there is no dynamodb record for %s", hs.AutoScalingGroup)
+	}
 
 	ret := map[string]interface{}{}
 	for k, v := range item {
 		if k == "deployed_date" {
 			d, _ := time.Parse(time.RFC3339, *v.S)
-			diff := curr.Sub(d)
+			diff := hs.CurrentTime.Sub(d)
 			ret["uptime_second"] = fmt.Sprintf("%f", diff.Seconds())
 			ret["uptime_minute"] = fmt.Sprintf("%f", diff.Minutes())
 			ret["uptime_hour"] = fmt.Sprintf("%f", diff.Hours())
+			ret[name] = fmt.Sprintf("%f", diff.Hours())
 
-			baseTimeDuration = diff.Seconds()
-			startDate = d
+			hs.BaseTimeDuration = diff.Seconds()
+			hs.StartDate = d
+			break
 		}
 	}
 
-	if len(tgs) > 0 && (startDate.Sub(minTimestamp) > 0) && enableStats {
+	return ret, nil
+}
+
+// GetTargetGroupRequestCount retrieves target group request count
+func GetTargetGroupRequestCount(hs *HelperStruct, logger *Logger.Logger, client aws.MetricClient, name string) (map[string]interface{}, error) {
+	ret := map[string]interface{}{}
+	if len(hs.TargetGroups) > 0 && (hs.StartDate.Sub(constants.MinTimestamp) > 0) && constants.DefaultEnableStats {
 		// if baseTimeDuration is over a month which is the maximum duration of cloudwatch
 		// fix the time to one month
-		if baseTimeDuration > MONTH {
-			startDate = curr.Add(-2592000 * time.Second)
+		if hs.BaseTimeDuration > constants.MonthToSec {
+			hs.StartDate = hs.CurrentTime.Add(-2592000 * time.Second)
 		}
 
-		startDate = tool.GetBaseStartTime(startDate)
-		if curr.Sub(startDate) < 0 {
-			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", curr, startDate)
+		hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
+		if hs.CurrentTime.Sub(hs.StartDate) < 0 {
+			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", hs.CurrentTime, hs.StartDate)
 		} else {
-			logger.Debugf("StartDate : %s", startDate)
+			logger.Debugf("StartDate : %s", hs.StartDate)
 
-			targetRequest, err := c.MetricClient.CloudWatchService.GetRequestStatistics(tgs, startDate, curr, logger)
+			targetRequest, err := client.CloudWatchService.GetTargetGroupRequestStatistics(hs.TargetGroups, hs.StartDate, hs.CurrentTime, logger)
 			if err != nil {
 				return ret, err
 			}
 
-			ret["stat"] = targetRequest
+			ret[name] = targetRequest
+		}
+	}
+
+	return ret, nil
+}
+
+// GetLoadBalancerRequestCount retrieves load balancer request count
+func GetLoadBalancerRequestCount(hs *HelperStruct, logger *Logger.Logger, client aws.MetricClient, name string) (map[string]interface{}, error) {
+	ret := map[string]interface{}{}
+	if len(hs.TargetGroups) > 0 && (hs.StartDate.Sub(constants.MinTimestamp) > 0) && constants.DefaultEnableStats {
+		if hs.BaseTimeDuration > constants.MonthToSec {
+			hs.StartDate = hs.CurrentTime.Add(-2592000 * time.Second)
+		}
+
+		hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
+		if hs.CurrentTime.Sub(hs.StartDate) < 0 {
+			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", hs.CurrentTime, hs.StartDate)
+		} else {
+			logger.Debugf("StartDate : %s", hs.StartDate)
+
+			targetRequest, err := client.CloudWatchService.GetLoadBalancerRequestStatistics(hs.LoadBalancers, hs.StartDate, hs.CurrentTime, logger)
+			if err != nil {
+				return ret, err
+			}
+
+			ret[name] = targetRequest
 		}
 	}
 

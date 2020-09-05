@@ -249,8 +249,13 @@ func (d Deployer) GatherMetrics(client aws.Client, asg string) error {
 		return nil
 	}
 
+	lbs, err := client.ELBV2Service.GetLoadBalancerFromTG(targetGroups)
+	if err != nil {
+		return err
+	}
+
 	d.Logger.Debugf("start retrieving additional metrics")
-	metricData, err := d.Collector.GetAdditionalMetric(asg, targetGroups, d.Logger)
+	metricData, err := d.Collector.GetAdditionalMetric(asg, targetGroups, lbs, d.Logger)
 	if err != nil {
 		return err
 	}
