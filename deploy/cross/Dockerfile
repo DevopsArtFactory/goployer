@@ -27,7 +27,6 @@ ARG LDFLAGS
 
 WORKDIR /goployer
 COPY . ./
-RUN hack/version/version.sh
 RUN if [ "$GOOS" = "darwin" ]; then export CC=o64-clang CXX=o64-clang++; fi; \
     GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=1 \
     go build -tags "${TAGS}" -ldflags "${LDFLAGS}" -o /build/goployer cmd/goployer/main.go

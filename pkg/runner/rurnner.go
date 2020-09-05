@@ -319,44 +319,44 @@ func (r Runner) Deploy() error {
 				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
 			}
 
-			if err := deployer.Deploy(r.Builder.Config); err != nil {
-				r.Logger.Errorf("[StepDeploy] deploy step error occurred: %s", err.Error())
-			}
+			//if err := deployer.Deploy(r.Builder.Config); err != nil {
+			//	r.Logger.Errorf("[StepDeploy] deploy step error occurred: %s", err.Error())
+			//}
 		}(d)
 	}
 
 	wg.Wait()
-
-	// healthcheck
-	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
-	}
-
-	// Attach scaling policy
-	for _, d := range deployers {
-		wg.Add(1)
-		go func(deployer deployer.DeployManager) {
-			defer wg.Done()
-			if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
-			}
-
-			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
-			}
-
-			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
-			}
-		}(d)
-	}
-
-	wg.Wait()
-
-	// Checking all previous version before delete asg
-	if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
-	}
+	//
+	//// healthcheck
+	//if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
+	//	return err
+	//}
+	//
+	//// Attach scaling policy
+	//for _, d := range deployers {
+	//	wg.Add(1)
+	//	go func(deployer deployer.DeployManager) {
+	//		defer wg.Done()
+	//		if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
+	//			r.Logger.Errorf(err.Error())
+	//		}
+	//
+	//		if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
+	//			r.Logger.Errorf(err.Error())
+	//		}
+	//
+	//		if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
+	//			r.Logger.Errorf(err.Error())
+	//		}
+	//	}(d)
+	//}
+	//
+	//wg.Wait()
+	//
+	//// Checking all previous version before delete asg
+	//if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
+	//	return err
+	//}
 
 	// gather metrics of previous version
 	for _, d := range deployers {

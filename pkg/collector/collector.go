@@ -240,7 +240,7 @@ func GetTargetGroupRequestCount(hs *HelperStruct, logger *Logger.Logger, client 
 			hs.StartDate = hs.CurrentTime.Add(-2592000 * time.Second)
 		}
 
-		hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
+		//hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
 		if hs.CurrentTime.Sub(hs.StartDate) < 0 {
 			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", hs.CurrentTime, hs.StartDate)
 		} else {
@@ -266,18 +266,18 @@ func GetLoadBalancerRequestCount(hs *HelperStruct, logger *Logger.Logger, client
 			hs.StartDate = hs.CurrentTime.Add(-2592000 * time.Second)
 		}
 
-		hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
+		//hs.StartDate = tool.GetBaseStartTime(hs.StartDate)
 		if hs.CurrentTime.Sub(hs.StartDate) < 0 {
 			logger.Debugf("too short to gather metrics: current: %s,terminated: %s", hs.CurrentTime, hs.StartDate)
 		} else {
 			logger.Debugf("StartDate : %s", hs.StartDate)
 
-			targetRequest, err := client.CloudWatchService.GetLoadBalancerRequestStatistics(hs.LoadBalancers, hs.StartDate, hs.CurrentTime, logger)
+			statistics, err := client.CloudWatchService.GetLoadBalancerRequestStatistics(hs.LoadBalancers, hs.StartDate, hs.CurrentTime, logger)
 			if err != nil {
 				return ret, err
 			}
 
-			ret[name] = targetRequest
+			ret[name] = statistics
 		}
 	}
 
