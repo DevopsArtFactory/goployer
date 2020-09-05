@@ -64,7 +64,7 @@ var CommonFlagRegistry = []Flag{
 		Shorthand:     "p",
 		Usage:         "Profile configuration of AWS",
 		Value:         aws.String(constants.EmptyString),
-		DefValue:      constants.DefaultProfile,
+		DefValue:      constants.EmptyString,
 		FlagAddMethod: "StringVar",
 	},
 }

@@ -265,6 +265,7 @@ func (d DynamoDBClient) UpdateRecord(updateKey, asg string, tableName string, st
 	return nil
 }
 
+// GetSingleItem retrieves single item for single autoscaling group
 func (d DynamoDBClient) GetSingleItem(asg, tableName string) (map[string]*dynamodb.AttributeValue, error) {
 	input := &dynamodb.GetItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
@@ -311,7 +312,7 @@ func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string,
 			ex = fmt.Sprintf("%s, #%s = :%s", ex, k, k)
 			input.UpdateExpression = aws.String(ex)
 			input.ExpressionAttributeNames[fmt.Sprintf("#%s", k)] = aws.String(k)
-			if k != "stat" {
+			if !tool.IsStringInArray(k, []string{"tg_request_count", "lb_request_count"}) {
 				input.ExpressionAttributeValues[fmt.Sprintf(":%s", k)] = &dynamodb.AttributeValue{
 					S: aws.String(v.(string)),
 				}

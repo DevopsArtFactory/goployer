@@ -49,6 +49,10 @@ type ManifestClient struct {
 func GetAwsSession() *session.Session {
 	profile := viper.GetString("profile")
 
+	if len(profile) == 0 {
+		return session.Must(session.NewSession())
+	}
+
 	mySession := session.Must(
 		session.NewSession(&aws.Config{
 			Credentials: credentials.NewCredentials(&credentials.SharedCredentialsProvider{
@@ -57,6 +61,7 @@ func GetAwsSession() *session.Session {
 			}),
 		}),
 	)
+
 	return mySession
 }
 

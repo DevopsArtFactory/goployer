@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/elbv2"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type ELBV2Client struct {
@@ -111,4 +112,27 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, targetGroupArn *s
 		})
 	}
 	return ret, nil
+}
+
+// GetLoadBalancerFromTG returns list of loadbalancer from target groups
+func (e ELBV2Client) GetLoadBalancerFromTG(targetGroups []*string) ([]*string, error) {
+	input := &elbv2.DescribeTargetGroupsInput{
+		TargetGroupArns: targetGroups,
+	}
+
+	result, err := e.Client.DescribeTargetGroups(input)
+	if err != nil {
+		return nil, err
+	}
+
+	lbs := []string{}
+	for _, group := range result.TargetGroups {
+		for _, lb := range group.LoadBalancerArns {
+			if !tool.IsStringInArray(*lb, lbs) {
+				lbs = append(lbs, *lb)
+			}
+		}
+	}
+
+	return aws.StringSlice(lbs), nil
 }
