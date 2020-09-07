@@ -41,12 +41,12 @@ fi
 
 # Multistack
 echo "test with multistack"
-./$BUILD_DIR/goployer deploy --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s --profile=art-id
+./$BUILD_DIR/goployer deploy --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
 
 echo "API deployment test is done"
 
 echo  "delete test autoscaling group"
-./$BUILD_DIR/goployer delete --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s --profile=art-id
+./$BUILD_DIR/goployer delete --auto-apply --manifest=$TEST_DIR/test_manifest.yaml --slack-off=true --log-level=debug --region=ap-northeast-2 --polling-interval=20s
 
 rm -rf $BUILD_DIR
 
