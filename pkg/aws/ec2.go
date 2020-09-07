@@ -300,12 +300,20 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 
 	if instanceMarketOptions != nil && !mixedInstancePolicyEnabled {
 		input.LaunchTemplateData.InstanceMarketOptions = &ec2.LaunchTemplateInstanceMarketOptionsRequest{
-			MarketType: aws.String(instanceMarketOptions.MarketType),
-			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{
-				BlockDurationMinutes:         aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes),
-				InstanceInterruptionBehavior: aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior),
-				SpotInstanceType:             aws.String(instanceMarketOptions.SpotOptions.SpotInstanceType),
-			},
+			MarketType:  aws.String(instanceMarketOptions.MarketType),
+			SpotOptions: &ec2.LaunchTemplateSpotMarketOptionsRequest{},
+		}
+
+		if instanceMarketOptions.SpotOptions.BlockDurationMinutes > 0 {
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.BlockDurationMinutes = aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes)
+		}
+
+		if len(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior) > 0 {
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior = aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior)
+		}
+
+		if len(instanceMarketOptions.SpotOptions.SpotInstanceType) > 0 {
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SpotInstanceType = aws.String(instanceMarketOptions.SpotOptions.SpotInstanceType)
 		}
 
 		if len(instanceMarketOptions.SpotOptions.MaxPrice) > 0 {

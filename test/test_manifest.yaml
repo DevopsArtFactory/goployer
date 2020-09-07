@@ -165,6 +165,55 @@ stacks:
         target_groups:
           - hello-artdapne2-ext
 
+  - stack: artd-spot-without-spot-option
+    polling_interval: 20s
+    account: dev
+    env: dev-2-2
+    assume_role: ""
+    replacement_type: BlueGreen
+    iam_instance_profile: 'app-hello-profile'
+    tags:
+      - test-stack=artd-spot
+    ebs_optimized: true
+    instance_market_options:
+      market_type: spot
+    block_devices:
+      - device_name: /dev/xvda
+        volume_size: 8
+        volume_type: "gp2"
+
+    # capacity
+    capacity:
+      min: 1
+      max: 2
+      desired: 1
+
+    autoscaling: *autoscaling_policy
+    alarms: *autoscaling_alarms
+
+    lifecycle_callbacks:
+      pre_terminate_past_cluster:
+        - service hello stop
+
+    regions:
+      - region: ap-northeast-2
+        instance_type: c5.large
+        ssh_key: test-master-key
+        ami_id: ami-01288945bd24ed49a
+        use_public_subnets: true
+        vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
+        security_groups:
+          - hello-artd_apnortheast2
+          - default-artd_apnortheast2
+        healthcheck_target_group: hello-artdapne2-ext
+        availability_zones:
+          - ap-northeast-2a
+          - ap-northeast-2b
+          - ap-northeast-2c
+        target_groups:
+          - hello-artdapne2-ext
+
   - stack: artd-mixed
     polling_interval: 20s
     account: dev

@@ -11,3 +11,4 @@ jobs:
       - checkout
 
       - run: make test
+      - run: make linters
