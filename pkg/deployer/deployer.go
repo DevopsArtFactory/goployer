@@ -106,7 +106,7 @@ func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, c
 			return false, err
 		}
 	}
-	validHostCount = getValidHostCount(targetHosts)
+	validHostCount = d.GetValidHostCount(targetHosts)
 
 	if isUpdate {
 		if validHostCount == threshold {
@@ -269,11 +269,11 @@ func (d Deployer) GatherMetrics(client aws.Client, asg string) error {
 	return nil
 }
 
-// getValidHostCount return the number of health host
-func getValidHostCount(targetHosts []aws.HealthcheckHost) int64 {
+// GetValidHostCount return the number of health host
+func (d Deployer) GetValidHostCount(targetHosts []aws.HealthcheckHost) int64 {
 	ret := 0
 	for _, host := range targetHosts {
-		Logger.Info(fmt.Sprintf("%+v", host))
+		d.Logger.Info(fmt.Sprintf("%+v", host))
 		if host.Valid {
 			ret++
 		}
