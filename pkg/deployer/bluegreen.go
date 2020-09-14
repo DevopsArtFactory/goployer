@@ -352,7 +352,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 			}
 
 			if len(b.Stack.Autoscaling) == 0 {
-				b.Logger.Debug("No scaling policy exists")
+				b.Logger.Debug("no scaling policy exists")
 			} else {
 				//putting autoscaling group policies
 				policyArns := map[string]string{}
@@ -361,6 +361,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 					if err != nil {
 						return err
 					}
+					b.Logger.Debugf("policy arn created: %s", *policyArn)
 					policyArns[policy.Name] = *policyArn
 				}
 

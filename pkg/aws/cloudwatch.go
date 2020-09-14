@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
@@ -76,7 +75,7 @@ func (c CloudWatchClient) CreateScalingAlarms(asgName string, alarms []schemas.A
 // CreateCloudWatchAlarm creates cloudwatch alarms for autoscaling group
 func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.AlarmConfigs) error {
 	input := &cloudwatch.PutMetricAlarmInput{
-		AlarmName:          aws.String(alarm.Name),
+		AlarmName:          aws.String(createAlarmName(asgName, alarm.Name)),
 		AlarmActions:       aws.StringSlice(alarm.AlarmActions),
 		MetricName:         aws.String(alarm.Metric),
 		Namespace:          aws.String(alarm.Namespace),
@@ -95,18 +94,6 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.Al
 
 	_, err := c.Client.PutMetricAlarm(input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case cloudwatch.ErrCodeLimitExceededFault:
-				Logger.Errorln(cloudwatch.ErrCodeLimitExceededFault, aerr.Error())
-			default:
-				Logger.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			Logger.Errorln(err.Error())
-		}
 		return err
 	}
 
@@ -368,4 +355,9 @@ func (c CloudWatchClient) GetOneDayStatisticsOfLoadBalancer(lb string, startTime
 // CheckMetricTimeValidation validates metric time
 func CheckMetricTimeValidation(startTime time.Time, endTime time.Time) bool {
 	return endTime.Sub(startTime) > 0
+}
+
+// createAlarmName creates name of alarm
+func createAlarmName(asgName, suffix string) string {
+	return fmt.Sprintf("%s_%s", asgName, suffix)
 }
