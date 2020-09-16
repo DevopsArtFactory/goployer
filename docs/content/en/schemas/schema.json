@@ -10,7 +10,8 @@
       "properties": {
         "alarm_actions": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "List of actions when alarm is triggered Element of this list should be defined with scaling_policy",
@@ -20,7 +21,8 @@
         "evaluation_periods": {
           "type": "integer",
           "description": "The number of periods for evaluation",
-          "x-intellij-html-description": "The number of periods for evaluation"
+          "x-intellij-html-description": "The number of periods for evaluation",
+          "default": "0"
         }
       },
       "additionalProperties": false,
@@ -36,24 +38,34 @@
         "device_name": {
           "type": "string",
           "description": "Name of block device",
-          "x-intellij-html-description": "Name of block device"
+          "x-intellij-html-description": "Name of block device",
+          "default": "\"\""
+        },
+        "iops": {
+          "type": "integer",
+          "description": "IOPS for io1, io2 volume",
+          "x-intellij-html-description": "IOPS for io1, io2 volume",
+          "default": "0"
         },
         "volume_size": {
           "type": "integer",
           "description": "Size of volume",
-          "x-intellij-html-description": "Size of volume"
+          "x-intellij-html-description": "Size of volume",
+          "default": "0"
         },
         "volume_type": {
           "type": "string",
-          "description": "Type of volume (gp2, io1, st1, sc1)",
-          "x-intellij-html-description": "Type of volume (gp2, io1, st1, sc1)"
+          "description": "Type of volume (gp2, io1, io2, st1, sc1)",
+          "x-intellij-html-description": "Type of volume (gp2, io1, io2, st1, sc1)",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
       "preferredOrder": [
         "device_name",
         "volume_size",
-        "volume_type"
+        "volume_type",
+        "iops"
       ],
       "description": "EBS Block device configuration",
       "x-intellij-html-description": "EBS Block device configuration"
@@ -63,17 +75,20 @@
         "desired": {
           "type": "integer",
           "description": "number of instances",
-          "x-intellij-html-description": "number of instances"
+          "x-intellij-html-description": "number of instances",
+          "default": "0"
         },
         "max": {
           "type": "integer",
           "description": "Maximum number of instances",
-          "x-intellij-html-description": "Maximum number of instances"
+          "x-intellij-html-description": "Maximum number of instances",
+          "default": "0"
         },
         "min": {
           "type": "integer",
           "description": "Minimum number of instances",
-          "x-intellij-html-description": "Minimum number of instances"
+          "x-intellij-html-description": "Minimum number of instances",
+          "default": "0"
         }
       },
       "additionalProperties": false,
@@ -90,7 +105,8 @@
         "market_type": {
           "type": "string",
           "description": "Type of market for EC2 instance",
-          "x-intellij-html-description": "Type of market for EC2 instance"
+          "x-intellij-html-description": "Type of market for EC2 instance",
+          "default": "\"\""
         },
         "spot_options": {
           "$ref": "#/definitions/SpotOptions",
@@ -110,7 +126,8 @@
       "properties": {
         "pre_terminate_past_cluster": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "List of command before terminating previous autoscaling group",
@@ -130,32 +147,38 @@
         "default_result": {
           "type": "string",
           "description": "Default result of lifecycle hook",
-          "x-intellij-html-description": "Default result of lifecycle hook"
+          "x-intellij-html-description": "Default result of lifecycle hook",
+          "default": "\"\""
         },
         "heartbeat_timeout": {
           "type": "integer",
           "description": "Heartbeat timeout of lifecycle hook",
-          "x-intellij-html-description": "Heartbeat timeout of lifecycle hook"
+          "x-intellij-html-description": "Heartbeat timeout of lifecycle hook",
+          "default": "0"
         },
         "lifecycle_hook_name": {
           "type": "string",
           "description": "Name of lifecycle hook",
-          "x-intellij-html-description": "Name of lifecycle hook"
+          "x-intellij-html-description": "Name of lifecycle hook",
+          "default": "\"\""
         },
         "notification_metadata": {
           "type": "string",
           "description": "Notification Metadata of lifecycle hook",
-          "x-intellij-html-description": "Notification Metadata of lifecycle hook"
+          "x-intellij-html-description": "Notification Metadata of lifecycle hook",
+          "default": "\"\""
         },
         "notification_target_arn": {
           "type": "string",
           "description": "Notification Target ARN like AWS Simple Notification Service",
-          "x-intellij-html-description": "Notification Target ARN like AWS Simple Notification Service"
+          "x-intellij-html-description": "Notification Target ARN like AWS Simple Notification Service",
+          "default": "\"\""
         },
         "role_arn": {
           "type": "string",
           "description": "IAM Role ARN for notification",
-          "x-intellij-html-description": "IAM Role ARN for notification"
+          "x-intellij-html-description": "IAM Role ARN for notification",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
@@ -208,11 +231,13 @@
         "on_demand_percentage": {
           "type": "integer",
           "description": "Percentage of On Demand instance",
-          "x-intellij-html-description": "Percentage of On Demand instance"
+          "x-intellij-html-description": "Percentage of On Demand instance",
+          "default": "0"
         },
         "override_instance_types": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "List of EC2 instance types for spot instance",
@@ -222,17 +247,20 @@
         "spot_allocation_strategy": {
           "type": "string",
           "description": "Allocation strategy for spot instances",
-          "x-intellij-html-description": "Allocation strategy for spot instances"
+          "x-intellij-html-description": "Allocation strategy for spot instances",
+          "default": "\"\""
         },
         "spot_instance_pools": {
           "type": "integer",
           "description": "The number of pools of instance type for spot instances",
-          "x-intellij-html-description": "The number of pools of instance type for spot instances"
+          "x-intellij-html-description": "The number of pools of instance type for spot instances",
+          "default": "0"
         },
         "spot_max_price": {
           "type": "string",
           "description": "Maximum spot price",
-          "x-intellij-html-description": "Maximum spot price"
+          "x-intellij-html-description": "Maximum spot price",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
@@ -252,11 +280,13 @@
         "ami_id": {
           "type": "string",
           "description": "Amazon AMI ID",
-          "x-intellij-html-description": "Amazon AMI ID"
+          "x-intellij-html-description": "Amazon AMI ID",
+          "default": "\"\""
         },
         "availability_zones": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "Availability zones for autoscaling group",
@@ -272,21 +302,25 @@
         "healthcheck_load_balancer": {
           "type": "string",
           "description": "Class load balancer name for healthcheck",
-          "x-intellij-html-description": "Class load balancer name for healthcheck"
+          "x-intellij-html-description": "Class load balancer name for healthcheck",
+          "default": "\"\""
         },
         "healthcheck_target_group": {
           "type": "string",
           "description": "Target group name for healthcheck",
-          "x-intellij-html-description": "Target group name for healthcheck"
+          "x-intellij-html-description": "Target group name for healthcheck",
+          "default": "\"\""
         },
         "instance_type": {
           "type": "string",
           "description": "Type of EC2 instance",
-          "x-intellij-html-description": "Type of EC2 instance"
+          "x-intellij-html-description": "Type of EC2 instance",
+          "default": "\"\""
         },
         "loadbalancers": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "List of  load balancers",
@@ -296,11 +330,23 @@
         "region": {
           "type": "string",
           "description": "name",
-          "x-intellij-html-description": "name"
+          "x-intellij-html-description": "name",
+          "default": "\"\""
+        },
+        "scheduled_actions": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "List of scheduled actions",
+          "x-intellij-html-description": "List of scheduled actions",
+          "default": "[]"
         },
         "security_groups": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "List of security group name",
@@ -310,11 +356,13 @@
         "ssh_key": {
           "type": "string",
           "description": "Key name of SSH access",
-          "x-intellij-html-description": "Key name of SSH access"
+          "x-intellij-html-description": "Key name of SSH access",
+          "default": "\"\""
         },
         "target_groups": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "Target group list of load balancer",
@@ -330,24 +378,26 @@
         "vpc": {
           "type": "string",
           "description": "Name of VPC",
-          "x-intellij-html-description": "Name of VPC"
+          "x-intellij-html-description": "Name of VPC",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
       "preferredOrder": [
         "region",
-        "use_public_subnets",
         "instance_type",
         "ssh_key",
         "ami_id",
         "vpc",
-        "detailed_monitoring_enabled",
-        "security_groups",
         "healthcheck_load_balancer",
         "healthcheck_target_group",
+        "security_groups",
+        "scheduled_actions",
         "target_groups",
         "loadbalancers",
-        "availability_zones"
+        "availability_zones",
+        "use_public_subnets",
+        "detailed_monitoring_enabled"
       ],
       "description": "Region configuration",
       "x-intellij-html-description": "Region configuration"
@@ -357,22 +407,26 @@
         "adjustment_type": {
           "type": "string",
           "description": "Type of adjustment for autoscaling https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html",
-          "x-intellij-html-description": "Type of adjustment for autoscaling https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html"
+          "x-intellij-html-description": "Type of adjustment for autoscaling https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html",
+          "default": "\"\""
         },
         "cooldown": {
           "type": "integer",
           "description": "time between scaling actions",
-          "x-intellij-html-description": "time between scaling actions"
+          "x-intellij-html-description": "time between scaling actions",
+          "default": "0"
         },
         "name": {
           "type": "string",
           "description": "of scaling policy",
-          "x-intellij-html-description": "of scaling policy"
+          "x-intellij-html-description": "of scaling policy",
+          "default": "\"\""
         },
         "scaling_adjustment": {
           "type": "integer",
           "description": "Amount of adjustment for scaling",
-          "x-intellij-html-description": "Amount of adjustment for scaling"
+          "x-intellij-html-description": "Amount of adjustment for scaling",
+          "default": "0"
         }
       },
       "additionalProperties": false,
@@ -385,27 +439,60 @@
       "description": "Policy of scaling policy",
       "x-intellij-html-description": "Policy of scaling policy"
     },
+    "ScheduledAction": {
+      "properties": {
+        "capacity": {
+          "$ref": "#/definitions/Capacity",
+          "description": "of autoscaling group when action is triggered",
+          "x-intellij-html-description": "of autoscaling group when action is triggered"
+        },
+        "name": {
+          "type": "string",
+          "description": "of scheduled update action",
+          "x-intellij-html-description": "of scheduled update action",
+          "default": "\"\""
+        },
+        "recurrence": {
+          "type": "string",
+          "description": "The recurring schedule for the action, in Unix cron syntax format.",
+          "x-intellij-html-description": "The recurring schedule for the action, in Unix cron syntax format.",
+          "default": "\"\""
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "name",
+        "recurrence",
+        "capacity"
+      ],
+      "description": "Scheduled Action configurations",
+      "x-intellij-html-description": "Scheduled Action configurations"
+    },
     "SpotOptions": {
       "properties": {
         "block_duration_minutes": {
           "type": "integer",
           "description": "menas How long you want to use spot instance for sure",
-          "x-intellij-html-description": "menas How long you want to use spot instance for sure"
+          "x-intellij-html-description": "menas How long you want to use spot instance for sure",
+          "default": "0"
         },
         "instance_interruption_behavior": {
           "type": "string",
           "description": "Behavior when spot instance is interrupted",
-          "x-intellij-html-description": "Behavior when spot instance is interrupted"
+          "x-intellij-html-description": "Behavior when spot instance is interrupted",
+          "default": "\"\""
         },
         "max_price": {
           "type": "string",
           "description": "Maximum price of spot instance",
-          "x-intellij-html-description": "Maximum price of spot instance"
+          "x-intellij-html-description": "Maximum price of spot instance",
+          "default": "\"\""
         },
         "spot_instance_type": {
           "type": "string",
           "description": "Spot instance type",
-          "x-intellij-html-description": "Spot instance type"
+          "x-intellij-html-description": "Spot instance type",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
@@ -423,7 +510,8 @@
         "account": {
           "type": "string",
           "description": "Name of AWS Account",
-          "x-intellij-html-description": "Name of AWS Account"
+          "x-intellij-html-description": "Name of AWS Account",
+          "default": "\"\""
         },
         "alarms": {
           "items": {
@@ -436,7 +524,8 @@
         "assume_role": {
           "type": "string",
           "description": "IAM Role ARN for assume role",
-          "x-intellij-html-description": "IAM Role ARN for assume role"
+          "x-intellij-html-description": "IAM Role ARN for assume role",
+          "default": "\"\""
         },
         "autoscaling": {
           "items": {
@@ -468,12 +557,14 @@
         "env": {
           "type": "string",
           "description": "Environment of stack",
-          "x-intellij-html-description": "Environment of stack"
+          "x-intellij-html-description": "Environment of stack",
+          "default": "\"\""
         },
         "iam_instance_profile": {
           "type": "string",
           "description": "AWS IAM instance profile.",
-          "x-intellij-html-description": "AWS IAM instance profile."
+          "x-intellij-html-description": "AWS IAM instance profile.",
+          "default": "\"\""
         },
         "instance_market_options": {
           "$ref": "#/definitions/InstanceMarketOptions",
@@ -510,16 +601,19 @@
         "replacement_type": {
           "type": "string",
           "description": "Type of Replacement for deployment",
-          "x-intellij-html-description": "Type of Replacement for deployment"
+          "x-intellij-html-description": "Type of Replacement for deployment",
+          "default": "\"\""
         },
         "stack": {
           "type": "string",
           "description": "Name of stack",
-          "x-intellij-html-description": "Name of stack"
+          "x-intellij-html-description": "Name of stack",
+          "default": "\"\""
         },
         "tags": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "Stack specific tags",
@@ -562,12 +656,14 @@
         "path": {
           "type": "string",
           "description": "of userdata file",
-          "x-intellij-html-description": "of userdata file"
+          "x-intellij-html-description": "of userdata file",
+          "default": "\"\""
         },
         "type": {
           "type": "string",
           "description": "of storage that contains userdata",
-          "x-intellij-html-description": "of storage that contains userdata"
+          "x-intellij-html-description": "of storage that contains userdata",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,
@@ -583,7 +679,16 @@
         "name": {
           "type": "string",
           "description": "Application Name",
-          "x-intellij-html-description": "Application Name"
+          "x-intellij-html-description": "Application Name",
+          "default": "\"\""
+        },
+        "scheduled_actions": {
+          "items": {
+            "$ref": "#/definitions/ScheduledAction"
+          },
+          "type": "array",
+          "description": "List of scheduled actions",
+          "x-intellij-html-description": "List of scheduled actions"
         },
         "stacks": {
           "items": {
@@ -595,7 +700,8 @@
         },
         "tags": {
           "items": {
-            "type": "string"
+            "type": "string",
+            "default": "\"\""
           },
           "type": "array",
           "description": "Autoscaling tag list. This is attached to EC2 instance",
@@ -613,6 +719,7 @@
         "name",
         "userdata",
         "tags",
+        "scheduled_actions",
         "stacks"
       ],
       "description": "Yaml configuration from manifest file",

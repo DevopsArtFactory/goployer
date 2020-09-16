@@ -322,6 +322,18 @@ func (b Builder) CheckValidation() error {
 					return fmt.Errorf("not available volume type : %s", block.VolumeType)
 				}
 
+				if block.VolumeType == "gp2" && block.VolumeSize < 1 {
+					return errors.New("volume size of gp2 type should be larger than 1GiB")
+				}
+
+				if tool.IsStringInArray(block.VolumeType, constants.IopsRequiredBlockType) && block.VolumeSize < 4 {
+					return errors.New("volume size of io1 and io2 type should be larger than 4GiB")
+				}
+
+				if tool.IsStringInArray(block.VolumeType, constants.IopsRequiredBlockType) && block.Iops < 100 {
+					return errors.New("iops of io1 and io2 type should be larger than 100")
+				}
+
 				if block.VolumeType == "st1" && block.VolumeSize < 500 {
 					return errors.New("volume size of st1 type should be larger than 500GiB")
 				}
