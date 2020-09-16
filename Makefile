@@ -32,7 +32,7 @@ BUILD_PACKAGE = $(REPOPATH)/$(COMMAND_PKG)/$(PROJECT)
 GOPLOYER_TEST_PACKAGES = ./pkg/goployer/... ./cmd/... ./hack/... ./pkg/webhook/...
 GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./pkg/diag/*")
 
-VERSION_PACKAGE = $(REPOPATH)/pkg/goployer/version
+VERSION_PACKAGE = $(REPOPATH)/pkg/version
 COMMIT = $(shell git rev-parse HEAD)
 TEST_PACKAGES = ./pkg/... ./hack/...
 
