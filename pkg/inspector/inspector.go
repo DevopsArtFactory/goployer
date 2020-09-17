@@ -26,6 +26,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
@@ -58,6 +59,26 @@ MINIMUM 	DESIRED 	MAXIMUM
 {{- range $result := .Summary.Tags }}
  {{decorate "bullet" $result }}
 {{- end }}
+
+{{decorate "security groups" ""}}{{decorate "underline bold" "Inbound Rules"}}
+{{- if eq (len .Summary.IngressRules) 0 }}
+ No inbound rules exist
+{{- else }}
+ID	PROTOCOL	FROM	TO	SOURCE	DESCRIPTION
+{{- range $in := .Summary.IngressRules }}
+ {{decorate "bullet" $in.ID }}	{{ $in.IPProtocol }}	{{ $in.FromPort }}	{{ $in.ToPort }}	{{ $in.IPRange }}	{{ $in.Description }}
+{{- end }}
+{{- end }}
+
+{{decorate "security groups" ""}}{{decorate "underline bold" "Outbound Rules"}}
+{{- if eq (len .Summary.EgressRules) 0 }}
+ No outbound rules exist
+{{- else }}
+ID	PROTOCOL	FROM	TO	SOURCE	DESCRIPTION
+{{- range $out := .Summary.EgressRules }}
+ {{decorate "bullet" $out.ID }}	{{ $out.IPProtocol }}	{{ $out.FromPort }}	{{ $out.ToPort }}	{{ $out.IPRange }}	{{ $out.Description }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 `
@@ -74,6 +95,18 @@ type StatusSummary struct {
 	CreatedTime  time.Time
 	InstanceType map[string]int64
 	Tags         []string
+	IngressRules []SecurityGroup
+	EgressRules  []SecurityGroup
+}
+
+type SecurityGroup struct {
+	ID                  string
+	IPProtocol          string
+	FromPort            string
+	ToPort              string
+	IPRange             string
+	Description         string
+	SourceSecurityGroup string
 }
 
 type UpdateFields struct {
@@ -113,6 +146,7 @@ func (i Inspector) SelectStack(application string) (string, error) {
 	return target, nil
 }
 
+// GetStacks returns stacks from application prefix
 func (i Inspector) GetStacks(application string) ([]string, error) {
 	asgGroups := i.AWSClient.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(application)
 	options := []string{}
@@ -136,36 +170,32 @@ func (i Inspector) GetStackInformation(asgName string) (*autoscaling.Group, erro
 	return asg, nil
 }
 
-func (i Inspector) SetStatusSummary(asg *autoscaling.Group) StatusSummary {
-	summary := StatusSummary{}
-	summary.Name = *asg.AutoScalingGroupName
-	summary.Capacity = schemas.Capacity{
-		Min:     *asg.MinSize,
-		Max:     *asg.MaxSize,
-		Desired: *asg.DesiredCapacity,
+// GetLaunchTemplateInformation retrieves single launch template information
+func (i Inspector) GetLaunchTemplateInformation(ltID string) (*ec2.LaunchTemplateVersion, error) {
+	lt, err := i.AWSClient.EC2Service.GetMatchingLaunchTemplate(ltID)
+	if err != nil {
+		return nil, nil
 	}
-	summary.CreatedTime = *asg.CreatedTime
 
-	instanceTypeInfo := map[string]int64{}
-	for _, i := range asg.Instances {
-		c, ok := instanceTypeInfo[*i.InstanceType]
-		if !ok {
-			instanceTypeInfo[*i.InstanceType] = 1
-		} else {
-			instanceTypeInfo[*i.InstanceType] = c + 1
-		}
-	}
-	summary.InstanceType = instanceTypeInfo
-
-	tags := []string{}
-	for _, t := range asg.Tags {
-		tags = append(tags, fmt.Sprintf("%s=%s", *t.Key, *t.Value))
-	}
-	summary.Tags = tags
-	return summary
+	return lt, err
 }
 
-func (i Inspector) SetUpdateSummary(asg *autoscaling.Group) StatusSummary {
+// GetSecurityGroupsInformation retrieves security groups' information
+func (i Inspector) GetSecurityGroupsInformation(sgIds []*string) ([]*ec2.SecurityGroup, error) {
+	if len(sgIds) == 0 {
+		return nil, nil
+	}
+
+	ret, err := i.AWSClient.EC2Service.GetSecurityGroupDetails(sgIds)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+// SetStatusSummary creates status summary structure
+func (i Inspector) SetStatusSummary(asg *autoscaling.Group, sgs []*ec2.SecurityGroup) StatusSummary {
 	summary := StatusSummary{}
 	summary.Name = *asg.AutoScalingGroupName
 	summary.Capacity = schemas.Capacity{
@@ -191,6 +221,94 @@ func (i Inspector) SetUpdateSummary(asg *autoscaling.Group) StatusSummary {
 		tags = append(tags, fmt.Sprintf("%s=%s", *t.Key, *t.Value))
 	}
 	summary.Tags = tags
+
+	// security group
+	if sgs != nil {
+		var ingress []SecurityGroup
+		var egress []SecurityGroup
+		for _, sg := range sgs {
+			if len(sg.IpPermissions) > 0 {
+				for _, in := range sg.IpPermissions {
+					tmp := SecurityGroup{
+						ID: *sg.GroupId,
+					}
+					if *in.IpProtocol == "-1" {
+						tmp.FromPort = constants.ALL
+						tmp.ToPort = constants.ALL
+						tmp.IPProtocol = constants.ALL
+					} else {
+						tmp.IPProtocol = *in.IpProtocol
+						tmp.FromPort = fmt.Sprintf("%d", *in.FromPort)
+						tmp.ToPort = fmt.Sprintf("%d", *in.ToPort)
+					}
+
+					for _, ip := range in.IpRanges {
+						tmp.IPRange = *ip.CidrIp
+						if ip.Description != nil {
+							tmp.Description = *ip.Description
+						} else {
+							tmp.Description = constants.EmptyString
+						}
+						ingress = append(ingress, tmp)
+					}
+
+					for _, source := range in.UserIdGroupPairs {
+						if source.Description != nil {
+							tmp.Description = *source.Description
+						} else {
+							tmp.Description = constants.EmptyString
+						}
+						tmp.IPRange = *source.GroupId
+						ingress = append(ingress, tmp)
+					}
+				}
+			}
+
+			if len(sg.IpPermissionsEgress) > 0 {
+				for _, out := range sg.IpPermissionsEgress {
+					tmp := SecurityGroup{
+						ID: *sg.GroupId,
+					}
+					if *out.IpProtocol == "-1" {
+						tmp.FromPort = constants.ALL
+						tmp.ToPort = constants.ALL
+						tmp.IPProtocol = constants.ALL
+					} else {
+						tmp.IPProtocol = *out.IpProtocol
+						tmp.FromPort = fmt.Sprintf("%d", *out.FromPort)
+						tmp.ToPort = fmt.Sprintf("%d", *out.ToPort)
+					}
+
+					for _, ip := range out.IpRanges {
+						tmp.IPRange = *ip.CidrIp
+						if ip.Description != nil {
+							tmp.Description = *ip.Description
+						} else {
+							tmp.Description = constants.EmptyString
+						}
+						egress = append(egress, tmp)
+					}
+
+					for _, source := range out.UserIdGroupPairs {
+						if source.Description != nil {
+							tmp.Description = *source.Description
+						} else {
+							tmp.Description = constants.EmptyString
+						}
+						tmp.SourceSecurityGroup = *source.GroupId
+						egress = append(egress, tmp)
+					}
+				}
+			}
+		}
+		if len(ingress) > 0 {
+			summary.IngressRules = ingress
+		}
+		if len(egress) > 0 {
+			summary.EgressRules = egress
+		}
+	}
+
 	return summary
 }
 

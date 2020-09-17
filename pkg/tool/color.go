@@ -74,6 +74,8 @@ func DecorateAttr(attrString, message string) string {
 		return "⚓ "
 	case "instance_statistics":
 		return "🖥 "
+	case "security groups":
+		return "🚥 "
 	case "message":
 		return "💌 "
 	}

@@ -122,6 +122,9 @@ const (
 
 	// DefaultEnableStats is whether or not to enable gathering stats
 	DefaultEnableStats = true
+
+	// ALL means ALL as string
+	ALL = "ALL"
 )
 
 var (
