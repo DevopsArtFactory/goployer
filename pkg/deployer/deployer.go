@@ -142,7 +142,7 @@ func (d Deployer) CheckTerminating(client aws.Client, target string, disableMetr
 
 	d.Logger.Info(fmt.Sprintf("Waiting for instance termination in asg %s", target))
 	if len(asgInfo.Instances) > 0 {
-		d.Logger.Info(fmt.Sprintf("%d instance found : %s", len(asgInfo.Instances), target))
+		d.Logger.Infof("%d instance found : %s", len(asgInfo.Instances), target)
 		d.Slack.SendSimpleMessage(fmt.Sprintf("Still %d instance found : %s", len(asgInfo.Instances), target), d.Stack.Env)
 
 		return false
@@ -163,22 +163,23 @@ func (d Deployer) CheckTerminating(client aws.Client, target string, disableMetr
 		d.Logger.Debugf("update status of %s is finished", target)
 	}
 
-	d.Logger.Debug(fmt.Sprintf("Start deleting launch templates in %s", target))
+	d.Logger.Debugf("Start deleting launch templates in %s", target)
 	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
 		d.Logger.Errorln(err.Error())
 		return false
 	}
-	d.Logger.Debug(fmt.Sprintf("Launch templates are deleted in %s\n", target))
+	d.Logger.Debugf("Launch templates are deleted in %s\n", target)
 
 	return true
 }
 
+// CleanAutoscalingSet cleans autoscaling group itself
 func (d Deployer) CleanAutoscalingSet(client aws.Client, target string) error {
-	d.Logger.Debug(fmt.Sprintf("Start deleting autoscaling group : %s", target))
+	d.Logger.Debugf("Start deleting autoscaling group : %s", target)
 	if err := client.EC2Service.DeleteAutoscalingSet(target); err != nil {
 		return err
 	}
-	d.Logger.Debug(fmt.Sprintf("Autoscaling group is deleted : %s", target))
+	d.Logger.Debugf("Autoscaling group is deleted : %s", target)
 
 	return nil
 }

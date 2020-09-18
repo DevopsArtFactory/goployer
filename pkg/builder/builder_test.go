@@ -292,12 +292,36 @@ func TestCheckValidationStack(t *testing.T) {
 		t.Errorf("validation failed: volume type")
 	}
 
+	b.Stacks[0].BlockDevices[0].VolumeType = "gp2"
+	b.Stacks[0].BlockDevices[0].VolumeSize = 0
+	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of gp2 type should be larger than 1GiB" {
+		t.Errorf("validation failed: volume size - gp2")
+	}
+
 	b.Stacks[0].BlockDevices[0].VolumeType = "st1"
 	b.Stacks[0].BlockDevices[0].VolumeSize = 100
 	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of st1 type should be larger than 500GiB" {
-		t.Errorf("validation failed: volume size")
+		t.Errorf("validation failed: volume size - st1")
 	}
-	b.Stacks[0].BlockDevices[0].VolumeSize = 500
+
+	b.Stacks[0].BlockDevices[0].VolumeType = "io1"
+	b.Stacks[0].BlockDevices[0].VolumeSize = 1
+	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of io1 and io2 type should be larger than 4GiB" {
+		t.Errorf("validation failed: volume size - io1")
+	}
+
+	b.Stacks[0].BlockDevices[0].VolumeType = "io2"
+	b.Stacks[0].BlockDevices[0].VolumeSize = 1
+	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of io1 and io2 type should be larger than 4GiB" {
+		t.Errorf("validation failed: volume size - io2")
+	}
+
+	b.Stacks[0].BlockDevices[0].VolumeSize = 4
+	b.Stacks[0].BlockDevices[0].Iops = 0
+	if err := b.CheckValidation(); err == nil || err.Error() != "iops of io1 and io2 type should be larger than 100" {
+		t.Errorf("validation failed: iops - io2")
+	}
+	b.Stacks[0].BlockDevices[0].Iops = 100
 
 	b.Stacks[0].BlockDevices = append(b.Stacks[0].BlockDevices, schemas.BlockDevice{
 		DeviceName: "/dev/xvda",

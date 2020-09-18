@@ -424,7 +424,7 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 	for _, block := range blocks {
 		bType := block.VolumeType
 		if bType == "" {
-			Logger.Info("Volume type not defined for device mapping: defaulting to \"gp2\"")
+			Logger.Info("Default value is applied because volume type not defined : gp2")
 			bType = "gp2"
 		}
 
@@ -434,7 +434,7 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 			bSize = 16
 		}
 
-		ret = append(ret, &ec2.LaunchTemplateBlockDeviceMappingRequest{
+		tmp := ec2.LaunchTemplateBlockDeviceMappingRequest{
 			DeviceName: aws.String(block.DeviceName),
 			Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
 				VolumeSize: aws.Int64(bSize),
@@ -442,7 +442,14 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 			},
 			NoDevice:    nil,
 			VirtualName: nil,
-		})
+		}
+
+		if tool.IsStringInArray(bType, constants.IopsRequiredBlockType) {
+			tmp.Ebs.Iops = aws.Int64(block.Iops)
+			Logger.Debugf("iops applied: %d", block.Iops)
+		}
+
+		ret = append(ret, &tmp)
 	}
 
 	return ret

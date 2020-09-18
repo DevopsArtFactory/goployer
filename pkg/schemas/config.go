@@ -180,8 +180,11 @@ type BlockDevice struct {
 	// Size of volume
 	VolumeSize int64 `yaml:"volume_size"`
 
-	// Type of volume (gp2, io1, st1, sc1)
+	// Type of volume (gp2, io1, io2, st1, sc1)
 	VolumeType string `yaml:"volume_type"`
+
+	// IOPS for io1, io2 volume
+	Iops int64 `yaml:"iops"`
 }
 
 // Lifecycle Callback configuration
