@@ -144,12 +144,8 @@ stacks:
     # If you do not set volume_type, it would be gp2.
     block_devices:
       - device_name: /dev/xvda
-        volume_size: 8
-        volume_type: "io2"
-        iops: 200
-      - device_name: /dev/xvdb
-        volume_type: "st1"
-        volume_size: 500
+        volume_size: 100
+        volume_type: "gp2"
 
     # capacity
     capacity:
@@ -176,7 +172,7 @@ stacks:
       - region: ap-northeast-2
 
         # instance type
-        instance_type: t3.medium
+        instance_type: t3a.medium
 
         # ssh_key for instances
         ssh_key: test-master-key
@@ -253,7 +249,7 @@ stacks:
 
     regions:
       - region: ap-northeast-2
-        instance_type: t3.medium
+        instance_type: t3a.medium
         ssh_key: test-master-key
         ami_id: ami-01288945bd24ed49a
         use_public_subnets: true

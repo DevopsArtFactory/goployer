@@ -70,6 +70,34 @@ func (e EC2Client) GetMatchingAutoscalingGroup(name string) (*autoscaling.Group,
 	return asgGroup, nil
 }
 
+// GetMatchingLaunchTemplate returns information of launch template with matched ID
+func (e EC2Client) GetMatchingLaunchTemplate(ltID string) (*ec2.LaunchTemplateVersion, error) {
+	input := &ec2.DescribeLaunchTemplateVersionsInput{
+		LaunchTemplateId: aws.String(ltID),
+	}
+
+	ret, err := e.Client.DescribeLaunchTemplateVersions(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret.LaunchTemplateVersions[0], nil
+}
+
+// GetSecurityGroupDetails returns detailed information for security group
+func (e EC2Client) GetSecurityGroupDetails(sgIds []*string) ([]*ec2.SecurityGroup, error) {
+	input := &ec2.DescribeSecurityGroupsInput{
+		GroupIds: sgIds,
+	}
+
+	result, err := e.Client.DescribeSecurityGroups(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.SecurityGroups, nil
+}
+
 // Delete All Launch Configurations belongs to the autoscaling group
 func (e EC2Client) DeleteLaunchConfigurations(asgName string) error {
 	lcs := getAllLaunchConfigurations(e.AsClient, []*autoscaling.LaunchConfiguration{}, nil)

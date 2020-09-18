@@ -138,8 +138,6 @@ func (c CloudWatchClient) GetTargetGroupRequestStatistics(tgs []*string, startTi
 					return nil, err
 				}
 
-				fmt.Println(v)
-
 				if v != nil {
 					if _, ok := ret[tgName]; !ok {
 						ret[tgName] = map[string]float64{}
@@ -204,8 +202,6 @@ func (c CloudWatchClient) GetLoadBalancerRequestStatistics(loadbalancers []*stri
 				if err != nil {
 					return nil, err
 				}
-
-				fmt.Println(v)
 
 				if v != nil {
 					if _, ok := ret[lbName]; !ok {
@@ -281,8 +277,6 @@ func (c CloudWatchClient) GetOneDayStatisticsOfTargetGroup(tg string, startTime,
 		return nil, 0, nil
 	}
 
-	Logger.Infoln(result.MetricDataResults)
-
 	ret := map[string]float64{}
 	sum := float64(0)
 	for i, t := range result.MetricDataResults[0].Timestamps {
@@ -338,8 +332,6 @@ func (c CloudWatchClient) GetOneDayStatisticsOfLoadBalancer(lb string, startTime
 	if len(result.MetricDataResults) == 0 {
 		return nil, 0, nil
 	}
-
-	fmt.Println(result.MetricDataResults)
 
 	ret := map[string]float64{}
 	sum := float64(0)

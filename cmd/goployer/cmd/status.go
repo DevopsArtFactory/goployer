@@ -37,7 +37,7 @@ func NewStatusCommand() *cobra.Command {
 // funcStatus shows deployment status
 func funcStatus(ctx context.Context, _ io.Writer, args []string, mode string) error {
 	if len(args) != 1 {
-		return errors.New("usage: goployer status <application name> --region=<region ID>")
+		return errors.New("usage: goployer status <application name>")
 	}
 
 	return runWithoutExecutor(ctx, func() error {

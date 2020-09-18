@@ -474,7 +474,17 @@ func (r Runner) Status() error {
 		return err
 	}
 
-	inspector.StatusSummary = inspector.SetStatusSummary(group)
+	launchTemplateInfo, err := inspector.GetLaunchTemplateInformation(*group.LaunchTemplate.LaunchTemplateId)
+	if err != nil {
+		return err
+	}
+
+	securityGroups, err := inspector.GetSecurityGroupsInformation(launchTemplateInfo.LaunchTemplateData.SecurityGroupIds)
+	if err != nil {
+		return err
+	}
+
+	inspector.StatusSummary = inspector.SetStatusSummary(group, securityGroups)
 
 	if err := inspector.Print(); err != nil {
 		return err
