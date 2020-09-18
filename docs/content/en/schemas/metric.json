@@ -11,7 +11,8 @@
         "region": {
           "type": "string",
           "description": "Base region for gathering metrics",
-          "x-intellij-html-description": "Base region for gathering metrics"
+          "x-intellij-html-description": "Base region for gathering metrics",
+          "default": "\"\""
         },
         "storage": {
           "$ref": "#/definitions/Storage",
@@ -27,17 +28,23 @@
       "description": "Metric Builder Configurations",
       "x-intellij-html-description": "Metric Builder Configurations"
     },
+    "Metrics": {
+      "description": "Configurations of metrics",
+      "x-intellij-html-description": "Configurations of metrics"
+    },
     "Storage": {
       "properties": {
         "name": {
           "type": "string",
           "description": "Storage Name",
-          "x-intellij-html-description": "Storage Name"
+          "x-intellij-html-description": "Storage Name",
+          "default": "\"\""
         },
         "type": {
           "type": "string",
           "description": "Storage Type - dynamodb",
-          "x-intellij-html-description": "Storage Type - dynamodb"
+          "x-intellij-html-description": "Storage Type - dynamodb",
+          "default": "\"\""
         }
       },
       "additionalProperties": false,

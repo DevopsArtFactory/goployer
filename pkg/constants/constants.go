@@ -145,7 +145,10 @@ var (
 	AWSConfigPath = HomeDir() + "/.aws/config"
 
 	// AvailableBlockTypes is a list of available ebs block types
-	AvailableBlockTypes = []string{"io1", "gp2", "st1", "sc1"}
+	AvailableBlockTypes = []string{"io1", "io2", "gp2", "st1", "sc1"}
+
+	// IopsRequiredBlockType is a list of ebs type which requires iops
+	IopsRequiredBlockType = []string{"io1", "io2"}
 
 	// TimeFields is a list of time.Time field
 	TimeFields = []string{"timeout", "polling-interval"}

@@ -138,8 +138,9 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
+			Shorthand:     "v",
 			Value:         aws.String(constants.EmptyString),
-			DefValue:      "info",
+			DefValue:      "warning",
 			FlagAddMethod: "StringVar",
 		},
 		{
@@ -210,8 +211,9 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
+			Shorthand:     "v",
 			Value:         aws.String(constants.EmptyString),
-			DefValue:      "info",
+			DefValue:      "warning",
 			FlagAddMethod: "StringVar",
 		},
 	},
@@ -219,8 +221,9 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "log-level",
 			Usage:         "Level of logging",
+			Shorthand:     "v",
 			Value:         aws.String(constants.EmptyString),
-			DefValue:      "info",
+			DefValue:      "warning",
 			FlagAddMethod: "StringVar",
 		},
 	},

@@ -36,7 +36,7 @@ var (
 )
 
 // NewRootCommand creates new root command
-func NewRootCommand(_, stderr io.Writer) *cobra.Command {
+func NewRootCommand(out, stderr io.Writer) *cobra.Command {
 	cobra.OnInitialize(initConfig)
 	rootCmd := &cobra.Command{
 		Use:   "goployer",
@@ -47,6 +47,8 @@ You can find more information in https://goployer.dev`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			cmd.Root().SetOutput(out)
+
 			// Setup logs
 			if err := setUpLogs(stderr, v); err != nil {
 				return err
@@ -71,7 +73,7 @@ You can find more information in https://goployer.dev`,
 	rootCmd.AddCommand(NewAddCommand())
 	rootCmd.AddCommand(NewUpdateCommand())
 
-	rootCmd.PersistentFlags().StringVarP(&v, "verbosity", "v", constants.DefaultLogLevel.String(), "Log level (debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().StringVarP(&v, "log-level", "v", constants.DefaultLogLevel.String(), "Log level (debug, info, warn, error, fatal, panic)")
 
 	return rootCmd
 }
