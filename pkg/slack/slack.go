@@ -20,6 +20,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/tool"
 	"net/http"
 	"os"
 	"time"
@@ -33,15 +36,6 @@ var (
 	slackToken      = "SLACK_TOKEN"
 	slackChannel    = "SLACK_CHANNEL"
 	slackWebhookURL = "SLACK_WEBHOOK_URL"
-
-	colorMapping = map[string]string{
-		"prod":  "#ff0000",
-		"stage": "#00ff00",
-		"qa":    "#ffd700",
-		"dev":   "#663399",
-		"load":  "#1e90ff",
-		"beta":  "#00ff00",
-	}
 )
 
 type Slack struct {
@@ -71,22 +65,17 @@ type Attachment struct {
 	Color string `json:"color"`
 }
 
-func (s Slack) SendSimpleMessage(message string, env string) error {
+// SendSimpleMessage creates and sends simple message
+func (s Slack) SendSimpleMessage(message string) error {
 	if !s.ValidClient() {
 		return nil
 	}
 	if len(s.WebhookURL) > 0 {
-		if err := s.SendMessageWithWebhook(message, env); err != nil {
-			return err
-		}
+		return s.SendMessageWithWebHook(message)
 	} else {
-		color, ok := colorMapping[env]
-		if !ok {
-			color = "#ff0000"
-		}
 		attachment := slack.Attachment{
 			Text:  message,
-			Color: color,
+			Color: constants.DefaultSlackColor,
 		}
 		msgOpt := slack.MsgOptionAttachments(attachment)
 
@@ -98,17 +87,13 @@ func (s Slack) SendSimpleMessage(message string, env string) error {
 	return nil
 }
 
-func (s Slack) SendMessageWithWebhook(msg, env string) error {
-	color, ok := colorMapping[env]
-	if !ok {
-		color = "#ff0000"
-	}
-
+// SendMessageWithWebhook is for WebhookURL
+func (s Slack) SendMessageWithWebHook(msg string) error {
 	slackBody, _ := json.Marshal(Body{
 		Attachments: []Attachment{
 			{
 				Text:  msg,
-				Color: color,
+				Color: constants.DefaultSlackColor,
 			},
 		},
 	})
@@ -136,8 +121,8 @@ func (s Slack) SendMessageWithWebhook(msg, env string) error {
 	return nil
 }
 
-func (s Slack) SendMessage(msgOpt slack.MsgOption) error {
-	channel, timestamp, text, err := s.Client.SendMessage(s.ChannelID, msgOpt)
+func (s Slack) SendMessage(msgOpt ...slack.MsgOption) error {
+	channel, timestamp, text, err := s.Client.SendMessage(s.ChannelID, msgOpt...)
 	if err != nil {
 		return err
 	}
@@ -167,7 +152,7 @@ func (s Slack) CreateDividerSection() *slack.DividerBlock {
 func (s Slack) CreateSimpleAttachments(title, text string) slack.MsgOption {
 	return slack.MsgOptionAttachments(
 		slack.Attachment{
-			Color:      "#36a64f",
+			Color: constants.DefaultSlackColor,
 			Title:      title,
 			Text:       text,
 			MarkdownIn: []string{"text"},
@@ -188,4 +173,89 @@ func (s Slack) CreateTitleSection(text string) *slack.SectionBlock {
 	txt := slack.NewTextBlockObject("mrkdwn", text, false, false)
 	section := slack.NewSectionBlock(txt, nil, nil)
 	return section
+}
+
+// SendAPITestResultMessage sends API test message
+func (s Slack) SendAPITestResultMessage(metrics []schemas.MetricResult) error {
+	if len(s.WebhookURL) > 0 {
+		return s.SendAPITestResultMessageWithWebHook(metrics)
+	}
+
+	var msgOpts []slack.MsgOption
+	var attachments []slack.Attachment
+
+	for _, m := range metrics {
+		attachments = append(attachments, slack.Attachment{
+			Color: constants.DefaultSlackColor,
+			Text: fmt.Sprintf("*API*: %s\n*Duration*: %s\n*Wait*: %s\n*Requests*: %d\n*Rate*: %s\n*Throughput*: %s\n*Success*: %s\n*Latency P99*: %s\n",
+				m.URL,
+				tool.RoundTime(m.Data.Duration),
+				tool.RoundTime(m.Data.Wait),
+				m.Data.Requests,
+				tool.RoundNum(m.Data.Rate),
+				tool.RoundNum(m.Data.Throughput),
+				tool.RoundNum(m.Data.Success),
+				tool.RoundTime(m.Data.Latencies.P99),
+			),
+			MarkdownIn: []string{"text"},
+		},
+		)
+	}
+
+	msgOpts = append(msgOpts, slack.MsgOptionAttachments(attachments...))
+
+	if err := s.SendMessage(msgOpts...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SendAPITestResultMessageWithWebHook sends API test result with slack webhook
+func (s Slack) SendAPITestResultMessageWithWebHook(metrics []schemas.MetricResult) error {
+	attachments := []Attachment{}
+	for _, m := range metrics {
+		attachments = append(attachments, Attachment{
+			Color: constants.DefaultSlackColor,
+			Text: fmt.Sprintf("*API*: %s\n*Duration*: %s\n*Wait*: %s\n*Requests*: %d\n*Rate*: %s\n*Throughput*: %s\n*Success*: %s\n*Latency P99*: %s\n",
+				m.URL,
+				tool.RoundTime(m.Data.Duration),
+				tool.RoundTime(m.Data.Wait),
+				m.Data.Requests,
+				tool.RoundNum(m.Data.Rate),
+				tool.RoundNum(m.Data.Throughput),
+				tool.RoundNum(m.Data.Success),
+				tool.RoundTime(m.Data.Latencies.P99),
+			),
+		},
+		)
+	}
+
+	slackBody, _ := json.Marshal(Body{
+		Attachments: attachments,
+	})
+
+	req, err := http.NewRequest(http.MethodPost, s.WebhookURL, bytes.NewBuffer(slackBody))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	if buf.String() != "ok" {
+		return errors.New("non-ok response returned from Slack")
+	}
+
+	resp.Body.Close()
+
+	return nil
+
 }

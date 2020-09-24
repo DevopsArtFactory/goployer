@@ -34,6 +34,9 @@ type YamlConfig struct {
 
 	// List of stack configuration
 	Stacks []Stack `yaml:"stacks"`
+
+	// API Test configuration
+	APITestTemplate APITestTemplate `yaml:"api_test_template"`
 }
 
 type AWSConfig struct {
@@ -98,6 +101,9 @@ type Stack struct {
 
 	// Whether using EBS Optimized option or not
 	EbsOptimized bool `yaml:"ebs_optimized,omitempty"`
+
+	// Whether or not to run API test
+	APITestEnabled bool `yaml:"api_test_enabled"`
 
 	// Instance market options like spot
 	InstanceMarketOptions *InstanceMarketOptions `yaml:"instance_market_options,omitempty"`
@@ -325,4 +331,27 @@ type LifecycleHookSpecification struct {
 
 	// IAM Role ARN for notification
 	RoleARN string `yaml:"role_arn"`
+}
+
+// Templates for API Test
+type APITestTemplate struct {
+	// Name of test template
+	Name string `yaml:"name"`
+
+	// Duration of api test which means how long you want to test for API test
+	Duration time.Duration `yaml:"duration"`
+
+	// Request per second to call
+	RequestPerSecond int `yaml:"request_per_second"`
+
+	APIs []APIManifest `yaml:"apis"`
+}
+
+// Configuration of API test
+type APIManifest struct {
+	// Method of API Call: [ GET, POST, PUT ... ]
+	Method string `yaml:"method"`
+
+	// Full URL of API
+	URL string `yaml:"url"`
 }

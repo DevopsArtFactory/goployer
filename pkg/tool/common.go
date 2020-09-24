@@ -110,3 +110,31 @@ func CheckFileExists(filePath string) bool {
 func IsTargetGroupArn(str string, region string) bool {
 	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region))
 }
+
+// RoundTime creates rounded time
+func RoundTime(d time.Duration) string {
+	var r float64
+	var suffix string
+	if d > time.Minute {
+		r = d.Minutes()
+		suffix = "m"
+	} else if d > time.Second {
+		r = d.Seconds()
+		suffix = "s"
+	} else {
+		r = float64(d.Milliseconds())
+		suffix = "ms"
+	}
+
+	return fmt.Sprintf("%.2f%s", r, suffix)
+}
+
+// RoundNum create rounded number
+func RoundNum(n float64) string {
+	return fmt.Sprintf("%.2f", n)
+}
+
+// JoinString joins strings in the slice
+func JoinString(arr []string, delimiter string) string {
+	return strings.Join(arr, delimiter)
+}

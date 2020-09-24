@@ -17,8 +17,15 @@ limitations under the license.
 package deployer
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
+	vegeta "github.com/tsenart/vegeta/lib"
+	"html/template"
+	"sync"
+	"text/tabwriter"
 	"time"
 
 	eaws "github.com/aws/aws-sdk-go/aws"
@@ -44,11 +51,20 @@ type Deployer struct {
 	Logger            *Logger.Logger
 	Stack             schemas.Stack
 	AwsConfig         schemas.AWSConfig
+	APITestTemplate   schemas.APITestTemplate
 	AWSClients        []aws.Client
 	LocalProvider     builder.UserdataProvider
 	Slack             slack.Slack
 	Collector         collector.Collector
 	StepStatus        map[int64]bool
+}
+
+type APIAttacker struct {
+	Name     string
+	Attacker *vegeta.Attacker
+	Rate     vegeta.Rate
+	Duration time.Duration
+	Targets  []vegeta.Target
 }
 
 // getCurrentVersion returns current version for current deployment step
@@ -117,12 +133,12 @@ func (d Deployer) polling(region schemas.RegionConfig, asg *autoscaling.Group, c
 	} else {
 		if validHostCount >= threshold {
 			d.Logger.Infof("Healthy Count for %s : %d/%d", d.AsgNames[region.Region], validHostCount, threshold)
-			d.Slack.SendSimpleMessage(fmt.Sprintf("All instances are healthy in %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold), d.Stack.Env)
+			d.Slack.SendSimpleMessage(fmt.Sprintf("All instances are healthy in %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold))
 			return true, nil
 		}
 
 		d.Logger.Infof("Healthy count does not meet the requirement(%s) : %d/%d", d.AsgNames[region.Region], validHostCount, threshold)
-		d.Slack.SendSimpleMessage(fmt.Sprintf("Waiting for healthy instances %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold), d.Stack.Env)
+		d.Slack.SendSimpleMessage(fmt.Sprintf("Waiting for healthy instances %s  :  %d/%d", d.AsgNames[region.Region], validHostCount, threshold))
 	}
 	return false, nil
 }
@@ -143,11 +159,11 @@ func (d Deployer) CheckTerminating(client aws.Client, target string, disableMetr
 	d.Logger.Info(fmt.Sprintf("Waiting for instance termination in asg %s", target))
 	if len(asgInfo.Instances) > 0 {
 		d.Logger.Infof("%d instance found : %s", len(asgInfo.Instances), target)
-		d.Slack.SendSimpleMessage(fmt.Sprintf("Still %d instance found : %s", len(asgInfo.Instances), target), d.Stack.Env)
+		d.Slack.SendSimpleMessage(fmt.Sprintf("Still %d instance found : %s", len(asgInfo.Instances), target))
 
 		return false
 	}
-	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target), d.Stack.Env)
+	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target))
 
 	if err := d.CleanAutoscalingSet(client, target); err != nil {
 		d.Logger.Errorf(err.Error())
@@ -187,7 +203,7 @@ func (d Deployer) CleanAutoscalingSet(client aws.Client, target string) error {
 // ResizingAutoScalingGroupToZero set autoscaling group instance count to 0
 func (d Deployer) ResizingAutoScalingGroupToZero(client aws.Client, stack, asg string) error {
 	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s(%s)", asg, stack))
-	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s/%s", asg, stack), d.Stack.Env)
+	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s/%s", asg, stack))
 
 	retry := int64(3)
 	var err error
@@ -281,4 +297,83 @@ func (d Deployer) GetValidHostCount(targetHosts []aws.HealthcheckHost) int64 {
 	}
 
 	return int64(ret)
+}
+
+// GenerateAPIAttacker create API Attacker
+func (d Deployer) GenerateAPIAttacker(template schemas.APITestTemplate) (*APIAttacker, error) {
+	attacker := APIAttacker{
+		Name:     template.Name,
+		Rate:     vegeta.Rate{Freq: template.RequestPerSecond, Per: time.Second},
+		Duration: template.Duration,
+		Attacker: vegeta.NewAttacker(),
+	}
+
+	var targets []vegeta.Target
+	for _, api := range template.APIs {
+		targets = append(targets, vegeta.Target{
+			Method: api.Method,
+			URL:    api.URL,
+		})
+	}
+	attacker.Targets = targets
+
+	return &attacker, nil
+}
+
+// Run calls apis to check
+func (a APIAttacker) Run() ([]schemas.MetricResult, error) {
+	var result []schemas.MetricResult
+	wg := sync.WaitGroup{}
+	for _, tgt := range a.Targets {
+		wg.Add(1)
+		go func(tgt vegeta.Target) {
+			defer wg.Done()
+			metrics := vegeta.Metrics{}
+			tgtr := vegeta.NewStaticTargeter(tgt)
+			for res := range a.Attacker.Attack(tgtr, a.Rate, a.Duration, a.Name) {
+				metrics.Add(res)
+			}
+			metrics.Close()
+
+			result = append(result, schemas.MetricResult{
+				URL:  tgt.URL,
+				Data: metrics,
+			})
+		}(tgt)
+	}
+
+	wg.Wait()
+
+	return result, nil
+}
+
+// Print shows results
+func (a APIAttacker) Print(metrics []schemas.MetricResult) (string, error) {
+	var data = struct {
+		Metrics []schemas.MetricResult
+		Name    string
+	}{
+		Metrics: metrics,
+		Name:    a.Name,
+	}
+
+	funcMap := template.FuncMap{
+		"decorate": tool.DecorateAttr,
+		"round":    tool.RoundTime,
+		"roundNum": tool.RoundNum,
+	}
+
+	var buf bytes.Buffer
+	w := tabwriter.NewWriter(&buf, 0, 5, 3, ' ', tabwriter.TabIndent)
+	t := template.Must(template.New("API Test Result").Funcs(funcMap).Parse(templates.APITestResultTemplate))
+
+	err := t.Execute(w, data)
+	if err != nil {
+		return constants.EmptyString, err
+	}
+
+	str := buf.String()
+	fmt.Println(str)
+
+	return str, nil
 }

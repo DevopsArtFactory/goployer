@@ -125,6 +125,9 @@ const (
 
 	// ALL means ALL as string
 	ALL = "ALL"
+
+	// DefaultSlackColor is default slack color
+	DefaultSlackColor = "#0BE6C1"
 )
 
 var (

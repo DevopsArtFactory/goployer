@@ -19,10 +19,9 @@ package deployer
 import (
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
+	"strings"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
@@ -36,7 +35,7 @@ type BlueGreen struct {
 }
 
 // NewBlueGrean creates new BlueGreen deployment deployer
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, stack schemas.Stack, regionSelected string) BlueGreen {
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, apiTestTemplate schemas.APITestTemplate, stack schemas.Stack, regionSelected string) BlueGreen {
 	awsClients := []aws.Client{}
 	for _, region := range stack.Regions {
 		if len(regionSelected) > 0 && regionSelected != region.Region {
@@ -51,6 +50,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 			Logger:            logger,
 			AwsConfig:         awsConfig,
 			AWSClients:        awsClients,
+			APITestTemplate:   apiTestTemplate,
 			AsgNames:          map[string]string{},
 			PrevAsgs:          map[string][]string{},
 			PrevInstances:     map[string][]string{},
@@ -433,7 +433,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 				b.Deployer.RunLifecycleCallbacks(client, b.PrevInstances[region.Region])
 			} else {
 				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region))
 			}
 		}
 	}
@@ -480,7 +480,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 				}
 			} else {
 				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region))
 			}
 		}
 	}
@@ -671,6 +671,40 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 	return nil
 }
 
+// RunAPITest tries to run API Test
+func (b BlueGreen) RunAPITest(config builder.Config) error {
+	if !b.Stack.APITestEnabled {
+		b.Logger.Infof("API test is disabled for this stack: %s", b.Stack.Stack)
+		return nil
+	}
+
+	b.Logger.Debugf("Create API attacker")
+	attacker, err := b.Deployer.GenerateAPIAttacker(b.APITestTemplate)
+	if err != nil {
+		return err
+	}
+
+	b.Logger.Debugf("Run API attacker")
+	result, err := attacker.Run()
+	if err != nil {
+		return err
+	}
+
+	b.Logger.Debugf("Print API test result")
+	_, err = attacker.Print(result)
+	if err != nil {
+		return err
+	}
+
+	if err := b.Slack.SendAPITestResultMessage(result); err != nil {
+		return err
+	}
+	b.Logger.Debugf("API test is done")
+
+	return nil
+}
+
+// SkipDeployStep
 func (b BlueGreen) SkipDeployStep() {
 	b.StepStatus[constants.StepDeploy] = true
 	b.StepStatus[constants.StepAdditionalWork] = true

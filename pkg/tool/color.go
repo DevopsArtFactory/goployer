@@ -18,10 +18,9 @@ package tool
 
 import (
 	"fmt"
+	"github.com/fatih/color"
 	"io"
 	"strings"
-
-	"github.com/fatih/color"
 )
 
 type Color struct {

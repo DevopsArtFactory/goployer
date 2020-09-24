@@ -20,11 +20,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
+	"github.com/olekukonko/tablewriter"
+	"html/template"
+	"io"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	Logger "github.com/sirupsen/logrus"
@@ -49,6 +54,9 @@ type Builder struct { // Do not add comments for this struct
 
 	// Stack configuration
 	Stacks []schemas.Stack
+
+	// API Test configuration
+	APITestTemplate schemas.APITestTemplate
 }
 
 type Config struct { // Do not add comments for this struct
@@ -136,16 +144,18 @@ func NewBuilder(config *Config) (Builder, error) {
 
 // SetManifestConfig set manifest configuration from local file
 func (b Builder) SetManifestConfig() Builder {
-	awsConfig, stacks := ParsingManifestFile(b.Config.Manifest)
+	awsConfig, stacks, apiTestTemplate := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
+	b.APITestTemplate = *apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
 
 // SetManifestConfigWithS3 set manifest configuration with s3
 func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
-	awsConfig, stacks := buildStructFromYaml(fileBytes)
+	awsConfig, stacks, apiTestTemplate := buildStructFromYaml(fileBytes)
 	b.AwsConfig = awsConfig
+	b.APITestTemplate = *apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
@@ -452,6 +462,88 @@ func (b Builder) CheckValidation() error {
 }
 
 // MakeSummary prints all configurations in summary
+func (b Builder) PrintSummary(out io.Writer, targetStack, targetRegion string) error {
+	configStr := &strings.Builder{}
+	table := tablewriter.NewWriter(configStr)
+	table.SetHeader([]string{"Configuration", "Value"})
+	table.SetCenterSeparator("|")
+	table.SetHeaderAlignment(tablewriter.ALIGN_CENTER)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+
+	keys := viper.AllKeys()
+
+	var data [][]string
+	val := reflect.ValueOf(&b.Config).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		typeField := val.Type().Field(i)
+		key := strings.ReplaceAll(typeField.Tag.Get("json"), "_", "-")
+		if tool.IsStringInArray(key, keys) {
+			t := val.FieldByName(typeField.Name)
+			if t.CanSet() {
+				switch t.Kind() {
+				case reflect.String:
+					if len(val.FieldByName(typeField.Name).String()) > 0 {
+						data = append(data, []string{key, val.FieldByName(typeField.Name).String()})
+					}
+				case reflect.Int, reflect.Int64:
+					if val.FieldByName(typeField.Name).Int() > 0 {
+						if tool.IsStringInArray(key, []string{"polling-interval", "timeout"}) {
+							data = append(data, []string{key, fmt.Sprintf("%.0fs", time.Duration(val.FieldByName(typeField.Name).Int()).Seconds())})
+						} else {
+							data = append(data, []string{key, fmt.Sprintf("%d", val.FieldByName(typeField.Name).Int())})
+						}
+					}
+				case reflect.Bool:
+					data = append(data, []string{key, fmt.Sprintf("%t",val.FieldByName(typeField.Name).Bool())})
+				}
+			}
+		}
+	}
+	table.AppendBulk(data)
+	table.Render()
+
+	// Print Stack Information
+	var ts []schemas.Stack
+	for _, stack := range b.Stacks {
+		if stack.Stack == targetStack {
+			ts = append(ts, stack)
+			break
+		}
+	}
+
+	if len(ts) == 0 {
+		ts = b.Stacks
+	}
+
+	var deploymentData = struct {
+		Stacks  []schemas.Stack
+		Region string
+		ConfigSummary string
+	}{
+		Stacks: ts,
+		Region: targetRegion,
+		ConfigSummary: configStr.String(),
+	}
+
+	funcMap := template.FuncMap{
+		"decorate": tool.DecorateAttr,
+		"joinString": tool.JoinString,
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 5, 3, ' ', tabwriter.TabIndent)
+	t := template.Must(template.New("Stack Information").Funcs(funcMap).Parse(templates.DeploymentSummary))
+
+	err := t.Execute(w, deploymentData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// MakeSummary prints all configurations in summary
 func (b Builder) MakeSummary(targetStack string) string {
 	summary := []string{}
 	formatting := `
@@ -478,6 +570,7 @@ Stack
 
 	return strings.Join(summary, "\n")
 }
+
 
 // printEnvironment prints configurations of environment
 func printEnvironment(stack schemas.Stack) string {
@@ -514,20 +607,21 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack) {
+func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
 	var yamlFile []byte
 	var err error
 
 	yamlFile, err = ioutil.ReadFile(manifest)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
-		return schemas.AWSConfig{}, nil
+		return schemas.AWSConfig{}, nil, nil
 	}
 
 	return buildStructFromYaml(yamlFile)
 }
 
-func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
+// buildStructFromYaml creates custom structure from manifest
+func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
 	yamlConfig := schemas.YamlConfig{}
 	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
@@ -543,7 +637,7 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
 
 	Stacks := yamlConfig.Stacks
 
-	return awsConfig, Stacks
+	return awsConfig, Stacks, &yamlConfig.APITestTemplate
 }
 
 // argumentParsing parses arguments from command

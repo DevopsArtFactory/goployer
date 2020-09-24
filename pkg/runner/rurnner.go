@@ -192,11 +192,11 @@ func Start(builderSt builder.Builder, mode string) error {
 		if !builderSt.Config.SlackOff {
 			// These are post actions after deployment
 			if mode == "deploy" {
-				slacker.SendSimpleMessage(":100: Deployment is done.", builderSt.Config.Env)
+				slacker.SendSimpleMessage(":100: Deployment is done.")
 			}
 
 			if mode == "delete" {
-				slacker.SendSimpleMessage(":100: Delete process is done.", "")
+				slacker.SendSimpleMessage(":100: Delete process is done.")
 			}
 		}
 
@@ -258,6 +258,7 @@ func (r Runner) Run(mode string) error {
 
 // Deploy is the main function of `goployer deploy`
 func (r Runner) Deploy() error {
+	out := os.Stdout
 	defer func() {
 		if err := recover(); err != nil {
 			Logger.Error(err)
@@ -272,11 +273,13 @@ func (r Runner) Deploy() error {
 	//Send Beginning Message
 	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
 
-	msg := r.Builder.MakeSummary(r.Builder.Config.Stack)
-	fmt.Println(msg)
+	if err := r.Builder.PrintSummary(out, r.Builder.Config.Stack, r.Builder.Config.Region); err != nil {
+		return err
+	}
+	msg := "test"
 	if r.Slacker.ValidClient() {
 		r.Logger.Debug("slack configuration is valid")
-		err := r.Slacker.SendSimpleMessage(msg, r.Builder.Config.Env)
+		err := r.Slacker.SendSimpleMessage(msg)
 		if err != nil {
 			r.Logger.Warn(err.Error())
 			r.Slacker.SlackOff = true
@@ -305,7 +308,7 @@ func (r Runner) Deploy() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector))
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector))
 	}
 
 	r.Logger.Debugf("successfully assign deployer to stacks")
@@ -370,6 +373,18 @@ func (r Runner) Deploy() error {
 	}
 	wg.Wait()
 
+	// API Test
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.RunAPITest(r.Builder.Config); err != nil {
+				r.Logger.Errorf("API test error occurred: %s", err.Error())
+			}
+		}(d)
+	}
+	wg.Wait()
+
 	return nil
 }
 
@@ -410,7 +425,7 @@ func (r Runner) Delete() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector)
+		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
@@ -543,7 +558,7 @@ func (r Runner) Update() error {
 
 	r.Logger.Debugf("create deployer for update")
 	deployers := []deployer.DeployManager{
-		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.Config.Region, r.Slacker, r.Collector),
+		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector),
 	}
 
 	// healthcheck
@@ -559,11 +574,12 @@ func (r Runner) Update() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplate schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,
 		awsConfig,
+		apiTestTemplate,
 		stack,
 		region,
 	)
