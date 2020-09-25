@@ -36,7 +36,7 @@ type BlueGreen struct {
 }
 
 // NewBlueGrean creates new BlueGreen deployment deployer
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, stack schemas.Stack, regionSelected string) BlueGreen {
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, apiTestTemplate *schemas.APITestTemplate, stack schemas.Stack, regionSelected string) BlueGreen {
 	awsClients := []aws.Client{}
 	for _, region := range stack.Regions {
 		if len(regionSelected) > 0 && regionSelected != region.Region {
@@ -51,6 +51,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 			Logger:            logger,
 			AwsConfig:         awsConfig,
 			AWSClients:        awsClients,
+			APITestTemplate:   apiTestTemplate,
 			AsgNames:          map[string]string{},
 			PrevAsgs:          map[string][]string{},
 			PrevInstances:     map[string][]string{},
@@ -69,7 +70,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 }
 
 // Deploy function
-func (b BlueGreen) Deploy(config builder.Config) error {
+func (b BlueGreen) Deploy(config schemas.Config) error {
 	if !b.StepStatus[constants.StepCheckPrevious] {
 		return nil
 	}
@@ -248,7 +249,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 }
 
 // Healthchecking
-func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
+func (b BlueGreen) HealthChecking(config schemas.Config) map[string]bool {
 	isUpdate := len(config.TargetAutoscalingGroup) > 0
 	stackName := b.GetStackName()
 	if !b.StepStatus[constants.StepDeploy] && !isUpdate {
@@ -324,7 +325,7 @@ func (b BlueGreen) GetStackName() string {
 }
 
 // FinishAdditionalWork processes final work
-func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
+func (b BlueGreen) FinishAdditionalWork(config schemas.Config) error {
 	if !b.StepStatus[constants.StepDeploy] {
 		return nil
 	}
@@ -398,7 +399,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 }
 
 // TriggerLifecycleCallbacks runs lifecycle callbacks before cleaning.
-func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
+func (b BlueGreen) TriggerLifecycleCallbacks(config schemas.Config) error {
 	if !b.StepStatus[constants.StepAdditionalWork] {
 		return nil
 	}
@@ -433,7 +434,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 				b.Deployer.RunLifecycleCallbacks(client, b.PrevInstances[region.Region])
 			} else {
 				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region))
 			}
 		}
 	}
@@ -442,7 +443,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 }
 
 //Clean Previous Version
-func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
+func (b BlueGreen) CleanPreviousVersion(config schemas.Config) error {
 	if !b.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil
 	}
@@ -480,7 +481,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 				}
 			} else {
 				b.Logger.Infof("No previous versions to be deleted : %s\n", region.Region)
-				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region), b.Stack.Env)
+				b.Slack.SendSimpleMessage(fmt.Sprintf("No previous versions to be deleted : %s\n", region.Region))
 			}
 		}
 	}
@@ -489,7 +490,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 }
 
 // TerminateChecking checks Termination status
-func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
+func (b BlueGreen) TerminateChecking(config schemas.Config) map[string]bool {
 	stackName := b.GetStackName()
 	if !b.StepStatus[constants.StepCleanPreviousVersion] {
 		return map[string]bool{stackName: true}
@@ -569,7 +570,7 @@ func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
 }
 
 // Gather the whole metrics from deployer
-func (b BlueGreen) GatherMetrics(config builder.Config) error {
+func (b BlueGreen) GatherMetrics(config schemas.Config) error {
 	if config.DisableMetrics {
 		return nil
 	}
@@ -620,7 +621,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 }
 
 // CheckPrevious checks if there is any previous version of autoscaling group
-func (b BlueGreen) CheckPrevious(config builder.Config) error {
+func (b BlueGreen) CheckPrevious(config schemas.Config) error {
 	// Make Frigga
 	frigga := tool.Frigga{}
 	for _, region := range b.Stack.Regions {
@@ -671,6 +672,40 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 	return nil
 }
 
+// RunAPITest tries to run API Test
+func (b BlueGreen) RunAPITest(config schemas.Config) error {
+	if !b.Stack.APITestEnabled {
+		b.Logger.Infof("API test is disabled for this stack: %s", b.Stack.Stack)
+		return nil
+	}
+
+	b.Logger.Debugf("Create API attacker")
+	attacker, err := b.Deployer.GenerateAPIAttacker(*b.APITestTemplate)
+	if err != nil {
+		return err
+	}
+
+	b.Logger.Debugf("Run API attacker")
+	result, err := attacker.Run()
+	if err != nil {
+		return err
+	}
+
+	b.Logger.Debugf("Print API test result")
+	_, err = attacker.Print(result)
+	if err != nil {
+		return err
+	}
+
+	if err := b.Slack.SendAPITestResultMessage(result); err != nil {
+		return err
+	}
+	b.Logger.Debugf("API test is done")
+
+	return nil
+}
+
+// SkipDeployStep
 func (b BlueGreen) SkipDeployStep() {
 	b.StepStatus[constants.StepDeploy] = true
 	b.StepStatus[constants.StepAdditionalWork] = true

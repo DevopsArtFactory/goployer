@@ -97,6 +97,9 @@ stacks:
     # EBS Optimized
     ebs_optimized: true
 
+    # API Test Enabled
+    api_test_enabled: true
+
     # instance_market_options is for spot usage
     # You only can choose spot as market_type.
     # If you want to set customized stop options, then please write spot_options correctly.
@@ -120,9 +123,13 @@ stacks:
         - c5.large
         - c5.xlarge
 
+      # Minimum capacity of on demand base capacity
+      # By default, this value  will be 0.
+      on_demand_base_capacity: 2
+
       # Proportion of on-demand instances.
       # By default, this value  will be 100 which means no spot instance.
-      on_demand_percentage: 20
+      on_demand_percentage: 50
 
       # spot_allocation_strategy means in what strategy you want to allocate spot instances.
       # options could be either `lowest-price` or `capacity-optimized`.
@@ -132,7 +139,7 @@ stacks:
       # The number of spot instances pool.
       # This will be set among instance types in `override` fields
       # This will be valid only if the `spot_allocation_strategy` is low-price.
-      spot_instance_pools: 3
+      spot_instance_pools: 2
 
       # Spot price.
       # By default, on-demand price will be automatically applied.
@@ -150,7 +157,7 @@ stacks:
     # capacity
     capacity:
       min: 1
-      max: 2
+      max: 1
       desired: 1
 
     # autoscaling means scaling policy of autoscaling group
@@ -229,7 +236,7 @@ stacks:
     env: stage
     assume_role: ""
     replacement_type: BlueGreen
-    iam_instance_profile:
+    iam_instance_profile: 'app-hello-profile'
     tags:
       - test-stack=artd-with-classic-lb
     ebs_optimized: true
@@ -263,4 +270,18 @@ stacks:
           - ap-northeast-2a
           - ap-northeast-2b
           - ap-northeast-2c
+
+api_test_template:
+  name: api-test
+  duration: 5s
+  request_per_second: 10
+  apis:
+    - method: GET
+      url: https://hello-wedapne2.weplydev.io
+    - method: POST
+      url: https://hello-wedapne2.weplydev.io/adduser
+      body:
+        - id=198355
+        - username=Gwonsoo
+        - test=test
 

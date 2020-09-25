@@ -27,6 +27,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/runner"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
 var (
@@ -47,7 +48,7 @@ type Config struct {
 }
 
 type RequestBody struct {
-	Config builder.Config `json:"config"`
+	Config schemas.Config `json:"config"`
 }
 
 func New() Server {

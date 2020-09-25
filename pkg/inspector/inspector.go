@@ -31,57 +31,9 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
-
-const templ = `{{decorate "bold" "Name"}}:	{{ .Summary.Name }}
-{{decorate "bold" "Created Time"}}:	{{ .Summary.CreatedTime }}
-
-{{decorate "capacity" ""}}{{decorate "underline bold" "Capacity"}}
-MINIMUM 	DESIRED 	MAXIMUM
-{{ .Summary.Capacity.Min }}	{{ .Summary.Capacity.Desired }}	{{ .Summary.Capacity.Max }}
-
-{{decorate "instance_statistics" ""}}{{decorate "underline bold" "Instance Statistics"}}
-
-{{- if eq (len .Summary.InstanceType) 0 }}
- No instance exists
-{{- else }}
-{{- range $k, $v := .Summary.InstanceType }}
- {{decorate "bullet" $k }}: {{ $v }}
-{{- end }}
-{{- end }}
-
-{{decorate "tags" ""}}{{decorate "underline bold" "Tags"}}
-
-{{- if eq (len .Summary.Tags) 0 }}
- No tag
-{{- else }}
-{{- range $result := .Summary.Tags }}
- {{decorate "bullet" $result }}
-{{- end }}
-
-{{decorate "security groups" ""}}{{decorate "underline bold" "Inbound Rules"}}
-{{- if eq (len .Summary.IngressRules) 0 }}
- No inbound rules exist
-{{- else }}
-ID	PROTOCOL	FROM	TO	SOURCE	DESCRIPTION
-{{- range $in := .Summary.IngressRules }}
- {{decorate "bullet" $in.ID }}	{{ $in.IPProtocol }}	{{ $in.FromPort }}	{{ $in.ToPort }}	{{ $in.IPRange }}	{{ $in.Description }}
-{{- end }}
-{{- end }}
-
-{{decorate "security groups" ""}}{{decorate "underline bold" "Outbound Rules"}}
-{{- if eq (len .Summary.EgressRules) 0 }}
- No outbound rules exist
-{{- else }}
-ID	PROTOCOL	FROM	TO	SOURCE	DESCRIPTION
-{{- range $out := .Summary.EgressRules }}
- {{decorate "bullet" $out.ID }}	{{ $out.IPProtocol }}	{{ $out.FromPort }}	{{ $out.ToPort }}	{{ $out.IPRange }}	{{ $out.Description }}
-{{- end }}
-{{- end }}
-{{- end }}
-
-`
 
 type Inspector struct {
 	AWSClient     aws.Client
@@ -325,7 +277,7 @@ func (i Inspector) Print() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 5, 3, ' ', tabwriter.TabIndent)
-	t := template.Must(template.New("Describe status of deployment").Funcs(funcMap).Parse(templ))
+	t := template.Must(template.New("Describe status of deployment").Funcs(funcMap).Parse(templates.StatusResultTemplate))
 
 	err := t.Execute(w, data)
 	if err != nil {
@@ -334,6 +286,7 @@ func (i Inspector) Print() error {
 	return w.Flush()
 }
 
+// Update will update autoscaling group configuration
 func (i Inspector) Update() error {
 	if err := i.AWSClient.EC2Service.UpdateAutoScalingGroup(i.UpdateFields.AutoscalingName, i.UpdateFields.Capacity); err != nil {
 		return err

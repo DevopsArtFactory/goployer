@@ -18,6 +18,35 @@ package schemas
 
 import "time"
 
+type Config struct { // Do not add comments for this struct
+	Manifest               string `json:"manifest"`
+	ManifestS3Region       string `json:"manifest_s3_region"`
+	Ami                    string `json:"ami"`
+	Env                    string `json:"env"`
+	Stack                  string `json:"stack"`
+	AssumeRole             string `json:"assume_role"`
+	Region                 string `json:"region"`
+	LogLevel               string `json:"log_level"`
+	ExtraTags              string `json:"extra_tags"`
+	AnsibleExtraVars       string `json:"ansible_extra_vars"`
+	OverrideInstanceType   string `json:"override_instance_type"`
+	ReleaseNotes           string `json:"release_notes"`
+	ReleaseNotesBase64     string `json:"release_notes_base64"`
+	Application            string
+	TargetAutoscalingGroup string
+	Min                    int64 `json:"min"`
+	Max                    int64 `json:"max"`
+	Desired                int64 `json:"desired"`
+	StartTimestamp         int64
+	Timeout                time.Duration `json:"timeout"`
+	PollingInterval        time.Duration `json:"polling_interval"`
+	AutoApply              bool          `json:"auto-apply"`
+	DisableMetrics         bool          `json:"disable_metrics"`
+	SlackOff               bool          `json:"slack_off"`
+	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
+	DownSizingUpdate       bool
+}
+
 //Yaml configuration from manifest file
 type YamlConfig struct {
 	// Application Name
@@ -34,6 +63,9 @@ type YamlConfig struct {
 
 	// List of stack configuration
 	Stacks []Stack `yaml:"stacks"`
+
+	// API Test configuration
+	APITestTemplate APITestTemplate `yaml:"api_test_template"`
 }
 
 type AWSConfig struct {
@@ -99,6 +131,9 @@ type Stack struct {
 	// Whether using EBS Optimized option or not
 	EbsOptimized bool `yaml:"ebs_optimized,omitempty"`
 
+	// Whether or not to run API test
+	APITestEnabled bool `yaml:"api_test_enabled"`
+
 	// Instance market options like spot
 	InstanceMarketOptions *InstanceMarketOptions `yaml:"instance_market_options,omitempty"`
 
@@ -144,14 +179,17 @@ type MixedInstancesPolicy struct {
 	// List of EC2 instance types for spot instance
 	Override []string `yaml:"override_instance_types"`
 
+	// Minimum capacity of on-demand instance
+	OnDemandBaseCapacity int64 `yaml:"on_demand_base_capacity"`
+
 	// Percentage of On Demand instance
 	OnDemandPercentage int64 `yaml:"on_demand_percentage"`
 
-	// Allocation strategy for spot instances
-	SpotAllocationStrategy string `yaml:"spot_allocation_strategy"`
-
 	// The number of pools of instance type for spot instances
 	SpotInstancePools int64 `yaml:"spot_instance_pools"`
+
+	// Allocation strategy for spot instances
+	SpotAllocationStrategy string `yaml:"spot_allocation_strategy"`
 
 	// Maximum spot price
 	SpotMaxPrice string `yaml:"spot_max_price,omitempty"`
@@ -242,7 +280,7 @@ type AlarmConfigs struct {
 
 // Region configuration
 type RegionConfig struct {
-	// Region name
+	// AWS region ID
 	Region string `yaml:"region"`
 
 	// Type of EC2 instance
@@ -325,4 +363,33 @@ type LifecycleHookSpecification struct {
 
 	// IAM Role ARN for notification
 	RoleARN string `yaml:"role_arn"`
+}
+
+// Templates for API Test
+type APITestTemplate struct {
+	// Name of test template
+	Name string `yaml:"name"`
+
+	// Duration of api test which means how long you want to test for API test
+	Duration time.Duration `yaml:"duration"`
+
+	// Request per second to call
+	RequestPerSecond int `yaml:"request_per_second"`
+
+	APIs []APIManifest `yaml:"apis"`
+}
+
+// Configuration of API test
+type APIManifest struct {
+	// Method of API Call: [ GET, POST, PUT ... ]
+	Method string `yaml:"method"`
+
+	// Full URL of API
+	URL string `yaml:"url"`
+
+	// list of body value as JSON format
+	Body []string `yaml:"body,omitempty"`
+
+	// list of header value as JSON format
+	Header []string `yaml:"header,omitempty"`
 }

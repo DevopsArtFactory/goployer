@@ -20,13 +20,17 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
+	"io"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	Logger "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gopkg.in/ini.v1"
@@ -34,12 +38,13 @@ import (
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type Builder struct { // Do not add comments for this struct
 	// Config from command
-	Config Config
+	Config schemas.Config
 
 	// AWS related Configuration
 	AwsConfig schemas.AWSConfig
@@ -49,35 +54,9 @@ type Builder struct { // Do not add comments for this struct
 
 	// Stack configuration
 	Stacks []schemas.Stack
-}
 
-type Config struct { // Do not add comments for this struct
-	Manifest               string `json:"manifest"`
-	ManifestS3Region       string `json:"manifest_s3_region"`
-	Ami                    string `json:"ami"`
-	Env                    string `json:"env"`
-	Stack                  string `json:"stack"`
-	AssumeRole             string `json:"assume_role"`
-	Region                 string `json:"region"`
-	LogLevel               string `json:"log_level"`
-	ExtraTags              string `json:"extra_tags"`
-	AnsibleExtraVars       string `json:"ansible_extra_vars"`
-	OverrideInstanceType   string `json:"override_instance_type"`
-	ReleaseNotes           string `json:"release_notes"`
-	ReleaseNotesBase64     string `json:"release_notes_base64"`
-	Application            string
-	TargetAutoscalingGroup string
-	Min                    int64 `json:"min"`
-	Max                    int64 `json:"max"`
-	Desired                int64 `json:"desired"`
-	StartTimestamp         int64
-	Timeout                time.Duration `json:"timeout"`
-	PollingInterval        time.Duration `json:"polling_interval"`
-	AutoApply              bool          `json:"auto-apply"`
-	DisableMetrics         bool          `json:"disable_metrics"`
-	SlackOff               bool          `json:"slack_off"`
-	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
-	DownSizingUpdate       bool
+	// API Test configuration
+	APITestTemplate *schemas.APITestTemplate
 }
 
 type UserdataProvider interface {
@@ -116,7 +95,7 @@ func (s S3Provider) Provide() (string, error) {
 }
 
 // NewBuilder create new builder
-func NewBuilder(config *Config) (Builder, error) {
+func NewBuilder(config *schemas.Config) (Builder, error) {
 	builder := Builder{}
 
 	// parsing argument
@@ -136,16 +115,18 @@ func NewBuilder(config *Config) (Builder, error) {
 
 // SetManifestConfig set manifest configuration from local file
 func (b Builder) SetManifestConfig() Builder {
-	awsConfig, stacks := ParsingManifestFile(b.Config.Manifest)
+	awsConfig, stacks, apiTestTemplate := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
+	b.APITestTemplate = apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
 
 // SetManifestConfigWithS3 set manifest configuration with s3
 func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
-	awsConfig, stacks := buildStructFromYaml(fileBytes)
+	awsConfig, stacks, apiTestTemplate := buildStructFromYaml(fileBytes)
 	b.AwsConfig = awsConfig
+	b.APITestTemplate = apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
@@ -448,6 +429,85 @@ func (b Builder) CheckValidation() error {
 		}
 	}
 
+	if b.APITestTemplate != nil {
+		if len(b.APITestTemplate.Name) == 0 {
+			return errors.New("name of API test is required")
+		}
+
+		if b.APITestTemplate.Duration < constants.MinAPITestDuration {
+			return fmt.Errorf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds())
+		}
+
+		if b.APITestTemplate.RequestPerSecond == 0 {
+			return errors.New("request per second should be specified")
+		}
+
+		for _, api := range b.APITestTemplate.APIs {
+			if !tool.IsStringInArray(strings.ToUpper(api.Method), constants.AllowedRequestMethod) {
+				return fmt.Errorf("api is not allowed: %s", api.Method)
+			}
+
+			if strings.ToUpper(api.Method) == "GET" && len(api.Body) > 0 {
+				return errors.New("api with GET request cannot have body")
+			}
+		}
+	}
+
+	return nil
+}
+
+// MakeSummary prints all configurations in summary
+func (b Builder) PrintSummary(out io.Writer, targetStack, targetRegion string) error {
+	configStr := &strings.Builder{}
+	table := tablewriter.NewWriter(configStr)
+	table.SetHeader([]string{"Configuration", "Value"})
+	table.SetCenterSeparator("|")
+	table.SetHeaderAlignment(tablewriter.ALIGN_CENTER)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+
+	data := ExtractAppliedConfig(b.Config)
+
+	table.AppendBulk(data)
+	table.Render()
+
+	// Print Stack Information
+	var ts []schemas.Stack
+	for _, stack := range b.Stacks {
+		if stack.Stack == targetStack {
+			ts = append(ts, stack)
+			break
+		}
+	}
+
+	if len(ts) == 0 {
+		ts = b.Stacks
+	}
+
+	var deploymentData = struct {
+		Stacks        []schemas.Stack
+		Region        string
+		ConfigSummary string
+	}{
+		Stacks:        ts,
+		Region:        targetRegion,
+		ConfigSummary: configStr.String(),
+	}
+
+	funcMap := template.FuncMap{
+		"decorate":   tool.DecorateAttr,
+		"joinString": tool.JoinString,
+	}
+
+	w := tabwriter.NewWriter(out, 0, 5, 3, ' ', tabwriter.TabIndent)
+	t := template.Must(template.New("Stack Information").Funcs(funcMap).Parse(templates.DeploymentSummary))
+
+	err := t.Execute(w, deploymentData)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -514,20 +574,21 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack) {
+func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
 	var yamlFile []byte
 	var err error
 
 	yamlFile, err = ioutil.ReadFile(manifest)
 	if err != nil {
 		Logger.Errorf("Error reading YAML file: %s\n", err)
-		return schemas.AWSConfig{}, nil
+		return schemas.AWSConfig{}, nil, nil
 	}
 
 	return buildStructFromYaml(yamlFile)
 }
 
-func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
+// buildStructFromYaml creates custom structure from manifest
+func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
 	yamlConfig := schemas.YamlConfig{}
 	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
@@ -543,13 +604,13 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack) {
 
 	Stacks := yamlConfig.Stacks
 
-	return awsConfig, Stacks
+	return awsConfig, Stacks, &yamlConfig.APITestTemplate
 }
 
 // argumentParsing parses arguments from command
-func argumentParsing() (Config, error) {
+func argumentParsing() (schemas.Config, error) {
 	keys := viper.AllKeys()
-	config := Config{}
+	config := schemas.Config{}
 
 	val := reflect.ValueOf(&config).Elem()
 	for i := 0; i < val.NumField(); i++ {
@@ -618,7 +679,7 @@ func (b Builder) PreConfigValidation() error {
 }
 
 // RefineConfig refines the values for clear setting
-func RefineConfig(config Config) (Config, error) {
+func RefineConfig(config schemas.Config) (schemas.Config, error) {
 	if config.Timeout < time.Minute {
 		config.Timeout *= time.Minute
 	}
@@ -788,4 +849,39 @@ func ReadAWSConfig() (*ini.File, error) {
 	}
 
 	return cfg, nil
+}
+
+// ExtractAppliedConfig extracts configurations that are used in the deployment
+func ExtractAppliedConfig(config schemas.Config) [][]string {
+	keys := viper.AllKeys()
+
+	var data [][]string
+	val := reflect.ValueOf(&config).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		typeField := val.Type().Field(i)
+		key := strings.ReplaceAll(typeField.Tag.Get("json"), "_", "-")
+		if tool.IsStringInArray(key, keys) {
+			t := val.FieldByName(typeField.Name)
+			if t.CanSet() {
+				switch t.Kind() {
+				case reflect.String:
+					if len(val.FieldByName(typeField.Name).String()) > 0 {
+						data = append(data, []string{key, val.FieldByName(typeField.Name).String()})
+					}
+				case reflect.Int, reflect.Int64:
+					if val.FieldByName(typeField.Name).Int() > 0 {
+						if tool.IsStringInArray(key, []string{"polling-interval", "timeout"}) {
+							data = append(data, []string{key, fmt.Sprintf("%.0fs", time.Duration(val.FieldByName(typeField.Name).Int()).Seconds())})
+						} else {
+							data = append(data, []string{key, fmt.Sprintf("%d", val.FieldByName(typeField.Name).Int())})
+						}
+					}
+				case reflect.Bool:
+					data = append(data, []string{key, fmt.Sprintf("%t", val.FieldByName(typeField.Name).Bool())})
+				}
+			}
+		}
+	}
+
+	return data
 }

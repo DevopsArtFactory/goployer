@@ -6,6 +6,86 @@
   ],
   "type": "object",
   "definitions": {
+    "APIManifest": {
+      "properties": {
+        "body": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "list of body value as JSON format",
+          "x-intellij-html-description": "list of body value as JSON format",
+          "default": "[]"
+        },
+        "header": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "list of header value as JSON format",
+          "x-intellij-html-description": "list of header value as JSON format",
+          "default": "[]"
+        },
+        "method": {
+          "type": "string",
+          "description": "of API Call: [ GET, POST, PUT ... ]",
+          "x-intellij-html-description": "of API Call: [ GET, POST, PUT ... ]",
+          "default": "\"\""
+        },
+        "url": {
+          "type": "string",
+          "description": "Full URL of API",
+          "x-intellij-html-description": "Full URL of API",
+          "default": "\"\""
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "method",
+        "url",
+        "body",
+        "header"
+      ],
+      "description": "Configuration of API test",
+      "x-intellij-html-description": "Configuration of API test"
+    },
+    "APITestTemplate": {
+      "properties": {
+        "apis": {
+          "items": {
+            "$ref": "#/definitions/APIManifest"
+          },
+          "type": "array"
+        },
+        "duration": {
+          "description": "of api test which means how long you want to test for API test",
+          "x-intellij-html-description": "of api test which means how long you want to test for API test"
+        },
+        "name": {
+          "type": "string",
+          "description": "of test template",
+          "x-intellij-html-description": "of test template",
+          "default": "\"\""
+        },
+        "request_per_second": {
+          "type": "integer",
+          "description": "Request per second to call",
+          "x-intellij-html-description": "Request per second to call",
+          "default": "0"
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "name",
+        "duration",
+        "request_per_second",
+        "apis"
+      ],
+      "description": "Templates for API Test",
+      "x-intellij-html-description": "Templates for API Test"
+    },
     "AlarmConfigs": {
       "properties": {
         "alarm_actions": {
@@ -228,6 +308,12 @@
           "x-intellij-html-description": "Whether or not to use mixedInstancesPolicy",
           "default": "false"
         },
+        "on_demand_base_capacity": {
+          "type": "integer",
+          "description": "Minimum capacity of on-demand instance",
+          "x-intellij-html-description": "Minimum capacity of on-demand instance",
+          "default": "0"
+        },
         "on_demand_percentage": {
           "type": "integer",
           "description": "Percentage of On Demand instance",
@@ -267,9 +353,10 @@
       "preferredOrder": [
         "enabled",
         "override_instance_types",
+        "on_demand_base_capacity",
         "on_demand_percentage",
-        "spot_allocation_strategy",
         "spot_instance_pools",
+        "spot_allocation_strategy",
         "spot_max_price"
       ],
       "description": "of autoscaling group",
@@ -329,8 +416,8 @@
         },
         "region": {
           "type": "string",
-          "description": "name",
-          "x-intellij-html-description": "name",
+          "description": "AWS region ID",
+          "x-intellij-html-description": "AWS region ID",
           "default": "\"\""
         },
         "scheduled_actions": {
@@ -521,6 +608,12 @@
           "description": "CloudWatch alarm for autoscaling action",
           "x-intellij-html-description": "CloudWatch alarm for autoscaling action"
         },
+        "api_test_enabled": {
+          "type": "boolean",
+          "description": "Whether or not to run API test",
+          "x-intellij-html-description": "Whether or not to run API test",
+          "default": "false"
+        },
         "assume_role": {
           "type": "string",
           "description": "IAM Role ARN for assume role",
@@ -638,6 +731,7 @@
         "assume_role",
         "polling_interval",
         "ebs_optimized",
+        "api_test_enabled",
         "instance_market_options",
         "mixed_instances_policy",
         "block_devices",
@@ -676,6 +770,11 @@
     },
     "YamlConfig": {
       "properties": {
+        "api_test_template": {
+          "$ref": "#/definitions/APITestTemplate",
+          "description": "API Test configuration",
+          "x-intellij-html-description": "API Test configuration"
+        },
         "name": {
           "type": "string",
           "description": "Application Name",
@@ -720,7 +819,8 @@
         "userdata",
         "tags",
         "scheduled_actions",
-        "stacks"
+        "stacks",
+        "api_test_template"
       ],
       "description": "Yaml configuration from manifest file",
       "x-intellij-html-description": "Yaml configuration from manifest file"

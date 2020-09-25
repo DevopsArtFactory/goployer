@@ -17,8 +17,10 @@ limitations under the license.
 package tool
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -109,4 +111,56 @@ func CheckFileExists(filePath string) bool {
 // IsTargetGroupArn returns true if string is target group ARN
 func IsTargetGroupArn(str string, region string) bool {
 	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region))
+}
+
+// RoundTime creates rounded time
+func RoundTime(d time.Duration) string {
+	var r float64
+	var suffix string
+	switch {
+	case d > time.Minute:
+		r = d.Minutes()
+		suffix = "m"
+	case d > time.Second:
+		r = d.Seconds()
+		suffix = "s"
+	default:
+		r = float64(d.Milliseconds())
+		suffix = "ms"
+	}
+
+	return fmt.Sprintf("%.2f%s", r, suffix)
+}
+
+// RoundNum create rounded number
+func RoundNum(n float64) string {
+	return fmt.Sprintf("%.2f", n)
+}
+
+// JoinString joins strings in the slice
+func JoinString(arr []string, delimiter string) string {
+	return strings.Join(arr, delimiter)
+}
+
+// CreateBodyStruct creates body with slice
+func CreateBodyStruct(slice []string) ([]byte, error) {
+	bd := map[string]string{}
+	for _, s := range slice {
+		split := strings.Split(s, "=")
+		bd[split[0]] = split[1]
+	}
+
+	jsonBody, err := json.Marshal(bd)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonBody, nil
+}
+
+// SetCommonHeader returns common header for api test
+func SetCommonHeader() http.Header {
+	return http.Header{
+		"Content-Type": []string{"application/json"},
+	}
 }
