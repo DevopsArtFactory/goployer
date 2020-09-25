@@ -280,7 +280,7 @@ type AlarmConfigs struct {
 
 // Region configuration
 type RegionConfig struct {
-	// Region name
+	// AWS region ID
 	Region string `yaml:"region"`
 
 	// Type of EC2 instance

@@ -36,7 +36,7 @@ type BlueGreen struct {
 }
 
 // NewBlueGrean creates new BlueGreen deployment deployer
-func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, apiTestTemplate schemas.APITestTemplate, stack schemas.Stack, regionSelected string) BlueGreen {
+func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfig, apiTestTemplate *schemas.APITestTemplate, stack schemas.Stack, regionSelected string) BlueGreen {
 	awsClients := []aws.Client{}
 	for _, region := range stack.Regions {
 		if len(regionSelected) > 0 && regionSelected != region.Region {
@@ -680,7 +680,7 @@ func (b BlueGreen) RunAPITest(config schemas.Config) error {
 	}
 
 	b.Logger.Debugf("Create API attacker")
-	attacker, err := b.Deployer.GenerateAPIAttacker(b.APITestTemplate)
+	attacker, err := b.Deployer.GenerateAPIAttacker(*b.APITestTemplate)
 	if err != nil {
 		return err
 	}

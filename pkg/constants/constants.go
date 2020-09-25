@@ -126,9 +126,6 @@ const (
 	// ALL means ALL as string
 	ALL = "ALL"
 
-	// DefaultSlackColor is default slack color
-	DefaultSlackColor = "#0BE6C1"
-
 	// SlackToken is environment key for slack token
 	SlackToken = "SLACK_TOKEN"
 
@@ -137,6 +134,9 @@ const (
 
 	// SlackWebHookURL is environment key for slack webhook url
 	SlackWebHookURL = "SLACK_WEBHOOK_URL"
+
+	// MinAPITestDuration is minimum duration of API test
+	MinAPITestDuration = 1 * time.Second
 )
 
 var (
@@ -161,6 +161,9 @@ var (
 
 	// IopsRequiredBlockType is a list of ebs type which requires iops
 	IopsRequiredBlockType = []string{"io1", "io2"}
+
+	// AllowedRequestMethod is a list of request method
+	AllowedRequestMethod = []string{"GET", "POST", "PUT"}
 
 	// TimeFields is a list of time.Time field
 	TimeFields = []string{"timeout", "polling-interval"}

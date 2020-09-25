@@ -560,10 +560,10 @@ func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckT
 	if mixedInstancePolicy.Enabled {
 		input.MixedInstancesPolicy = &autoscaling.MixedInstancesPolicy{
 			InstancesDistribution: &autoscaling.InstancesDistribution{
-				OnDemandBaseCapacity:                aws.Int64(mixedInstancePolicy.OnDemandBaseCapacity),
-				SpotAllocationStrategy:              aws.String(mixedInstancePolicy.SpotAllocationStrategy),
-				SpotInstancePools:                   aws.Int64(mixedInstancePolicy.SpotInstancePools),
-				SpotMaxPrice:                        aws.String(mixedInstancePolicy.SpotMaxPrice),
+				OnDemandBaseCapacity:   aws.Int64(mixedInstancePolicy.OnDemandBaseCapacity),
+				SpotAllocationStrategy: aws.String(mixedInstancePolicy.SpotAllocationStrategy),
+				SpotInstancePools:      aws.Int64(mixedInstancePolicy.SpotInstancePools),
+				SpotMaxPrice:           aws.String(mixedInstancePolicy.SpotMaxPrice),
 			},
 			LaunchTemplate: &autoscaling.LaunchTemplate{
 				LaunchTemplateSpecification: &lt,

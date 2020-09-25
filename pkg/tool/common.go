@@ -17,8 +17,10 @@ limitations under the license.
 package tool
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -138,4 +140,27 @@ func RoundNum(n float64) string {
 // JoinString joins strings in the slice
 func JoinString(arr []string, delimiter string) string {
 	return strings.Join(arr, delimiter)
+}
+
+// CreateBodyStruct creates body with slice
+func CreateBodyStruct(slice []string) ([]byte, error) {
+	bd := map[string]string{}
+	for _, s := range slice {
+		split := strings.Split(s, "=")
+		bd[split[0]] = split[1]
+	}
+
+	jsonBody, err := json.Marshal(bd)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonBody, nil
+}
+
+// SetCommonHeader returns common header for api test
+func SetCommonHeader() http.Header {
+	return http.Header{
+		"Content-Type": []string{"application/json"},
+	}
 }

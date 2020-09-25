@@ -579,7 +579,7 @@ func (r Runner) Update() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplate schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplate *schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,

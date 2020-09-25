@@ -159,6 +159,7 @@ Name:	{{ .Name }}
 {{- range $metric := .Metrics }}
 ===============================================
 API:	{{ $metric.URL }}
+Method: {{ $metric.Method }}
 DURATION	WAIT	REQUESTS	RATE	THROUGHPUT	SUCCESS
 {{ round $metric.Data.Duration }}	{{ round $metric.Data.Wait }}	{{ $metric.Data.Requests }}	{{ roundNum $metric.Data.Rate }}	{{ roundNum $metric.Data.Throughput }}	{{ $metric.Data.Success }}
 

@@ -56,7 +56,7 @@ type Builder struct { // Do not add comments for this struct
 	Stacks []schemas.Stack
 
 	// API Test configuration
-	APITestTemplate schemas.APITestTemplate
+	APITestTemplate *schemas.APITestTemplate
 }
 
 type UserdataProvider interface {
@@ -117,7 +117,7 @@ func NewBuilder(config *schemas.Config) (Builder, error) {
 func (b Builder) SetManifestConfig() Builder {
 	awsConfig, stacks, apiTestTemplate := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
-	b.APITestTemplate = *apiTestTemplate
+	b.APITestTemplate = apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
@@ -126,7 +126,7 @@ func (b Builder) SetManifestConfig() Builder {
 func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
 	awsConfig, stacks, apiTestTemplate := buildStructFromYaml(fileBytes)
 	b.AwsConfig = awsConfig
-	b.APITestTemplate = *apiTestTemplate
+	b.APITestTemplate = apiTestTemplate
 
 	return b.SetStacks(stacks)
 }
@@ -425,6 +425,30 @@ func (b Builder) CheckValidation() error {
 
 			if len(stack.MixedInstancesPolicy.Override) == 0 {
 				return errors.New("you have to set at least one instance type to use in override")
+			}
+		}
+	}
+
+	if b.APITestTemplate != nil {
+		if len(b.APITestTemplate.Name) == 0 {
+			return errors.New("name of API test is required")
+		}
+
+		if b.APITestTemplate.Duration < constants.MinAPITestDuration {
+			return fmt.Errorf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds())
+		}
+
+		if b.APITestTemplate.RequestPerSecond == 0 {
+			return errors.New("request per second should be specified")
+		}
+
+		for _, api := range b.APITestTemplate.APIs {
+			if !tool.IsStringInArray(strings.ToUpper(api.Method), constants.AllowedRequestMethod) {
+				return fmt.Errorf("api is not allowed: %s", api.Method)
+			}
+
+			if strings.ToUpper(api.Method) == "GET" && len(api.Body) > 0 {
+				return errors.New("api with GET request cannot have body")
 			}
 		}
 	}

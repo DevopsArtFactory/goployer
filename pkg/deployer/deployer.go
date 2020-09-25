@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"strings"
 	"sync"
 	"text/tabwriter"
 	"time"
@@ -53,7 +54,7 @@ type Deployer struct {
 	Logger            *Logger.Logger
 	Stack             schemas.Stack
 	AwsConfig         schemas.AWSConfig
-	APITestTemplate   schemas.APITestTemplate
+	APITestTemplate   *schemas.APITestTemplate
 	AWSClients        []aws.Client
 	LocalProvider     builder.UserdataProvider
 	Slack             slack.Slack
@@ -318,10 +319,22 @@ func (d Deployer) GenerateAPIAttacker(template schemas.APITestTemplate) (*APIAtt
 
 	var targets []vegeta.Target
 	for _, api := range template.APIs {
-		targets = append(targets, vegeta.Target{
-			Method: api.Method,
+		tempT := vegeta.Target{
+			Method: strings.ToUpper(api.Method),
 			URL:    api.URL,
-		})
+		}
+
+		if len(api.Body) > 0 {
+			b, err := tool.CreateBodyStruct(api.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			tempT.Body = b
+			tempT.Header = tool.SetCommonHeader()
+		}
+
+		targets = append(targets, tempT)
 	}
 	attacker.Targets = targets
 
@@ -344,8 +357,9 @@ func (a APIAttacker) Run() ([]schemas.MetricResult, error) {
 			metrics.Close()
 
 			result = append(result, schemas.MetricResult{
-				URL:  tgt.URL,
-				Data: metrics,
+				URL:    tgt.URL,
+				Method: tgt.Method,
+				Data:   metrics,
 			})
 		}(tgt)
 	}

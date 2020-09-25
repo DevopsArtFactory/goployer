@@ -98,7 +98,7 @@ stacks:
     ebs_optimized: true
 
     # API Test Enabled
-    api_test_enabled: false
+    api_test_enabled: true
 
     # instance_market_options is for spot usage
     # You only can choose spot as market_type.
@@ -116,7 +116,7 @@ stacks:
     # You can set autoscaling mixedInstancePolicy to use on demand and spot instances together.
     # if mixed_instance_policy is set, then `instance_market_options` will be ignored.
     mixed_instances_policy:
-      enabled: true
+      enabled: false
 
       # instance type list to override the instance types in launch template.
       override_instance_types:
@@ -129,7 +129,7 @@ stacks:
 
       # Proportion of on-demand instances.
       # By default, this value  will be 100 which means no spot instance.
-      #on_demand_percentage: 50
+      on_demand_percentage: 50
 
       # spot_allocation_strategy means in what strategy you want to allocate spot instances.
       # options could be either `lowest-price` or `capacity-optimized`.
@@ -156,9 +156,9 @@ stacks:
 
     # capacity
     capacity:
-      min: 2
-      max: 2
-      desired: 2
+      min: 1
+      max: 1
+      desired: 1
 
     # autoscaling means scaling policy of autoscaling group
     # You can find format in autoscaling block upside
@@ -277,6 +277,11 @@ api_test_template:
   request_per_second: 10
   apis:
     - method: GET
-      url: https://hello.devops-art-factory.com
-    - method: GET
-      url: https://hello.devops-art-factory.com/notfound
+      url: https://hello-wedapne2.weplydev.io
+    - method: POST
+      url: https://hello-wedapne2.weplydev.io/adduser
+      body:
+        - id=198355
+        - username=Gwonsoo
+        - test=test
+
