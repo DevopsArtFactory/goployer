@@ -179,14 +179,17 @@ type MixedInstancesPolicy struct {
 	// List of EC2 instance types for spot instance
 	Override []string `yaml:"override_instance_types"`
 
+	// Minimum capacity of on-demand instance
+	OnDemandBaseCapacity int64 `yaml:"on_demand_base_capacity"`
+
 	// Percentage of On Demand instance
 	OnDemandPercentage int64 `yaml:"on_demand_percentage"`
 
-	// Allocation strategy for spot instances
-	SpotAllocationStrategy string `yaml:"spot_allocation_strategy"`
-
 	// The number of pools of instance type for spot instances
 	SpotInstancePools int64 `yaml:"spot_instance_pools"`
+
+	// Allocation strategy for spot instances
+	SpotAllocationStrategy string `yaml:"spot_allocation_strategy"`
 
 	// Maximum spot price
 	SpotMaxPrice string `yaml:"spot_max_price,omitempty"`
@@ -383,4 +386,10 @@ type APIManifest struct {
 
 	// Full URL of API
 	URL string `yaml:"url"`
+
+	// list of body value as JSON format
+	Body []string `yaml:"body,omitempty"`
+
+	// list of header value as JSON format
+	Header []string `yaml:"header,omitempty"`
 }
