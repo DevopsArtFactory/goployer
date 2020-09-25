@@ -17,19 +17,19 @@ limitations under the license.
 package deployer
 
 import (
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
 type DeployManager interface {
 	GetStackName() string
-	Deploy(config builder.Config) error
-	CheckPrevious(config builder.Config) error
-	HealthChecking(config builder.Config) map[string]bool
-	FinishAdditionalWork(config builder.Config) error
-	CleanPreviousVersion(config builder.Config) error
-	TriggerLifecycleCallbacks(config builder.Config) error
-	TerminateChecking(config builder.Config) map[string]bool
-	GatherMetrics(config builder.Config) error
-	RunAPITest(config builder.Config) error
+	Deploy(config schemas.Config) error
+	CheckPrevious(config schemas.Config) error
+	HealthChecking(config schemas.Config) map[string]bool
+	FinishAdditionalWork(config schemas.Config) error
+	CleanPreviousVersion(config schemas.Config) error
+	TriggerLifecycleCallbacks(config schemas.Config) error
+	TerminateChecking(config schemas.Config) map[string]bool
+	GatherMetrics(config schemas.Config) error
+	RunAPITest(config schemas.Config) error
 	SkipDeployStep()
 }

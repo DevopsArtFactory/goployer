@@ -18,6 +18,35 @@ package schemas
 
 import "time"
 
+type Config struct { // Do not add comments for this struct
+	Manifest               string `json:"manifest"`
+	ManifestS3Region       string `json:"manifest_s3_region"`
+	Ami                    string `json:"ami"`
+	Env                    string `json:"env"`
+	Stack                  string `json:"stack"`
+	AssumeRole             string `json:"assume_role"`
+	Region                 string `json:"region"`
+	LogLevel               string `json:"log_level"`
+	ExtraTags              string `json:"extra_tags"`
+	AnsibleExtraVars       string `json:"ansible_extra_vars"`
+	OverrideInstanceType   string `json:"override_instance_type"`
+	ReleaseNotes           string `json:"release_notes"`
+	ReleaseNotesBase64     string `json:"release_notes_base64"`
+	Application            string
+	TargetAutoscalingGroup string
+	Min                    int64 `json:"min"`
+	Max                    int64 `json:"max"`
+	Desired                int64 `json:"desired"`
+	StartTimestamp         int64
+	Timeout                time.Duration `json:"timeout"`
+	PollingInterval        time.Duration `json:"polling_interval"`
+	AutoApply              bool          `json:"auto-apply"`
+	DisableMetrics         bool          `json:"disable_metrics"`
+	SlackOff               bool          `json:"slack_off"`
+	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
+	DownSizingUpdate       bool
+}
+
 //Yaml configuration from manifest file
 type YamlConfig struct {
 	// Application Name

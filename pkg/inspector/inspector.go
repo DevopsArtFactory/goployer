@@ -19,7 +19,6 @@ package inspector
 import (
 	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"os"
 	"text/tabwriter"
 	"text/template"
@@ -32,6 +31,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 

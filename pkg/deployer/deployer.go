@@ -20,23 +20,25 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/constants"
-	"github.com/DevopsArtFactory/goployer/pkg/templates"
-	vegeta "github.com/tsenart/vegeta/lib"
 	"html/template"
+	"os"
 	"sync"
 	"text/tabwriter"
 	"time"
 
 	eaws "github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/olekukonko/tablewriter"
 	Logger "github.com/sirupsen/logrus"
+	vegeta "github.com/tsenart/vegeta/lib"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
+	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/slack"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
@@ -289,11 +291,17 @@ func (d Deployer) GatherMetrics(client aws.Client, asg string) error {
 // GetValidHostCount return the number of health host
 func (d Deployer) GetValidHostCount(targetHosts []aws.HealthcheckHost) int64 {
 	ret := 0
+	var data [][]string
 	for _, host := range targetHosts {
-		d.Logger.Info(fmt.Sprintf("%+v", host))
+		//d.Logger.Info(fmt.Sprintf("%+v", host))
+		data = append(data, []string{host.InstanceID, host.LifecycleState, host.TargetStatus, host.HealthStatus, fmt.Sprintf("%t", host.Valid)})
 		if host.Valid {
 			ret++
 		}
+	}
+
+	if len(data) > 0 {
+		printCurrentHostStatus(data)
 	}
 
 	return int64(ret)
@@ -376,4 +384,18 @@ func (a APIAttacker) Print(metrics []schemas.MetricResult) (string, error) {
 	fmt.Println(str)
 
 	return str, nil
+}
+
+// printCurrentHostStatus shows current instance status
+func printCurrentHostStatus(data [][]string) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Instance ID", "Lifecycle State", "Target Status", "Health Status", "Valid"})
+	table.SetCenterSeparator("|")
+	table.SetHeaderAlignment(tablewriter.ALIGN_CENTER)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+
+	table.AppendBulk(data)
+	table.Render()
 }

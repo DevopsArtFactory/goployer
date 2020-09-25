@@ -266,21 +266,6 @@ stacks:
           - ap-northeast-2a
           - ap-northeast-2b
           - ap-northeast-2c
-      - region: ap-northeast-1
-        instance_type: t3a.medium
-        ssh_key: test-master-key
-        ami_id: ami-01288945bd24ed49a
-        use_public_subnets: true
-        vpc: vpc-05be14885b028018d
-        detailed_monitoring_enabled: true
-        healthcheck_load_balancer: test
-        security_groups:
-          - hello-artd_apnortheast2
-          - default-artd_apnortheast2
-        availability_zones:
-          - ap-northeast-2a
-          - ap-northeast-2b
-          - ap-northeast-2c
 
 api_test_template:
   name: api-test

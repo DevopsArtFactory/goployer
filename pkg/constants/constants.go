@@ -128,6 +128,15 @@ const (
 
 	// DefaultSlackColor is default slack color
 	DefaultSlackColor = "#0BE6C1"
+
+	// SlackToken is environment key for slack token
+	SlackToken = "SLACK_TOKEN"
+
+	// SlackChannel is environment key for slack channel
+	SlackChannel = "SLACK_CHANNEL"
+
+	// SlackWebHookURL is environment key for slack webhook url
+	SlackWebHookURL = "SLACK_WEBHOOK_URL"
 )
 
 var (

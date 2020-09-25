@@ -82,7 +82,7 @@ func SetupBuilder(mode string) (builder.Builder, error) {
 }
 
 // ServerSetup setup a goployer server
-func ServerSetup(config builder.Config) (builder.Builder, error) {
+func ServerSetup(config schemas.Config) (builder.Builder, error) {
 	// Create new builder
 	builderSt, err := builder.NewBuilder(&config)
 	if err != nil {
@@ -189,14 +189,14 @@ func Start(builderSt builder.Builder, mode string) error {
 
 	// run with runner
 	return withRunner(builderSt, mode, func(slacker slack.Slack) error {
+		// These are post actions after deployment
 		if !builderSt.Config.SlackOff {
-			// These are post actions after deployment
 			if mode == "deploy" {
-				slacker.SendSimpleMessage(":100: Deployment is done.")
+				slacker.SendSimpleMessage(fmt.Sprintf(":100: Deployment is done: %s", builderSt.AwsConfig.Name))
 			}
 
 			if mode == "delete" {
-				slacker.SendSimpleMessage(":100: Delete process is done.")
+				slacker.SendSimpleMessage(fmt.Sprintf(":100: Delete process is done: %s", builderSt.AwsConfig.Name))
 			}
 		}
 
@@ -276,17 +276,22 @@ func (r Runner) Deploy() error {
 	if err := r.Builder.PrintSummary(out, r.Builder.Config.Stack, r.Builder.Config.Region); err != nil {
 		return err
 	}
-	msg := "test"
+
 	if r.Slacker.ValidClient() {
 		r.Logger.Debug("slack configuration is valid")
-		err := r.Slacker.SendSimpleMessage(msg)
-		if err != nil {
+		var stacks []schemas.Stack
+		for _, s := range r.Builder.Stacks {
+			if len(r.Builder.Config.Stack) == 0 || r.Builder.Config.Stack == s.Stack {
+				stacks = append(stacks, s)
+			}
+		}
+		if err := r.Slacker.SendSummaryMessage(r.Builder.Config, stacks, r.Builder.AwsConfig.Name); err != nil {
 			r.Logger.Warn(err.Error())
 			r.Slacker.SlackOff = true
 		}
-	} else {
+	} else if !r.Builder.Config.SlackOff {
 		// Slack variables are not set
-		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL ]")
+		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL or SLACK_WEBHOOK_URL ]")
 	}
 
 	if r.Builder.MetricConfig.Enabled {
@@ -591,7 +596,7 @@ func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.A
 }
 
 // doHealthchecking checks if newly deployed autoscaling group is healthy
-func doHealthchecking(deployers []deployer.DeployManager, config builder.Config, logger *Logger.Logger) error {
+func doHealthchecking(deployers []deployer.DeployManager, config schemas.Config, logger *Logger.Logger) error {
 	healthyStackList := []string{}
 	healthy := false
 
@@ -648,7 +653,7 @@ func doHealthchecking(deployers []deployer.DeployManager, config builder.Config,
 }
 
 // cleanChecking cleans old autoscaling groups
-func cleanChecking(deployers []deployer.DeployManager, config builder.Config, logger *Logger.Logger) error {
+func cleanChecking(deployers []deployer.DeployManager, config schemas.Config, logger *Logger.Logger) error {
 	doneStackList := []string{}
 	done := false
 

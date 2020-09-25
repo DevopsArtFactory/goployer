@@ -20,8 +20,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/DevopsArtFactory/goployer/pkg/templates"
-	"github.com/olekukonko/tablewriter"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -32,6 +30,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	Logger "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gopkg.in/ini.v1"
@@ -39,12 +38,13 @@ import (
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
+	"github.com/DevopsArtFactory/goployer/pkg/templates"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type Builder struct { // Do not add comments for this struct
 	// Config from command
-	Config Config
+	Config schemas.Config
 
 	// AWS related Configuration
 	AwsConfig schemas.AWSConfig
@@ -57,35 +57,6 @@ type Builder struct { // Do not add comments for this struct
 
 	// API Test configuration
 	APITestTemplate schemas.APITestTemplate
-}
-
-type Config struct { // Do not add comments for this struct
-	Manifest               string `json:"manifest"`
-	ManifestS3Region       string `json:"manifest_s3_region"`
-	Ami                    string `json:"ami"`
-	Env                    string `json:"env"`
-	Stack                  string `json:"stack"`
-	AssumeRole             string `json:"assume_role"`
-	Region                 string `json:"region"`
-	LogLevel               string `json:"log_level"`
-	ExtraTags              string `json:"extra_tags"`
-	AnsibleExtraVars       string `json:"ansible_extra_vars"`
-	OverrideInstanceType   string `json:"override_instance_type"`
-	ReleaseNotes           string `json:"release_notes"`
-	ReleaseNotesBase64     string `json:"release_notes_base64"`
-	Application            string
-	TargetAutoscalingGroup string
-	Min                    int64 `json:"min"`
-	Max                    int64 `json:"max"`
-	Desired                int64 `json:"desired"`
-	StartTimestamp         int64
-	Timeout                time.Duration `json:"timeout"`
-	PollingInterval        time.Duration `json:"polling_interval"`
-	AutoApply              bool          `json:"auto-apply"`
-	DisableMetrics         bool          `json:"disable_metrics"`
-	SlackOff               bool          `json:"slack_off"`
-	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
-	DownSizingUpdate       bool
 }
 
 type UserdataProvider interface {
@@ -124,7 +95,7 @@ func (s S3Provider) Provide() (string, error) {
 }
 
 // NewBuilder create new builder
-func NewBuilder(config *Config) (Builder, error) {
+func NewBuilder(config *schemas.Config) (Builder, error) {
 	builder := Builder{}
 
 	// parsing argument
@@ -472,35 +443,8 @@ func (b Builder) PrintSummary(out io.Writer, targetStack, targetRegion string) e
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
 
-	keys := viper.AllKeys()
+	data := ExtractAppliedConfig(b.Config)
 
-	var data [][]string
-	val := reflect.ValueOf(&b.Config).Elem()
-	for i := 0; i < val.NumField(); i++ {
-		typeField := val.Type().Field(i)
-		key := strings.ReplaceAll(typeField.Tag.Get("json"), "_", "-")
-		if tool.IsStringInArray(key, keys) {
-			t := val.FieldByName(typeField.Name)
-			if t.CanSet() {
-				switch t.Kind() {
-				case reflect.String:
-					if len(val.FieldByName(typeField.Name).String()) > 0 {
-						data = append(data, []string{key, val.FieldByName(typeField.Name).String()})
-					}
-				case reflect.Int, reflect.Int64:
-					if val.FieldByName(typeField.Name).Int() > 0 {
-						if tool.IsStringInArray(key, []string{"polling-interval", "timeout"}) {
-							data = append(data, []string{key, fmt.Sprintf("%.0fs", time.Duration(val.FieldByName(typeField.Name).Int()).Seconds())})
-						} else {
-							data = append(data, []string{key, fmt.Sprintf("%d", val.FieldByName(typeField.Name).Int())})
-						}
-					}
-				case reflect.Bool:
-					data = append(data, []string{key, fmt.Sprintf("%t",val.FieldByName(typeField.Name).Bool())})
-				}
-			}
-		}
-	}
 	table.AppendBulk(data)
 	table.Render()
 
@@ -518,21 +462,21 @@ func (b Builder) PrintSummary(out io.Writer, targetStack, targetRegion string) e
 	}
 
 	var deploymentData = struct {
-		Stacks  []schemas.Stack
-		Region string
+		Stacks        []schemas.Stack
+		Region        string
 		ConfigSummary string
 	}{
-		Stacks: ts,
-		Region: targetRegion,
+		Stacks:        ts,
+		Region:        targetRegion,
 		ConfigSummary: configStr.String(),
 	}
 
 	funcMap := template.FuncMap{
-		"decorate": tool.DecorateAttr,
+		"decorate":   tool.DecorateAttr,
 		"joinString": tool.JoinString,
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 5, 3, ' ', tabwriter.TabIndent)
+	w := tabwriter.NewWriter(out, 0, 5, 3, ' ', tabwriter.TabIndent)
 	t := template.Must(template.New("Stack Information").Funcs(funcMap).Parse(templates.DeploymentSummary))
 
 	err := t.Execute(w, deploymentData)
@@ -570,7 +514,6 @@ Stack
 
 	return strings.Join(summary, "\n")
 }
-
 
 // printEnvironment prints configurations of environment
 func printEnvironment(stack schemas.Stack) string {
@@ -641,9 +584,9 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *
 }
 
 // argumentParsing parses arguments from command
-func argumentParsing() (Config, error) {
+func argumentParsing() (schemas.Config, error) {
 	keys := viper.AllKeys()
-	config := Config{}
+	config := schemas.Config{}
 
 	val := reflect.ValueOf(&config).Elem()
 	for i := 0; i < val.NumField(); i++ {
@@ -712,7 +655,7 @@ func (b Builder) PreConfigValidation() error {
 }
 
 // RefineConfig refines the values for clear setting
-func RefineConfig(config Config) (Config, error) {
+func RefineConfig(config schemas.Config) (schemas.Config, error) {
 	if config.Timeout < time.Minute {
 		config.Timeout *= time.Minute
 	}
@@ -882,4 +825,39 @@ func ReadAWSConfig() (*ini.File, error) {
 	}
 
 	return cfg, nil
+}
+
+// ExtractAppliedConfig extracts configurations that are used in the deployment
+func ExtractAppliedConfig(config schemas.Config) [][]string {
+	keys := viper.AllKeys()
+
+	var data [][]string
+	val := reflect.ValueOf(&config).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		typeField := val.Type().Field(i)
+		key := strings.ReplaceAll(typeField.Tag.Get("json"), "_", "-")
+		if tool.IsStringInArray(key, keys) {
+			t := val.FieldByName(typeField.Name)
+			if t.CanSet() {
+				switch t.Kind() {
+				case reflect.String:
+					if len(val.FieldByName(typeField.Name).String()) > 0 {
+						data = append(data, []string{key, val.FieldByName(typeField.Name).String()})
+					}
+				case reflect.Int, reflect.Int64:
+					if val.FieldByName(typeField.Name).Int() > 0 {
+						if tool.IsStringInArray(key, []string{"polling-interval", "timeout"}) {
+							data = append(data, []string{key, fmt.Sprintf("%.0fs", time.Duration(val.FieldByName(typeField.Name).Int()).Seconds())})
+						} else {
+							data = append(data, []string{key, fmt.Sprintf("%d", val.FieldByName(typeField.Name).Int())})
+						}
+					}
+				case reflect.Bool:
+					data = append(data, []string{key, fmt.Sprintf("%t", val.FieldByName(typeField.Name).Bool())})
+				}
+			}
+		}
+	}
+
+	return data
 }

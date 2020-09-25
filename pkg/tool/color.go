@@ -18,9 +18,12 @@ package tool
 
 import (
 	"fmt"
-	"github.com/fatih/color"
 	"io"
+	"math/rand"
 	"strings"
+	"time"
+
+	"github.com/fatih/color"
 )
 
 type Color struct {
@@ -106,4 +109,15 @@ func DecorateAttr(attrString, message string) string {
 	}
 
 	return color.New(attr).Sprintf(message)
+}
+
+// GetRandomRGBColor creates random RGB color
+func GetRandomRGBColor() string {
+	rand.Seed(time.Now().UnixNano())
+	return "#" + getHex(rand.Intn(255)) + getHex(rand.Intn(255)) + getHex(rand.Intn(255))
+}
+
+// getHex Converts a decimal number to hex representations
+func getHex(num int) string {
+	return fmt.Sprintf("%02x", num)
 }

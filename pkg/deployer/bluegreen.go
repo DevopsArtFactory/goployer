@@ -19,9 +19,10 @@ package deployer
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	Logger "github.com/sirupsen/logrus"
-	"strings"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
@@ -69,7 +70,7 @@ func NewBlueGrean(mode string, logger *Logger.Logger, awsConfig schemas.AWSConfi
 }
 
 // Deploy function
-func (b BlueGreen) Deploy(config builder.Config) error {
+func (b BlueGreen) Deploy(config schemas.Config) error {
 	if !b.StepStatus[constants.StepCheckPrevious] {
 		return nil
 	}
@@ -248,7 +249,7 @@ func (b BlueGreen) Deploy(config builder.Config) error {
 }
 
 // Healthchecking
-func (b BlueGreen) HealthChecking(config builder.Config) map[string]bool {
+func (b BlueGreen) HealthChecking(config schemas.Config) map[string]bool {
 	isUpdate := len(config.TargetAutoscalingGroup) > 0
 	stackName := b.GetStackName()
 	if !b.StepStatus[constants.StepDeploy] && !isUpdate {
@@ -324,7 +325,7 @@ func (b BlueGreen) GetStackName() string {
 }
 
 // FinishAdditionalWork processes final work
-func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
+func (b BlueGreen) FinishAdditionalWork(config schemas.Config) error {
 	if !b.StepStatus[constants.StepDeploy] {
 		return nil
 	}
@@ -398,7 +399,7 @@ func (b BlueGreen) FinishAdditionalWork(config builder.Config) error {
 }
 
 // TriggerLifecycleCallbacks runs lifecycle callbacks before cleaning.
-func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
+func (b BlueGreen) TriggerLifecycleCallbacks(config schemas.Config) error {
 	if !b.StepStatus[constants.StepAdditionalWork] {
 		return nil
 	}
@@ -442,7 +443,7 @@ func (b BlueGreen) TriggerLifecycleCallbacks(config builder.Config) error {
 }
 
 //Clean Previous Version
-func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
+func (b BlueGreen) CleanPreviousVersion(config schemas.Config) error {
 	if !b.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil
 	}
@@ -489,7 +490,7 @@ func (b BlueGreen) CleanPreviousVersion(config builder.Config) error {
 }
 
 // TerminateChecking checks Termination status
-func (b BlueGreen) TerminateChecking(config builder.Config) map[string]bool {
+func (b BlueGreen) TerminateChecking(config schemas.Config) map[string]bool {
 	stackName := b.GetStackName()
 	if !b.StepStatus[constants.StepCleanPreviousVersion] {
 		return map[string]bool{stackName: true}
@@ -569,7 +570,7 @@ func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
 }
 
 // Gather the whole metrics from deployer
-func (b BlueGreen) GatherMetrics(config builder.Config) error {
+func (b BlueGreen) GatherMetrics(config schemas.Config) error {
 	if config.DisableMetrics {
 		return nil
 	}
@@ -620,7 +621,7 @@ func (b BlueGreen) GatherMetrics(config builder.Config) error {
 }
 
 // CheckPrevious checks if there is any previous version of autoscaling group
-func (b BlueGreen) CheckPrevious(config builder.Config) error {
+func (b BlueGreen) CheckPrevious(config schemas.Config) error {
 	// Make Frigga
 	frigga := tool.Frigga{}
 	for _, region := range b.Stack.Regions {
@@ -672,7 +673,7 @@ func (b BlueGreen) CheckPrevious(config builder.Config) error {
 }
 
 // RunAPITest tries to run API Test
-func (b BlueGreen) RunAPITest(config builder.Config) error {
+func (b BlueGreen) RunAPITest(config schemas.Config) error {
 	if !b.Stack.APITestEnabled {
 		b.Logger.Infof("API test is disabled for this stack: %s", b.Stack.Stack)
 		return nil

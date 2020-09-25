@@ -115,13 +115,14 @@ func IsTargetGroupArn(str string, region string) bool {
 func RoundTime(d time.Duration) string {
 	var r float64
 	var suffix string
-	if d > time.Minute {
+	switch {
+	case d > time.Minute:
 		r = d.Minutes()
 		suffix = "m"
-	} else if d > time.Second {
+	case d > time.Second:
 		r = d.Seconds()
 		suffix = "s"
-	} else {
+	default:
 		r = float64(d.Milliseconds())
 		suffix = "ms"
 	}

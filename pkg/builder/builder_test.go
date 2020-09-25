@@ -31,7 +31,7 @@ import (
 
 func TestCheckValidationConfig(t *testing.T) {
 	b := Builder{
-		Config: Config{
+		Config: schemas.Config{
 			Stack:    "artd",
 			Manifest: "config/hello.yaml",
 			Timeout:  constants.DefaultDeploymentTimeout,
@@ -111,7 +111,7 @@ func TestCheckValidationScheduledAction(t *testing.T) {
 				{},
 			},
 		},
-		Config: Config{
+		Config: schemas.Config{
 			Stack:           "artd",
 			Manifest:        "config/hello.yaml",
 			Timeout:         constants.DefaultDeploymentTimeout,
@@ -171,7 +171,7 @@ func TestCheckValidationScheduledAction(t *testing.T) {
 
 func TestCheckValidationStack(t *testing.T) {
 	b := Builder{
-		Config: Config{
+		Config: schemas.Config{
 			Stack:           "artd",
 			Manifest:        "config/hello.yaml",
 			Timeout:         constants.DefaultDeploymentTimeout,
@@ -430,27 +430,27 @@ func TestCheckValidationStack(t *testing.T) {
 
 func TestRefineConfig(t *testing.T) {
 	type TestData struct {
-		input  Config
-		output Config
+		input  schemas.Config
+		output schemas.Config
 	}
 
 	testData := []TestData{
 		{
-			input: Config{
+			input: schemas.Config{
 				Timeout: 5,
 				Region:  "ap-northeast-2",
 			},
-			output: Config{
+			output: schemas.Config{
 				Timeout: 5 * time.Minute,
 				Region:  "ap-northeast-2",
 			},
 		},
 		{
-			input: Config{
+			input: schemas.Config{
 				PollingInterval: 5,
 				Region:          "ap-northeast-2",
 			},
-			output: Config{
+			output: schemas.Config{
 				PollingInterval: 5 * time.Second,
 				Region:          "ap-northeast-2",
 			},
@@ -466,10 +466,10 @@ func TestRefineConfig(t *testing.T) {
 	}
 
 	regionTest := TestData{
-		input: Config{
+		input: schemas.Config{
 			Timeout: 5,
 		},
-		output: Config{
+		output: schemas.Config{
 			Timeout: 5 * time.Minute,
 			Region:  "us-east-2",
 		},

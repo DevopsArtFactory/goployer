@@ -25,7 +25,6 @@ import (
 	Logger "github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
-	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
@@ -118,7 +117,7 @@ func (c Collector) CheckStorage(logger *Logger.Logger) error {
 }
 
 // StampDeployment records deployment information to storage
-func (c Collector) StampDeployment(stack schemas.Stack, config builder.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
+func (c Collector) StampDeployment(stack schemas.Stack, config schemas.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
 	tagsMap := map[string]string{}
 
 	for _, tag := range tags {
