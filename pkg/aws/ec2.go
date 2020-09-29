@@ -570,7 +570,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckT
 			},
 		}
 
-		if mixedInstancePolicy.OnDemandPercentage > 0 {
+		if mixedInstancePolicy.OnDemandPercentage >= 0 {
 			input.MixedInstancesPolicy.InstancesDistribution.OnDemandPercentageAboveBaseCapacity = aws.Int64(mixedInstancePolicy.OnDemandPercentage)
 		}
 
