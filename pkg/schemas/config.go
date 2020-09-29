@@ -65,7 +65,7 @@ type YamlConfig struct {
 	Stacks []Stack `yaml:"stacks"`
 
 	// API Test configuration
-	APITestTemplate APITestTemplate `yaml:"api_test_template"`
+	APITestTemplate *APITestTemplate `yaml:"api_test_template,omitempty"`
 }
 
 type AWSConfig struct {
@@ -368,24 +368,24 @@ type LifecycleHookSpecification struct {
 // Templates for API Test
 type APITestTemplate struct {
 	// Name of test template
-	Name string `yaml:"name"`
+	Name string `yaml:"name,omitempty"`
 
 	// Duration of api test which means how long you want to test for API test
-	Duration time.Duration `yaml:"duration"`
+	Duration time.Duration `yaml:"duration,omitempty"`
 
 	// Request per second to call
-	RequestPerSecond int `yaml:"request_per_second"`
+	RequestPerSecond int `yaml:"request_per_second,omitempty"`
 
-	APIs []APIManifest `yaml:"apis"`
+	APIs []*APIManifest `yaml:"apis,omitempty"`
 }
 
 // Configuration of API test
 type APIManifest struct {
 	// Method of API Call: [ GET, POST, PUT ... ]
-	Method string `yaml:"method"`
+	Method string `yaml:"method,omitempty"`
 
 	// Full URL of API
-	URL string `yaml:"url"`
+	URL string `yaml:"url,omitempty"`
 
 	// list of body value as JSON format
 	Body []string `yaml:"body,omitempty"`

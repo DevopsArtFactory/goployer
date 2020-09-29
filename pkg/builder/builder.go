@@ -117,7 +117,10 @@ func NewBuilder(config *schemas.Config) (Builder, error) {
 func (b Builder) SetManifestConfig() Builder {
 	awsConfig, stacks, apiTestTemplate := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
-	b.APITestTemplate = apiTestTemplate
+
+	if apiTestTemplate != nil {
+		b.APITestTemplate = apiTestTemplate
+	}
 
 	return b.SetStacks(stacks)
 }
@@ -604,7 +607,7 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *
 
 	Stacks := yamlConfig.Stacks
 
-	return awsConfig, Stacks, &yamlConfig.APITestTemplate
+	return awsConfig, Stacks, yamlConfig.APITestTemplate
 }
 
 // argumentParsing parses arguments from command
