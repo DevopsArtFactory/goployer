@@ -160,6 +160,10 @@ func (s Slack) CreateTitleSection(text string) *slack.SectionBlock {
 
 // SendAPITestResultMessage sends API test message
 func (s Slack) SendAPITestResultMessage(metrics []schemas.MetricResult) error {
+	if !s.ValidClient() {
+		return nil
+	}
+
 	if len(s.WebhookURL) > 0 {
 		return s.SendAPITestResultMessageWithWebHook(metrics)
 	}

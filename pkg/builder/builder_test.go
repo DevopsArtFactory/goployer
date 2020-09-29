@@ -443,7 +443,7 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.APITestTemplate.RequestPerSecond = 5
 
-	b.APITestTemplate.APIs = []schemas.APIManifest{
+	b.APITestTemplate.APIs = []*schemas.APIManifest{
 		{
 			Method: "TEST",
 		},

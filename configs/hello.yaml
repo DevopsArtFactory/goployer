@@ -98,7 +98,7 @@ stacks:
     ebs_optimized: true
 
     # API Test Enabled
-    api_test_enabled: true
+    #api_test_enabled: false
 
     # instance_market_options is for spot usage
     # You only can choose spot as market_type.
@@ -270,18 +270,3 @@ stacks:
           - ap-northeast-2a
           - ap-northeast-2b
           - ap-northeast-2c
-
-api_test_template:
-  name: api-test
-  duration: 5s
-  request_per_second: 10
-  apis:
-    - method: GET
-      url: https://hello-wedapne2.weplydev.io
-    - method: POST
-      url: https://hello-wedapne2.weplydev.io/adduser
-      body:
-        - id=198355
-        - username=Gwonsoo
-        - test=test
-
