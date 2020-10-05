@@ -158,6 +158,20 @@ func CreateBodyStruct(slice []string) ([]byte, error) {
 	return jsonBody, nil
 }
 
+// CreateHeaderStruct creates header with slice
+func CreateHeaderStruct(slice []string) (http.Header, error) {
+	hd := SetCommonHeader()
+	for _, s := range slice {
+		split := strings.Split(s, "=")
+		if len(split) != 2 {
+			return nil, fmt.Errorf("wrong format header: %s", s)
+		}
+		hd.Add(split[0], split[1])
+	}
+
+	return hd, nil
+}
+
 // SetCommonHeader returns common header for api test
 func SetCommonHeader() http.Header {
 	return http.Header{

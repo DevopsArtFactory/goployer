@@ -614,6 +614,12 @@
           "x-intellij-html-description": "Whether or not to run API test",
           "default": "false"
         },
+        "api_test_template": {
+          "type": "string",
+          "description": "Name of API test template",
+          "x-intellij-html-description": "Name of API test template",
+          "default": "\"\""
+        },
         "assume_role": {
           "type": "string",
           "description": "IAM Role ARN for assume role",
@@ -732,6 +738,7 @@
         "polling_interval",
         "ebs_optimized",
         "api_test_enabled",
+        "api_test_template",
         "instance_market_options",
         "mixed_instances_policy",
         "block_devices",
@@ -770,8 +777,11 @@
     },
     "YamlConfig": {
       "properties": {
-        "api_test_template": {
-          "$ref": "#/definitions/APITestTemplate",
+        "api_test_templates": {
+          "items": {
+            "$ref": "#/definitions/APITestTemplate"
+          },
+          "type": "array",
           "description": "API Test configuration",
           "x-intellij-html-description": "API Test configuration"
         },
@@ -820,7 +830,7 @@
         "tags",
         "scheduled_actions",
         "stacks",
-        "api_test_template"
+        "api_test_templates"
       ],
       "description": "Yaml configuration from manifest file",
       "x-intellij-html-description": "Yaml configuration from manifest file"
