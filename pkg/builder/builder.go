@@ -56,7 +56,7 @@ type Builder struct { // Do not add comments for this struct
 	Stacks []schemas.Stack
 
 	// API Test configuration
-	APITestTemplate *schemas.APITestTemplate
+	APITestTemplates []*schemas.APITestTemplate
 }
 
 type UserdataProvider interface {
@@ -115,11 +115,11 @@ func NewBuilder(config *schemas.Config) (Builder, error) {
 
 // SetManifestConfig set manifest configuration from local file
 func (b Builder) SetManifestConfig() Builder {
-	awsConfig, stacks, apiTestTemplate := ParsingManifestFile(b.Config.Manifest)
+	awsConfig, stacks, apiTestTemplates := ParsingManifestFile(b.Config.Manifest)
 	b.AwsConfig = awsConfig
 
-	if apiTestTemplate != nil {
-		b.APITestTemplate = apiTestTemplate
+	if len(apiTestTemplates) > 0 {
+		b.APITestTemplates = apiTestTemplates
 	}
 
 	return b.SetStacks(stacks)
@@ -127,9 +127,12 @@ func (b Builder) SetManifestConfig() Builder {
 
 // SetManifestConfigWithS3 set manifest configuration with s3
 func (b Builder) SetManifestConfigWithS3(fileBytes []byte) Builder {
-	awsConfig, stacks, apiTestTemplate := buildStructFromYaml(fileBytes)
+	awsConfig, stacks, apiTestTemplates := buildStructFromYaml(fileBytes)
 	b.AwsConfig = awsConfig
-	b.APITestTemplate = apiTestTemplate
+
+	if len(apiTestTemplates) > 0 {
+		b.APITestTemplates = apiTestTemplates
+	}
 
 	return b.SetStacks(stacks)
 }
@@ -245,6 +248,33 @@ func (b Builder) CheckValidation() error {
 			return fmt.Errorf("duplicated env between stacks : %s", stack.Env)
 		}
 		stackMap[stack.Env]++
+	}
+
+	// check validations in API test templates
+	if b.APITestTemplates != nil && len(b.APITestTemplates) > 0 {
+		for _, att := range b.APITestTemplates {
+			if len(att.Name) == 0 {
+				return errors.New("name of API test is required")
+			}
+
+			if att.Duration < constants.MinAPITestDuration {
+				return fmt.Errorf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds())
+			}
+
+			if att.RequestPerSecond == 0 {
+				return errors.New("request per second should be specified")
+			}
+
+			for _, api := range att.APIs {
+				if !tool.IsStringInArray(strings.ToUpper(api.Method), constants.AllowedRequestMethod) {
+					return fmt.Errorf("api is not allowed: %s", api.Method)
+				}
+
+				if strings.ToUpper(api.Method) == "GET" && len(api.Body) > 0 {
+					return errors.New("api with GET request cannot have body")
+				}
+			}
+		}
 	}
 
 	// check validations in each stack
@@ -430,28 +460,22 @@ func (b Builder) CheckValidation() error {
 				return errors.New("you have to set at least one instance type to use in override")
 			}
 		}
-	}
 
-	if b.APITestTemplate != nil {
-		if len(b.APITestTemplate.Name) == 0 {
-			return errors.New("name of API test is required")
-		}
-
-		if b.APITestTemplate.Duration < constants.MinAPITestDuration {
-			return fmt.Errorf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds())
-		}
-
-		if b.APITestTemplate.RequestPerSecond == 0 {
-			return errors.New("request per second should be specified")
-		}
-
-		for _, api := range b.APITestTemplate.APIs {
-			if !tool.IsStringInArray(strings.ToUpper(api.Method), constants.AllowedRequestMethod) {
-				return fmt.Errorf("api is not allowed: %s", api.Method)
+		if stack.APITestEnabled {
+			if len(stack.APITestTemplate) == 0 {
+				return fmt.Errorf("you have to specify the name of template for api test: %s", stack.Stack)
 			}
 
-			if strings.ToUpper(api.Method) == "GET" && len(api.Body) > 0 {
-				return errors.New("api with GET request cannot have body")
+			isExist := false
+			for _, att := range b.APITestTemplates {
+				if att.Name == stack.APITestTemplate {
+					isExist = true
+					break
+				}
+			}
+
+			if !isExist {
+				return fmt.Errorf("template does not exist in the list: %s", stack.APITestTemplate)
 			}
 		}
 	}
@@ -577,7 +601,7 @@ MixedInstancesPolicy
 }
 
 // Parsing Manifest File
-func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
+func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack, []*schemas.APITestTemplate) {
 	var yamlFile []byte
 	var err error
 
@@ -591,7 +615,7 @@ func ParsingManifestFile(manifest string) (schemas.AWSConfig, []schemas.Stack, *
 }
 
 // buildStructFromYaml creates custom structure from manifest
-func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *schemas.APITestTemplate) {
+func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, []*schemas.APITestTemplate) {
 	yamlConfig := schemas.YamlConfig{}
 	err := yaml.Unmarshal(yamlFile, &yamlConfig)
 	if err != nil {
@@ -607,7 +631,7 @@ func buildStructFromYaml(yamlFile []byte) (schemas.AWSConfig, []schemas.Stack, *
 
 	Stacks := yamlConfig.Stacks
 
-	return awsConfig, Stacks, yamlConfig.APITestTemplate
+	return awsConfig, Stacks, yamlConfig.APITestTemplates
 }
 
 // argumentParsing parses arguments from command

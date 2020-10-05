@@ -167,7 +167,7 @@ DURATION	WAIT	REQUESTS	RATE	THROUGHPUT	SUCCESS
  No status codes exist
 {{- else }}
 
-Status	Status
+Status	Count
 {{- range $k, $v := $metric.Data.StatusCodes }}
  {{ decorate "bullet" $k }}	{{ $v }}
 {{- end }}

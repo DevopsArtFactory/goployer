@@ -164,6 +164,44 @@ func TestCheckValidationScheduledAction(t *testing.T) {
 		Max:     1,
 	}
 
+	b.APITestTemplates = []*schemas.APITestTemplate{
+		{},
+	}
+
+	b.APITestTemplates[0].Name = ""
+	if err := b.CheckValidation(); err == nil || err.Error() != "name of API test is required" {
+		t.Errorf("validation failed: api-test name")
+	}
+	b.APITestTemplates[0].Name = "test"
+
+	b.APITestTemplates[0].Duration = 999 * time.Millisecond
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds()) {
+		t.Errorf("validation failed: api-test duration")
+	}
+	b.APITestTemplates[0].Duration = 2 * time.Second
+
+	b.APITestTemplates[0].RequestPerSecond = 0
+	if err := b.CheckValidation(); err == nil || err.Error() != "request per second should be specified" {
+		t.Errorf("validation failed: api-test request-per-second")
+	}
+	b.APITestTemplates[0].RequestPerSecond = 5
+
+	b.APITestTemplates[0].APIs = []*schemas.APIManifest{
+		{
+			Method: "TEST",
+		},
+	}
+	if err := b.CheckValidation(); err == nil || err.Error() != "api is not allowed: TEST" {
+		t.Errorf("validation failed: api-test method")
+	}
+	b.APITestTemplates[0].APIs[0].Method = "GET"
+
+	b.APITestTemplates[0].APIs[0].Body = []string{"key=value"}
+	if err := b.CheckValidation(); err == nil || err.Error() != "api with GET request cannot have body" {
+		t.Errorf("validation failed: api-test get-body mismatching")
+	}
+	b.APITestTemplates[0].APIs[0].Method = "POST"
+
 	if err := b.CheckValidation(); err == nil || err.Error() != "scheduled action is not defined: fake_action" {
 		t.Errorf("validation failed: scheduled action existence")
 	}
@@ -217,6 +255,19 @@ func TestCheckValidationStack(t *testing.T) {
 				Stack:   "artd",
 				Account: "dev",
 				Env:     "dev",
+			},
+		},
+		APITestTemplates: []*schemas.APITestTemplate{
+			{
+				Name:             "api-test",
+				Duration:         time.Second * 2,
+				RequestPerSecond: 30,
+				APIs: []*schemas.APIManifest{
+					{
+						Method: "GET",
+						URL:    "api-test.com",
+					},
+				},
 			},
 		},
 	}
@@ -423,41 +474,16 @@ func TestCheckValidationStack(t *testing.T) {
 	}
 	b.Stacks[0].MixedInstancesPolicy.Override = []string{"t3.large"}
 
-	b.APITestTemplate = &schemas.APITestTemplate{}
+	b.Stacks[0].APITestEnabled = true
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("you have to specify the name of template for api test: %s", b.Stacks[0].Stack) {
+		t.Errorf("validation failed: stack api_test_enabled but no manifest")
+	}
 
-	b.APITestTemplate.Name = ""
-	if err := b.CheckValidation(); err == nil || err.Error() != "name of API test is required" {
-		t.Errorf("validation failed: api-test name")
+	b.Stacks[0].APITestTemplate = "api-test-fake"
+	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("template does not exist in the list: %s", b.Stacks[0].APITestTemplate) {
+		t.Errorf("validation failed: stack wrong api_test_template")
 	}
-	b.APITestTemplate.Name = "test"
-
-	b.APITestTemplate.Duration = 999 * time.Millisecond
-	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("duration for api test cannot be smaller than %.0f seconds", constants.MinAPITestDuration.Seconds()) {
-		t.Errorf("validation failed: api-test duration")
-	}
-	b.APITestTemplate.Duration = 2 * time.Second
-
-	b.APITestTemplate.RequestPerSecond = 0
-	if err := b.CheckValidation(); err == nil || err.Error() != "request per second should be specified" {
-		t.Errorf("validation failed: api-test request-per-second")
-	}
-	b.APITestTemplate.RequestPerSecond = 5
-
-	b.APITestTemplate.APIs = []*schemas.APIManifest{
-		{
-			Method: "TEST",
-		},
-	}
-	if err := b.CheckValidation(); err == nil || err.Error() != "api is not allowed: TEST" {
-		t.Errorf("validation failed: api-test method")
-	}
-	b.APITestTemplate.APIs[0].Method = "GET"
-
-	b.APITestTemplate.APIs[0].Body = []string{"key=value"}
-	if err := b.CheckValidation(); err == nil || err.Error() != "api with GET request cannot have body" {
-		t.Errorf("validation failed: api-test get-body mismatching")
-	}
-	b.APITestTemplate.APIs[0].Method = "POST"
+	b.Stacks[0].APITestTemplate = "api-test"
 
 	if err := b.CheckValidation(); err != nil {
 		t.Errorf("validation failed: no error")
