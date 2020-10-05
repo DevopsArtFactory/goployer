@@ -331,6 +331,16 @@ func (d Deployer) GenerateAPIAttacker(template schemas.APITestTemplate) (*APIAtt
 			}
 
 			tempT.Body = b
+		}
+
+		if len(api.Header) > 0 {
+			h, err := tool.CreateHeaderStruct(api.Header)
+			if err != nil {
+				return nil, err
+			}
+
+			tempT.Header = h
+		} else {
 			tempT.Header = tool.SetCommonHeader()
 		}
 
