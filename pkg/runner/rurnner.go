@@ -313,7 +313,7 @@ func (r Runner) Deploy() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector))
+		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplates, r.Builder.Config.Region, r.Slacker, r.Collector))
 	}
 
 	r.Logger.Debugf("successfully assign deployer to stacks")
@@ -430,7 +430,7 @@ func (r Runner) Delete() error {
 		}
 
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
-		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector)
+		d := getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplates, r.Builder.Config.Region, r.Slacker, r.Collector)
 		deployers = append(deployers, d)
 	}
 
@@ -563,7 +563,7 @@ func (r Runner) Update() error {
 
 	r.Logger.Debugf("create deployer for update")
 	deployers := []deployer.DeployManager{
-		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplate, r.Builder.Config.Region, r.Slacker, r.Collector),
+		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplates, r.Builder.Config.Region, r.Slacker, r.Collector),
 	}
 
 	// healthcheck
@@ -579,12 +579,22 @@ func (r Runner) Update() error {
 }
 
 //Generate new deployer
-func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplate *schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
+func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplates []*schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
+	var att *schemas.APITestTemplate
+	if stack.APITestEnabled {
+		for _, at := range apiTestTemplates {
+			if at.Name == stack.APITestTemplate {
+				att = at
+				break
+			}
+		}
+	}
+
 	deployer := deployer.NewBlueGrean(
 		stack.ReplacementType,
 		logger,
 		awsConfig,
-		apiTestTemplate,
+		att,
 		stack,
 		region,
 	)

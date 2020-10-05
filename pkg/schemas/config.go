@@ -65,7 +65,7 @@ type YamlConfig struct {
 	Stacks []Stack `yaml:"stacks"`
 
 	// API Test configuration
-	APITestTemplate *APITestTemplate `yaml:"api_test_template,omitempty"`
+	APITestTemplates []*APITestTemplate `yaml:"api_test_templates,omitempty"`
 }
 
 type AWSConfig struct {
@@ -133,6 +133,9 @@ type Stack struct {
 
 	// Whether or not to run API test
 	APITestEnabled bool `yaml:"api_test_enabled"`
+
+	// Name of API test template
+	APITestTemplate string `yaml:"api_test_template"`
 
 	// Instance market options like spot
 	InstanceMarketOptions *InstanceMarketOptions `yaml:"instance_market_options,omitempty"`
