@@ -18,11 +18,9 @@ package aws
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/sirupsen/logrus"
 )
 
 type SSMClient struct {
@@ -54,26 +52,7 @@ func (s SSMClient) SendCommand(target []*string, commands []*string) bool {
 		},
 	}
 
-	_, err := s.Client.SendCommand(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case ssm.ErrCodeDuplicateInstanceId:
-				logrus.Errorln(ssm.ErrCodeDuplicateInstanceId, aerr.Error())
-			case ssm.ErrCodeInternalServerError:
-				logrus.Errorln(ssm.ErrCodeInternalServerError, aerr.Error())
-			case ssm.ErrCodeInvalidInstanceId:
-				logrus.Errorln(ssm.ErrCodeInvalidInstanceId, aerr.Error())
-			case ssm.ErrCodeInvalidParameters:
-				logrus.Errorln(ssm.ErrCodeInvalidParameters, aerr.Error())
-			default:
-				logrus.Errorln(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			logrus.Errorln(err.Error())
-		}
+	if _, err := s.Client.SendCommand(input); err != nil {
 		return false
 	}
 

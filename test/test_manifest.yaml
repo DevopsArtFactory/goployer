@@ -111,109 +111,60 @@ stacks:
         target_groups:
           - hello-artdapne2-ext
 
-  - stack: artd-spot
-    polling_interval: 20s
-    account: dev
-    env: dev-2
-    assume_role: ""
-    replacement_type: BlueGreen
-    iam_instance_profile: 'app-hello-profile'
-    tags:
-      - test-stack=artd-spot
-    ebs_optimized: true
-    instance_market_options:
-      market_type: spot
-      spot_options:
-        block_duration_minutes: 180
-        instance_interruption_behavior: terminate # terminate / stop / hibernate
-        max_price: 0.3
-        spot_instance_type: one-time # one-time or persistent
-    block_devices:
-      - device_name: /dev/xvda
-        volume_size: 8
-        volume_type: "gp2"
-
-    # capacity
-    capacity:
-      min: 1
-      max: 2
-      desired: 1
-
-    autoscaling: *autoscaling_policy
-    alarms: *autoscaling_alarms
-
-    lifecycle_callbacks:
-      pre_terminate_past_cluster:
-        - service hello stop
-
-    regions:
-      - region: ap-northeast-2
-        instance_type: c5.large
-        ssh_key: test-master-key
-        ami_id: ami-01288945bd24ed49a
-        use_public_subnets: true
-        vpc: vpc-artd_apnortheast2
-        detailed_monitoring_enabled: false
-        security_groups:
-          - hello-artd_apnortheast2
-          - default-artd_apnortheast2
-        healthcheck_target_group: hello-artdapne2-ext
-        availability_zones:
-          - ap-northeast-2a
-          - ap-northeast-2b
-          - ap-northeast-2c
-        target_groups:
-          - hello-artdapne2-ext
-
-  - stack: artd-spot-without-spot-option
-    polling_interval: 20s
-    account: dev
-    env: dev-2-2
-    assume_role: ""
-    replacement_type: BlueGreen
-    iam_instance_profile: 'app-hello-profile'
-    tags:
-      - test-stack=artd-spot
-    ebs_optimized: true
-    instance_market_options:
-      market_type: spot
-    block_devices:
-      - device_name: /dev/xvda
-        volume_size: 8
-        volume_type: "gp2"
-
-    # capacity
-    capacity:
-      min: 1
-      max: 2
-      desired: 1
-
-    autoscaling: *autoscaling_policy
-    alarms: *autoscaling_alarms
-
-    lifecycle_callbacks:
-      pre_terminate_past_cluster:
-        - service hello stop
-
-    regions:
-      - region: ap-northeast-2
-        instance_type: c5.large
-        ssh_key: test-master-key
-        ami_id: ami-01288945bd24ed49a
-        use_public_subnets: true
-        vpc: vpc-artd_apnortheast2
-        detailed_monitoring_enabled: false
-        security_groups:
-          - hello-artd_apnortheast2
-          - default-artd_apnortheast2
-        healthcheck_target_group: hello-artdapne2-ext
-        availability_zones:
-          - ap-northeast-2a
-          - ap-northeast-2b
-          - ap-northeast-2c
-        target_groups:
-          - hello-artdapne2-ext
-
+#  - stack: artd-spot
+#    polling_interval: 20s
+#    account: dev
+#    env: dev-2
+#    assume_role: ""
+#    replacement_type: BlueGreen
+#    iam_instance_profile: 'app-hello-profile'
+#    tags:
+#      - test-stack=artd-spot
+#    ebs_optimized: true
+#    instance_market_options:
+#      market_type: spot
+#      spot_options:
+#        block_duration_minutes: 180
+#        instance_interruption_behavior: terminate # terminate / stop / hibernate
+#        max_price: 0.3
+#        spot_instance_type: one-time # one-time or persistent
+#    block_devices:
+#      - device_name: /dev/xvda
+#        volume_size: 8
+#        volume_type: "gp2"
+#
+#    # capacity
+#    capacity:
+#      min: 1
+#      max: 2
+#      desired: 1
+#
+#    autoscaling: *autoscaling_policy
+#    alarms: *autoscaling_alarms
+#
+#    lifecycle_callbacks:
+#      pre_terminate_past_cluster:
+#        - service hello stop
+#
+#    regions:
+#      - region: ap-northeast-2
+#        instance_type: c5.large
+#        ssh_key: test-master-key
+#        ami_id: ami-01288945bd24ed49a
+#        use_public_subnets: true
+#        vpc: vpc-artd_apnortheast2
+#        detailed_monitoring_enabled: false
+#        security_groups:
+#          - hello-artd_apnortheast2
+#          - default-artd_apnortheast2
+#        healthcheck_target_group: hello-artdapne2-ext
+#        availability_zones:
+#          - ap-northeast-2a
+#          - ap-northeast-2b
+#          - ap-northeast-2c
+#        target_groups:
+#          - hello-artdapne2-ext
+#
   - stack: artd-mixed
     polling_interval: 20s
     account: dev
@@ -438,6 +389,7 @@ stacks:
       - test-stack=artd-with-api-test
     ebs_optimized: true
     api_test_enabled: true
+    api_test_template: api-test-dev
 
     # capacity
     capacity:
@@ -461,12 +413,10 @@ stacks:
           - ap-northeast-2b
           - ap-northeast-2c
 
-api_test_template:
-  name: api-test
-  duration: 1m
-  request_per_second: 10
-  apis:
-    - method: GET
-      url: https://hello.devops-art-factory.com
-    - method: GET
-      url: https://hello.devops-art-factory.com/notfound
+api_test_templates:
+  - name: api-test-dev
+    duration: 1m
+    request_per_second: 10
+    apis:
+      - method: GET
+        url: https://hello.devops-art-factory.com

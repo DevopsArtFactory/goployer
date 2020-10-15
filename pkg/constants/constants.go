@@ -75,6 +75,9 @@ const (
 	// DefaultMetricStorageType is the default storage type for metrics
 	DefaultMetricStorageType = "dynamodb"
 
+	// DefaultRegion is a default region
+	DefaultRegion = "us-east-1"
+
 	// DefaultHealthcheckType is the default healthcheck type
 	DefaultHealthcheckType = "EC2"
 
@@ -120,6 +123,15 @@ const (
 	// StepCleanPreviousVersion = CleanPreviousVersion
 	StepCleanPreviousVersion = int64(5)
 
+	// StepCleanChecking = CleanChecking
+	StepCleanChecking = int64(6)
+
+	// StepGatherMetrics = GatherMetrics
+	StepGatherMetrics = int64(7)
+
+	// StepRunAPI = RunAPI
+	StepRunAPI = int64(8)
+
 	// DefaultEnableStats is whether or not to enable gathering stats
 	DefaultEnableStats = true
 
@@ -137,6 +149,16 @@ const (
 
 	// MinAPITestDuration is minimum duration of API test
 	MinAPITestDuration = 1 * time.Second
+
+	// DeploymentTagKey is a tag key for indicating deployment
+	DeploymentTagKey = "goployer-deployment"
+
+	// CanaryMark is a mark indicating that resources are related to Canary deployment
+	CanaryMark = "canary"
+
+	// Deployment Methods
+	BlueGreenDeployment = "BlueGreen"
+	CanaryDeployment    = "Canary"
 )
 
 var (

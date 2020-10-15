@@ -19,8 +19,6 @@ BUILD_DIR="build"
 TEST_DIR="test"
 URL="https://hello.devops-art-factory.com"
 
-stacks=("artd" "artd-spot" "artd-mixed" "artd-without-targetgroup" "artd-with-exact-values" "artd-with-classic-lb" "artd-with-scheduled-action")
-
 if [[ ! -d $BUILD_DIR ]]; then
     echo "creating new directory [ $BUILD_DIR ]"
     mkdir -p $BUILD_DIR

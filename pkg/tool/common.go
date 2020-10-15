@@ -46,6 +46,16 @@ func IsStringInArray(s string, arr []string) bool {
 	return false
 }
 
+// IsStringInPointerArray checks if string value is in array or not
+func IsStringInPointerArray(s string, arr []*string) bool {
+	for _, as := range arr {
+		if *as == s {
+			return true
+		}
+	}
+	return false
+}
+
 //CheckTimeout compares now-start time with timeout
 func CheckTimeout(start int64, timeout time.Duration) (bool, error) {
 	now := time.Now().Unix()
@@ -110,7 +120,12 @@ func CheckFileExists(filePath string) bool {
 
 // IsTargetGroupArn returns true if string is target group ARN
 func IsTargetGroupArn(str string, region string) bool {
-	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region))
+	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region)) && strings.Contains(str, "targetgroup")
+}
+
+// IsCanaryTargetGroupArn returns true if string is target group ARN
+func IsCanaryTargetGroupArn(str string, region string) bool {
+	return strings.HasPrefix(str, fmt.Sprintf("arn:aws:elasticloadbalancing:%s", region)) && strings.Contains(str, "targetgroup") && strings.Contains(str, constants.CanaryMark)
 }
 
 // RoundTime creates rounded time
@@ -177,4 +192,9 @@ func SetCommonHeader() http.Header {
 	return http.Header{
 		"Content-Type": []string{"application/json"},
 	}
+}
+
+// ParseTargetGroupName parses target group ARN and return target group name
+func ParseTargetGroupName(arn string) string {
+	return strings.Split(arn, "/")[1]
 }
