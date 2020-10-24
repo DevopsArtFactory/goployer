@@ -100,8 +100,12 @@ func (i Inspector) SelectStack(application string) (string, error) {
 
 // GetStacks returns stacks from application prefix
 func (i Inspector) GetStacks(application string) ([]string, error) {
-	asgGroups := i.AWSClient.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(application)
-	options := []string{}
+	asgGroups, err := i.AWSClient.EC2Service.GetAllMatchingAutoscalingGroupsWithPrefix(application)
+	if err != nil {
+		return nil, err
+	}
+
+	var options []string
 	for _, a := range asgGroups {
 		options = append(options, *a.AutoScalingGroupName)
 	}

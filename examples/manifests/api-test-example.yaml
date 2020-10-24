@@ -52,6 +52,7 @@ stacks:
     ansible_tags: all
     ebs_optimized: true
     api_test_enabled: true
+    api_test_template: api-test-dev
     instance_market_options:
       market_type: spot
       spot_options:
@@ -96,16 +97,10 @@ stacks:
           - hello-artdapne2-ext
 
 
-api_test_template:
-  name: api-test
-  duration: 5s
-  request_per_second: 10
-  apis:
-    - method: GET
-      url: https://example.com
-    - method: POST
-      url: https://example.com/post
-      body:
-        - id=1234
-        - username=art
-        - test=test
+api_test_templates:
+ - name: api-test-dev
+   duration: 1m
+   request_per_second: 10
+   apis:
+     - method: GET
+       url: https://hello.example.com

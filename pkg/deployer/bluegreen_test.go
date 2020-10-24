@@ -23,7 +23,7 @@ import (
 )
 
 func TestGetStackName(t *testing.T) {
-	b := BlueGreen{Deployer{Stack: schemas.Stack{Stack: "Test"}}}
+	b := BlueGreen{&Deployer{Stack: schemas.Stack{Stack: "Test"}}}
 
 	input := b.GetStackName()
 	expected := "Test"

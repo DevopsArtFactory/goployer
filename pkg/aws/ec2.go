@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -47,6 +48,7 @@ func NewEC2Client(session client.ConfigProvider, region string, creds *credentia
 	}
 }
 
+// getEC2ClientFn creates an EC2 client
 func getEC2ClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *ec2.EC2 {
 	if creds == nil {
 		return ec2.New(session, &aws.Config{Region: aws.String(region)})
@@ -54,6 +56,7 @@ func getEC2ClientFn(session client.ConfigProvider, region string, creds *credent
 	return ec2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
+// getAsgClientFn creates an Autoscaling client
 func getAsgClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *autoscaling.AutoScaling {
 	if creds == nil {
 		return autoscaling.New(session, &aws.Config{Region: aws.String(region)})
@@ -61,6 +64,7 @@ func getAsgClientFn(session client.ConfigProvider, region string, creds *credent
 	return autoscaling.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
+// GetMatchingAutoscalingGroup returns only one matching autoscaling group information
 func (e EC2Client) GetMatchingAutoscalingGroup(name string) (*autoscaling.Group, error) {
 	asgGroup, err := getSingleAutoScalingGroup(e.AsClient, name)
 	if err != nil {
@@ -98,7 +102,7 @@ func (e EC2Client) GetSecurityGroupDetails(sgIds []*string) ([]*ec2.SecurityGrou
 	return result.SecurityGroups, nil
 }
 
-// Delete All Launch Configurations belongs to the autoscaling group
+// DeleteLaunchConfigurations deletes All Launch Configurations belongs to the autoscaling group
 func (e EC2Client) DeleteLaunchConfigurations(asgName string) error {
 	lcs := getAllLaunchConfigurations(e.AsClient, []*autoscaling.LaunchConfiguration{}, nil)
 
@@ -114,7 +118,7 @@ func (e EC2Client) DeleteLaunchConfigurations(asgName string) error {
 	return nil
 }
 
-// Delete all launch template belongs to the autoscaling group
+// DeleteLaunchTemplates deletes all launch template belongs to the autoscaling group
 func (e EC2Client) DeleteLaunchTemplates(asgName string) error {
 	lts := getAllLaunchTemplates(e.Client, []*ec2.LaunchTemplate{}, nil)
 
@@ -131,8 +135,6 @@ func (e EC2Client) DeleteLaunchTemplates(asgName string) error {
 }
 
 // Delete Autoscaling group Set
-// 1. Autoscaling Group
-// 2. Luanch Configurations in asg
 func (e EC2Client) DeleteAutoscalingSet(asgName string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asgName),
@@ -148,29 +150,32 @@ func (e EC2Client) DeleteAutoscalingSet(asgName string) error {
 
 // Get All matching autoscaling groups with aws prefix
 // By this function, you could get the latest version of deployment
-func (e EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) []*autoscaling.Group {
-	asgGroups := []*autoscaling.Group{}
-	asgGroups = getAutoScalingGroups(e.AsClient, asgGroups, nil)
+func (e EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) ([]*autoscaling.Group, error) {
+	asgGroups, err := getAutoScalingGroups(e.AsClient, []*autoscaling.Group{}, nil)
+	if err != nil {
+		return nil, err
+	}
 
-	ret := []*autoscaling.Group{}
+	var ret []*autoscaling.Group
 	for _, asgGroup := range asgGroups {
 		if strings.HasPrefix(*asgGroup.AutoScalingGroupName, prefix) {
 			ret = append(ret, asgGroup)
 		}
 	}
 
-	return ret
+	return ret, nil
 }
 
 // Batch of retrieving list of autoscaling group
 // By Token, if needed, you could get all autoscaling groups with paging.
-func getAutoScalingGroups(client *autoscaling.AutoScaling, asgGroup []*(autoscaling.Group), nextToken *string) []*autoscaling.Group {
+func getAutoScalingGroups(client *autoscaling.AutoScaling, asgGroup []*(autoscaling.Group), nextToken *string) ([]*autoscaling.Group, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{
 		NextToken: nextToken,
 	}
+
 	ret, err := client.DescribeAutoScalingGroups(input)
 	if err != nil {
-		tool.FatalError(err)
+		return nil, err
 	}
 
 	asgGroup = append(asgGroup, ret.AutoScalingGroups...)
@@ -179,7 +184,7 @@ func getAutoScalingGroups(client *autoscaling.AutoScaling, asgGroup []*(autoscal
 		return getAutoScalingGroups(client, asgGroup, ret.NextToken)
 	}
 
-	return asgGroup
+	return asgGroup, nil
 }
 
 // Batch of retrieving all launch configurations
@@ -401,14 +406,14 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) ([]*string,
 
 		//If it matches 0 or more than 1, it is wrong
 		if len(result.SecurityGroups) != 1 {
-			matched := []string{}
+			var matched []string
 			for _, s := range result.SecurityGroups {
 				matched = append(matched, *s.GroupName)
 			}
 			return nil, fmt.Errorf("expected only one security group on name lookup for \"%s\" got \"%s\"", sg, strings.Join(matched, ","))
 		}
 
-		retList = append(retList, aws.String(*result.SecurityGroups[0].GroupId))
+		retList = append(retList, result.SecurityGroups[0].GroupId)
 	}
 
 	return retList, nil
@@ -531,7 +536,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckT
 	tags []*(autoscaling.Tag),
 	subnets []string,
 	mixedInstancePolicy schemas.MixedInstancesPolicy,
-	hooks []*autoscaling.LifecycleHookSpecification) (bool, error) {
+	hooks []*autoscaling.LifecycleHookSpecification) error {
 	lt := autoscaling.LaunchTemplateSpecification{
 		LaunchTemplateName: aws.String(launchTemplateName),
 	}
@@ -594,105 +599,11 @@ func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckT
 
 	_, err := e.AsClient.CreateAutoScalingGroup(input)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	Logger.Info("Successfully create new autoscaling group : ", name)
-	return true, nil
-}
-
-// GenerateTags creates tag list for autoscaling group
-func (e EC2Client) GenerateTags(tagList []string, asgName, app, stack, ansibleTags string, stackTags []string, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
-	ret := []*autoscaling.Tag{}
-	keyList := []string{}
-
-	for _, tagKV := range tagList {
-		arr := strings.Split(tagKV, "=")
-		k := arr[0]
-		v := arr[1]
-
-		keyList = append(keyList, k)
-		ret = append(ret, &autoscaling.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		})
-	}
-
-	// Add Name
-	ret = append(ret, &autoscaling.Tag{
-		Key:   aws.String("Name"),
-		Value: aws.String(asgName),
-	})
-
-	// Add stack name
-	ret = append(ret, &autoscaling.Tag{
-		Key:   aws.String("stack"),
-		Value: aws.String(fmt.Sprintf("%s_%s", stack, strings.ReplaceAll(region, "-", ""))),
-	})
-
-	// Add pkg name
-	ret = append(ret, &autoscaling.Tag{
-		Key:   aws.String("app"),
-		Value: aws.String(app),
-	})
-
-	// Add ansibleTags
-	// This will be deprecated
-	if len(ansibleTags) > 0 {
-		ret = append(ret, &autoscaling.Tag{
-			Key:   aws.String("ansible-tags"),
-			Value: aws.String(ansibleTags),
-		})
-	}
-
-	for _, t := range stackTags {
-		arr := strings.Split(t, "=")
-		k := arr[0]
-		v := arr[1]
-
-		if !tool.IsStringInArray(k, keyList) {
-			ret = append(ret, &autoscaling.Tag{
-				Key:   aws.String(k),
-				Value: aws.String(v),
-			})
-		} else {
-			for _, t := range ret {
-				if *t.Key == k {
-					*t.Value = v
-					break
-				}
-			}
-		}
-	}
-
-	//Add extraTags
-	if len(extraTags) > 0 {
-		if strings.Contains(extraTags, ",") {
-			ts := strings.Split(extraTags, ",")
-			for _, s := range ts {
-				if !strings.Contains(strings.TrimSpace(s), "=") {
-					Logger.Warnln("extra-tags usage : --extra-tags=key1=value1,key2=value2...")
-					continue
-				}
-
-				kv := strings.Split(strings.TrimSpace(s), "=")
-				ret = append(ret, &autoscaling.Tag{
-					Key:   aws.String(kv[0]),
-					Value: aws.String(kv[1]),
-				})
-			}
-		}
-	}
-
-	// Add ansibleExtraVars
-	if len(ansibleExtraVars) > 0 {
-		ret = append(ret, &autoscaling.Tag{
-			Key:   aws.String("ansible-extra-vars"),
-			Value: aws.String(ansibleExtraVars),
-		})
-	}
-
-	return ret
+	return nil
 }
 
 // GetAvailabilityZones get all available availability zones
@@ -824,7 +735,7 @@ func (e EC2Client) EnableMetrics(asgName string) error {
 	return nil
 }
 
-// Generate Lifecycle Hooks
+// GenerateLifecycleHooks generate lifecycle hooks
 func (e EC2Client) GenerateLifecycleHooks(hooks schemas.LifecycleHooks) []*autoscaling.LifecycleHookSpecification {
 	var ret []*autoscaling.LifecycleHookSpecification
 
@@ -875,7 +786,7 @@ func createSingleLifecycleHookSpecification(l schemas.LifecycleHookSpecification
 	return lhs
 }
 
-// GetTargetGroup returns list of target group ARN of autoscaling group
+// GetTargetGroups returns list of target group ARN of autoscaling group
 func (e EC2Client) GetTargetGroups(asgName string) ([]*string, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{
 		AutoScalingGroupNames: []*string{
@@ -913,7 +824,7 @@ func getSingleAutoScalingGroup(client *autoscaling.AutoScaling, asgName string) 
 	return ret.AutoScalingGroups[0], nil
 }
 
-// Update Autoscaling Group information
+// UpdateAutoScalingGroup  updates auto scaling group information
 func (e EC2Client) UpdateAutoScalingGroup(asg string, capacity schemas.Capacity) error {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
@@ -936,7 +847,7 @@ func (e EC2Client) CreateScheduledActions(asg string, actions []schemas.Schedule
 		AutoScalingGroupName: aws.String(asg),
 	}
 
-	scheduledUpdateGroupActions := []*autoscaling.ScheduledUpdateGroupActionRequest{}
+	var scheduledUpdateGroupActions []*autoscaling.ScheduledUpdateGroupActionRequest
 	for _, a := range actions {
 		newSa := autoscaling.ScheduledUpdateGroupActionRequest{
 			ScheduledActionName: aws.String(a.Name),
@@ -952,6 +863,308 @@ func (e EC2Client) CreateScheduledActions(asg string, actions []schemas.Schedule
 	input.ScheduledUpdateGroupActions = scheduledUpdateGroupActions
 
 	_, err := e.AsClient.BatchPutScheduledUpdateGroupAction(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AttachAsgToTargetGroups attaches autoscaling group to target groups of ELB
+func (e EC2Client) AttachAsgToTargetGroups(asg string, targetGroups []*string) error {
+	input := &autoscaling.AttachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(asg),
+		TargetGroupARNs:      targetGroups,
+	}
+
+	_, err := e.AsClient.AttachLoadBalancerTargetGroups(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DetachAsgFromTargetGroups detaches autoscaling group from target groups of ELB
+func (e EC2Client) DetachAsgFromTargetGroups(asg string, targetGroups []*string) error {
+	input := &autoscaling.DetachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(asg),
+		TargetGroupARNs:      targetGroups,
+	}
+
+	_, err := e.AsClient.DetachLoadBalancerTargetGroups(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CreateSecurityGroup creates new security group
+func (e EC2Client) CreateSecurityGroup(sgName string, vpcID *string) (*string, error) {
+	input := &ec2.CreateSecurityGroupInput{
+		Description: aws.String("canary deployment"),
+		GroupName:   aws.String(sgName),
+		VpcId:       vpcID,
+	}
+
+	ret, err := e.Client.CreateSecurityGroup(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret.GroupId, nil
+}
+
+// GetSecurityGroup retrieves group id of existing security group
+func (e EC2Client) GetSecurityGroup(sgName string) (*string, error) {
+	input := &ec2.DescribeSecurityGroupsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("group-name"),
+				Values: []*string{
+					aws.String(sgName),
+				},
+			},
+		},
+	}
+
+	result, err := e.Client.DescribeSecurityGroups(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(result.SecurityGroups) == 0 {
+		return nil, fmt.Errorf("checked duplicated but cannot find the security group: %s", sgName)
+	}
+
+	return result.SecurityGroups[0].GroupId, nil
+}
+
+// UpdateInboundRules updates inbound rules for security group  with IP
+func (e EC2Client) UpdateInboundRules(sgID, protocol, cidr, description string, fromPort, toPort int64) error {
+	input := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId: aws.String(sgID),
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(fromPort),
+				ToPort:     aws.Int64(toPort),
+				IpProtocol: aws.String(protocol),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp:      aws.String(cidr),
+						Description: aws.String(description),
+					},
+				},
+			},
+		},
+	}
+
+	_, err := e.Client.AuthorizeSecurityGroupIngress(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateInboundRulesWithGroup updates inbound rules for security group  with other security group
+func (e EC2Client) UpdateInboundRulesWithGroup(sgID, protocol, description string, fromSg *string, fromPort, toPort int64) error {
+	input := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId: aws.String(sgID),
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(fromPort),
+				ToPort:     aws.Int64(toPort),
+				IpProtocol: aws.String(protocol),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						Description: aws.String(description),
+						GroupId:     fromSg,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := e.Client.AuthorizeSecurityGroupIngress(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateOutboundRules updates inbound rules  for security group  with IP
+func (e EC2Client) UpdateOutboundRules(sgID, protocol, cidr, description string, fromPort, toPort int64) error {
+	input := &ec2.AuthorizeSecurityGroupEgressInput{
+		GroupId: aws.String(sgID),
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(fromPort),
+				ToPort:     aws.Int64(toPort),
+				IpProtocol: aws.String(protocol),
+				IpRanges: []*ec2.IpRange{
+					{
+						CidrIp:      aws.String(cidr),
+						Description: aws.String(description),
+					},
+				},
+			},
+		},
+	}
+
+	if protocol == "-1" {
+		input.IpPermissions[0].FromPort = nil
+		input.IpPermissions[0].ToPort = nil
+	}
+
+	_, err := e.Client.AuthorizeSecurityGroupEgress(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteSecurityGroup deletes security group
+func (e EC2Client) DeleteSecurityGroup(sg string) error {
+	input := &ec2.DeleteSecurityGroupInput{
+		GroupId: aws.String(sg),
+	}
+
+	_, err := e.Client.DeleteSecurityGroup(input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// RevokeInboundRulesWithGroup revokes inbound rules for security group  with other security group
+func (e EC2Client) RevokeInboundRulesWithGroup(sgID, protocol string, fromSg *string, fromPort, toPort int64) error {
+	input := &ec2.RevokeSecurityGroupIngressInput{
+		GroupId: aws.String(sgID),
+		IpPermissions: []*ec2.IpPermission{
+			{
+				FromPort:   aws.Int64(fromPort),
+				ToPort:     aws.Int64(toPort),
+				IpProtocol: aws.String(protocol),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{
+					{
+						GroupId: fromSg,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := e.Client.RevokeSecurityGroupIngress(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteCanaryTag deletes canary tag from auto scaling group
+func (e EC2Client) DeleteCanaryTag(asg string) error {
+	input := &autoscaling.DeleteTagsInput{
+		Tags: []*autoscaling.Tag{
+			{
+				ResourceId:   aws.String(asg),
+				ResourceType: aws.String("auto-scaling-group"),
+				Key:          aws.String(constants.DeploymentTagKey),
+				Value:        aws.String(constants.CanaryDeployment),
+			},
+		},
+	}
+
+	_, err := e.AsClient.DeleteTags(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DescribeInstances return detailed information of instances
+func (e EC2Client) DescribeInstances(instanceIds []*string) ([]*ec2.Instance, error) {
+	input := &ec2.DescribeInstancesInput{
+		InstanceIds: instanceIds,
+	}
+
+	result, err := e.Client.DescribeInstances(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(result.Reservations) == 0 {
+		return nil, nil
+	}
+
+	return result.Reservations[0].Instances, nil
+}
+
+// ModifyNetworkInterfaces modifies network interface attributes
+func (e EC2Client) ModifyNetworkInterfaces(eni *string, groups []*string) error {
+	input := &ec2.ModifyNetworkInterfaceAttributeInput{
+		Groups:             groups,
+		NetworkInterfaceId: eni,
+	}
+
+	_, err := e.Client.ModifyNetworkInterfaceAttribute(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CreateNewLaunchTemplateVersion creates new version of launch template
+func (e EC2Client) CreateNewLaunchTemplateVersion(lt *ec2.LaunchTemplateVersion, sgs []*string) (*ec2.LaunchTemplateVersion, error) {
+	input := &ec2.CreateLaunchTemplateVersionInput{
+		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
+			SecurityGroupIds: sgs,
+		},
+		LaunchTemplateId:   lt.LaunchTemplateId,
+		SourceVersion:      aws.String("1"),
+		VersionDescription: aws.String("Canary Completion"),
+	}
+
+	result, err := e.Client.CreateLaunchTemplateVersion(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.LaunchTemplateVersion, nil
+}
+
+// UpdateAutoScalingLaunchTemplate updates autoscaling launch template
+func (e EC2Client) UpdateAutoScalingLaunchTemplate(asg string, lt *ec2.LaunchTemplateVersion) error {
+	input := &autoscaling.UpdateAutoScalingGroupInput{
+		AutoScalingGroupName: aws.String(asg),
+		LaunchTemplate: &autoscaling.LaunchTemplateSpecification{
+			LaunchTemplateId: lt.LaunchTemplateId,
+			Version:          aws.String(strconv.FormatInt(*lt.VersionNumber, 10)),
+		},
+	}
+
+	_, err := e.AsClient.UpdateAutoScalingGroup(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DetachLoadBalancerTargetGroup detaches target group from autoscaling group
+func (e EC2Client) DetachLoadBalancerTargetGroup(asg string, tgARNs []*string) error {
+	input := &autoscaling.DetachLoadBalancerTargetGroupsInput{
+		AutoScalingGroupName: aws.String(asg),
+		TargetGroupARNs:      tgARNs,
+	}
+
+	_, err := e.AsClient.DetachLoadBalancerTargetGroups(input)
 	if err != nil {
 		return err
 	}

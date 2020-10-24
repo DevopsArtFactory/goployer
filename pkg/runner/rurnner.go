@@ -23,7 +23,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/GwonsooLee/kubenx/pkg/color"
@@ -35,6 +34,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/deployer"
+	"github.com/DevopsArtFactory/goployer/pkg/helper"
 	"github.com/DevopsArtFactory/goployer/pkg/initializer"
 	"github.com/DevopsArtFactory/goployer/pkg/inspector"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
@@ -271,14 +271,14 @@ func (r Runner) Deploy() error {
 	}
 
 	//Send Beginning Message
-	r.Logger.Info("Beginning deployment: ", r.Builder.AwsConfig.Name)
+	r.Logger.Infof("Beginning deployment: %s", r.Builder.AwsConfig.Name)
 
 	if err := r.Builder.PrintSummary(out, r.Builder.Config.Stack, r.Builder.Config.Region); err != nil {
 		return err
 	}
 
 	if r.Slacker.ValidClient() {
-		r.Logger.Debug("slack configuration is valid")
+		r.Logger.Debug("Slack configuration is valid")
 		var stacks []schemas.Stack
 		for _, s := range r.Builder.Stacks {
 			if len(r.Builder.Config.Stack) == 0 || r.Builder.Config.Stack == s.Stack {
@@ -291,7 +291,7 @@ func (r Runner) Deploy() error {
 		}
 	} else if !r.Builder.Config.SlackOff {
 		// Slack variables are not set
-		r.Logger.Warnln("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL or SLACK_WEBHOOK_URL ]")
+		r.Logger.Warn("no slack variables exists. [ SLACK_TOKEN, SLACK_CHANNEL or SLACK_WEBHOOK_URL ]")
 	}
 
 	if r.Builder.MetricConfig.Enabled {
@@ -305,7 +305,7 @@ func (r Runner) Deploy() error {
 
 	//Prepare deployers
 	r.Logger.Debug("create deployers for stacks")
-	deployers := []deployer.DeployManager{}
+	var deployers []deployer.DeployManager
 	for _, stack := range r.Builder.Stacks {
 		if r.Builder.Config.Stack != "" && stack.Stack != r.Builder.Config.Stack {
 			r.Logger.Debugf("Skipping this stack, stack=%s", stack.Stack)
@@ -315,7 +315,6 @@ func (r Runner) Deploy() error {
 		r.Logger.Debugf("add deployer setup function : %s", stack.Stack)
 		deployers = append(deployers, getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplates, r.Builder.Config.Region, r.Slacker, r.Collector))
 	}
-
 	r.Logger.Debugf("successfully assign deployer to stacks")
 
 	// Check Previous Version
@@ -323,7 +322,7 @@ func (r Runner) Deploy() error {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
-			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+			if err := deployer.CheckPreviousResources(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
 			}
 
@@ -332,19 +331,25 @@ func (r Runner) Deploy() error {
 			}
 		}(d)
 	}
-
 	wg.Wait()
 
-	// healthcheck
-	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
-	}
-
-	// Attach scaling policy
+	// Health checking step
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
+			if err := deployer.HealthChecking(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[StepHealthCheck] check previous deployer error occurred: %s", err.Error())
+			}
+		}(d)
+	}
+	wg.Wait()
+
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			// Attach scaling policy
 			if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
 				r.Logger.Errorf(err.Error())
 			}
@@ -358,13 +363,18 @@ func (r Runner) Deploy() error {
 			}
 		}(d)
 	}
-
 	wg.Wait()
 
-	// Checking all previous version before delete asg
-	if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CleanChecking(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	// gather metrics of previous version
 	for _, d := range deployers {
@@ -420,7 +430,7 @@ func (r Runner) Delete() error {
 
 	//Prepare deployers
 	r.Logger.Debug("create deployers for stacks to delete")
-	deployers := []deployer.DeployManager{}
+	var deployers []deployer.DeployManager
 	for _, stack := range r.Builder.Stacks {
 		// If target stack is passed from command, then
 		// Skip other stacks
@@ -441,11 +451,11 @@ func (r Runner) Delete() error {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
-			if err := deployer.CheckPrevious(r.Builder.Config); err != nil {
+			if err := deployer.GetDeployer().CheckPrevious(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
 			}
 
-			deployer.SkipDeployStep()
+			deployer.GetDeployer().SkipDeployStep()
 
 			// Trigger Lifecycle Callbacks
 			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
@@ -460,10 +470,16 @@ func (r Runner) Delete() error {
 	}
 	wg.Wait()
 
-	// Checking all previous version before delete asg
-	if err := cleanChecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.CleanChecking(r.Builder.Config); err != nil {
+				r.Logger.Errorf(err.Error())
+			}
+		}(d)
 	}
+	wg.Wait()
 
 	// gather metrics of previous version
 	for _, d := range deployers {
@@ -515,6 +531,7 @@ func (r Runner) Status() error {
 
 // Update will changes configuration of current deployment on live
 func (r Runner) Update() error {
+	var wg sync.WaitGroup
 	i := inspector.New(r.Builder.Config.Region)
 
 	asg, err := i.SelectStack(r.Builder.Config.Application)
@@ -566,15 +583,22 @@ func (r Runner) Update() error {
 		getDeployer(r.Logger, stack, r.Builder.AwsConfig, r.Builder.APITestTemplates, r.Builder.Config.Region, r.Slacker, r.Collector),
 	}
 
-	// healthcheck
-	r.Logger.Debugf("start healthchecking")
-	if err := doHealthchecking(deployers, r.Builder.Config, r.Logger); err != nil {
-		return err
+	// Health checking step
+	r.Logger.Debugf("Start health checking")
+	for _, d := range deployers {
+		wg.Add(1)
+		go func(deployer deployer.DeployManager) {
+			defer wg.Done()
+			if err := deployer.HealthChecking(r.Builder.Config); err != nil {
+				r.Logger.Errorf("[StepHealthCheck] check previous deployer error occurred: %s", err.Error())
+			}
+		}(d)
 	}
-	r.Logger.Debugf("healthcheck process is done")
+
+	wg.Wait()
+	r.Logger.Debugf("Health check process is done")
 
 	r.Logger.Infof("update operation is finished")
-
 	return nil
 }
 
@@ -590,128 +614,30 @@ func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.A
 		}
 	}
 
-	deployer := deployer.NewBlueGrean(
-		stack.ReplacementType,
-		logger,
-		awsConfig,
-		att,
-		stack,
-		region,
-	)
-
-	deployer.Slack = slack
-	deployer.Collector = c
-
-	return deployer
-}
-
-// doHealthchecking checks if newly deployed autoscaling group is healthy
-func doHealthchecking(deployers []deployer.DeployManager, config schemas.Config, logger *Logger.Logger) error {
-	healthyStackList := []string{}
-	healthy := false
-
-	ch := make(chan map[string]bool)
-
-	for !healthy {
-		count := 0
-
-		logger.Debugf("Start Timestamp: %d, timeout: %s", config.StartTimestamp, config.Timeout)
-		isTimeout, _ := tool.CheckTimeout(config.StartTimestamp, config.Timeout)
-		if isTimeout {
-			return fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
-		}
-
-		for _, d := range deployers {
-			if tool.IsStringInArray(d.GetStackName(), healthyStackList) {
-				continue
-			}
-
-			count++
-
-			//Start healthcheck thread
-			go func(deployer deployer.DeployManager) {
-				ch <- deployer.HealthChecking(config)
-			}(d)
-		}
-
-		for count > 0 {
-			ret := <-ch
-			if ret["error"] {
-				return errors.New("error happened while healthchecking")
-			}
-			for key, val := range ret {
-				if key == "error" {
-					continue
-				}
-				if val {
-					healthyStackList = append(healthyStackList, key)
-				}
-			}
-			count--
-		}
-
-		if len(healthyStackList) == len(deployers) {
-			logger.Info("All stacks are healthy")
-			healthy = true
-		} else {
-			logger.Info("All stacks are not healthy... Please waiting to be deployed...")
-			time.Sleep(config.PollingInterval)
-		}
+	h := helper.DeployerHelper{
+		Logger:           logger,
+		Stack:            stack,
+		AwsConfig:        awsConfig,
+		APITestTemplates: att,
+		Region:           region,
+		Slack:            slack,
+		Collector:        c,
 	}
 
-	return nil
-}
-
-// cleanChecking cleans old autoscaling groups
-func cleanChecking(deployers []deployer.DeployManager, config schemas.Config, logger *Logger.Logger) error {
-	doneStackList := []string{}
-	done := false
-
-	ch := make(chan map[string]bool)
-
-	for !done {
-		count := 0
-		for _, d := range deployers {
-			if tool.IsStringInArray(d.GetStackName(), doneStackList) {
-				continue
-			}
-
-			count++
-
-			//Start terminateChecking thread
-			go func(deployer deployer.DeployManager) {
-				ch <- deployer.TerminateChecking(config)
-			}(d)
-		}
-
-		for count > 0 {
-			ret := <-ch
-			for stack, fin := range ret {
-				if fin {
-					logger.Debug("Finished stack : ", stack)
-					doneStackList = append(doneStackList, stack)
-				}
-			}
-			count--
-		}
-
-		if len(doneStackList) == len(deployers) {
-			logger.Info("All stacks are terminated!!")
-			done = true
-		} else {
-			logger.Info("All stacks are not ready to be terminated... Please waiting...")
-			time.Sleep(config.PollingInterval)
-		}
+	var d deployer.DeployManager
+	switch h.Stack.ReplacementType {
+	case constants.BlueGreenDeployment:
+		d = deployer.NewBlueGreen(&h)
+	case constants.CanaryDeployment:
+		d = deployer.NewCanary(&h)
 	}
 
-	return nil
+	return d
 }
 
 // CheckEnabledMetrics checks if metrics configuration is enabled or not
 func (r Runner) CheckEnabledMetrics() error {
-	r.Logger.Infof("Metric Measurement is enabled")
-
-	r.Logger.Debugf("check if storage exists or not")
+	r.Logger.Debugf("Check if storage exists or not")
 	if err := r.Collector.CheckStorage(r.Logger); err != nil {
 		return err
 	}

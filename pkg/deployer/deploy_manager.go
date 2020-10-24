@@ -21,15 +21,14 @@ import (
 )
 
 type DeployManager interface {
-	GetStackName() string
+	GetDeployer() *Deployer
+	CheckPreviousResources(config schemas.Config) error
 	Deploy(config schemas.Config) error
-	CheckPrevious(config schemas.Config) error
-	HealthChecking(config schemas.Config) map[string]bool
+	HealthChecking(config schemas.Config) error
 	FinishAdditionalWork(config schemas.Config) error
 	CleanPreviousVersion(config schemas.Config) error
 	TriggerLifecycleCallbacks(config schemas.Config) error
-	TerminateChecking(config schemas.Config) map[string]bool
+	CleanChecking(config schemas.Config) error
 	GatherMetrics(config schemas.Config) error
 	RunAPITest(config schemas.Config) error
-	SkipDeployStep()
 }

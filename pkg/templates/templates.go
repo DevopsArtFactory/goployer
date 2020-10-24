@@ -29,6 +29,7 @@ Configurations of stacks
 {{- range $stack := .Stacks }}
 {{ decorate "underline bold" "Stack" }}:	{{ $stack.Account }}
 {{ decorate "underline bold" "Account" }}:	{{ $stack.Account }}
+{{ decorate "underline bold" "Replacement Type" }}:	{{ $stack.ReplacementType }}
 {{ decorate "underline bold" "Environment" }}:	{{ $stack.Env }}
 {{ decorate "underline bold" "IAM Instance Profile" }}:	{{ $stack.IamInstanceProfile }}
 {{- if gt (len $stack.Tags) 0 }}

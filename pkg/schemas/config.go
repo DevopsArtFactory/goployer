@@ -44,6 +44,7 @@ type Config struct { // Do not add comments for this struct
 	DisableMetrics         bool          `json:"disable_metrics"`
 	SlackOff               bool          `json:"slack_off"`
 	ForceManifestCapacity  bool          `json:"force_manifest_capacity"`
+	CompleteCanary         bool          `json:"complete_canary"`
 	DownSizingUpdate       bool
 }
 
@@ -68,10 +69,18 @@ type YamlConfig struct {
 	APITestTemplates []*APITestTemplate `yaml:"api_test_templates,omitempty"`
 }
 
+// AWS Related Configurations except for stack
 type AWSConfig struct {
-	Name             string
-	Userdata         Userdata
-	Tags             []string
+	// Application Name
+	Name string
+
+	// Configuration for userdata
+	Userdata Userdata
+
+	// List of common tags for the application
+	Tags []string
+
+	// List of scheduled action configuration
 	ScheduledActions []ScheduledAction
 }
 

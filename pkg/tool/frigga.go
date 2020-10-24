@@ -27,11 +27,13 @@ type Frigga struct {
 	Prefix string
 }
 
+// BuildPrefixName creates new prefix for autoscaling group
 func BuildPrefixName(name string, env string, region string) string {
 	return fmt.Sprintf("%s-%s_%s", name, env, strings.ReplaceAll(region, "-", ""))
 }
 
-func ParseVersion(name string) int {
+// ParseAutoScalingVersion parses autoscaling version from name
+func ParseAutoScalingVersion(name string) int {
 	if len(name) != 0 {
 		parts := strings.Split(name, "-")
 		for _, part := range parts {
@@ -55,4 +57,17 @@ func GenerateLcName(asgName string) string {
 	now := time.Now()
 	secs := now.Unix()
 	return fmt.Sprintf("%s-%d", asgName, secs)
+}
+
+// ParseTargetGroupVersion parses autoscaling version from name
+func ParseTargetGroupVersion(name string) int {
+	if len(name) != 0 {
+		parts := strings.Split(name, "-")
+		if len(parts[len(parts)-1]) > 0 && strings.HasPrefix(parts[len(parts)-1], "v") {
+			intVal, _ := strconv.Atoi(parts[len(parts)-1][1:])
+			return intVal
+		}
+	}
+
+	return 0
 }
