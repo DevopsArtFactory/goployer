@@ -293,6 +293,9 @@ stacks:
         use_public_subnets: true
         vpc: vpc-05be14885b028018d
         detailed_monitoring_enabled: false
+        termination_policies:
+          - OldestInstance
+          - Default
         security_groups:
           - hello-artd_apnortheast2
           - default-artd_apnortheast2

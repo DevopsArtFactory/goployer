@@ -328,6 +328,9 @@ type RegionConfig struct {
 	// Availability zones for autoscaling group
 	AvailabilityZones []string `yaml:"availability_zones"`
 
+	// List of termination policies of autoscaling group. Default will be applied if nothing is specified
+	TerminationPolicies []string `yaml:"termination_policies"`
+
 	// Whether or not to use public subnets
 	UsePublicSubnets bool `yaml:"use_public_subnets"`
 
