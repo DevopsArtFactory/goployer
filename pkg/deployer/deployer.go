@@ -645,6 +645,10 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		lifecycleHooksSpecificationList = client.EC2Service.GenerateLifecycleHooks(*d.Stack.LifecycleHooks)
 	}
 
+	if len(region.TerminationPolicies) > 0 {
+		terminationPolicies = eaws.StringSlice(region.TerminationPolicies)
+	}
+
 	err = client.EC2Service.CreateAutoScalingGroup(
 		newAsgName,
 		launchTemplateName,
