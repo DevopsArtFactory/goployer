@@ -298,6 +298,7 @@ func (i Inspector) Update() error {
 	return nil
 }
 
+// GenerateStack generates stack configuration for update
 func (i Inspector) GenerateStack(region string, group *autoscaling.Group) schemas.Stack {
 	s := schemas.Stack{
 		Stack:    "update-stack",

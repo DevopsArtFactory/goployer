@@ -72,6 +72,7 @@ You can find more information in https://goployer.dev`,
 	rootCmd.AddCommand(NewStatusCommand())
 	rootCmd.AddCommand(NewAddCommand())
 	rootCmd.AddCommand(NewUpdateCommand())
+	rootCmd.AddCommand(NewRefreshCommand())
 
 	rootCmd.PersistentFlags().StringVarP(&v, "log-level", "v", constants.DefaultLogLevel.String(), "Log level (debug, info, warn, error, fatal, panic)")
 
