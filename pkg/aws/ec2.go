@@ -1171,3 +1171,50 @@ func (e EC2Client) DetachLoadBalancerTargetGroup(asg string, tgARNs []*string) e
 
 	return nil
 }
+
+// StartInstanceRefresh starts instance refresh
+func (e EC2Client) StartInstanceRefresh(name *string, instanceWarmup, minHealthyPercentage int64) (*string, error) {
+	input := &autoscaling.StartInstanceRefreshInput{
+		AutoScalingGroupName: name,
+		Preferences: &autoscaling.RefreshPreferences{
+			InstanceWarmup:       aws.Int64(instanceWarmup),
+			MinHealthyPercentage: aws.Int64(minHealthyPercentage),
+		},
+	}
+
+	result, err := e.AsClient.StartInstanceRefresh(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.InstanceRefreshId, nil
+}
+
+// DescribeInstanceRefreshes describes instance refresh information
+func (e EC2Client) DescribeInstanceRefreshes(name, id *string) (*autoscaling.InstanceRefresh, error) {
+	input := &autoscaling.DescribeInstanceRefreshesInput{
+		AutoScalingGroupName: name,
+	}
+
+	if id != nil {
+		input.InstanceRefreshIds = []*string{id}
+	}
+
+	result, err := e.AsClient.DescribeInstanceRefreshes(input)
+	if err != nil {
+		return nil, err
+	}
+
+	var targets []*autoscaling.InstanceRefresh
+	for _, ir := range result.InstanceRefreshes {
+		if ir.EndTime == nil || (id != nil && *ir.InstanceRefreshId == *id) {
+			targets = append(targets, ir)
+		}
+	}
+
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("no instance refresh exists: %s", *name)
+	}
+
+	return targets[0], nil
+}

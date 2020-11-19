@@ -37,6 +37,8 @@ type Config struct { // Do not add comments for this struct
 	Min                    int64 `json:"min"`
 	Max                    int64 `json:"max"`
 	Desired                int64 `json:"desired"`
+	InstanceWarmup         int64 `json:"instance_warmup"`
+	MinHealthyPercentage   int64 `json:"min_healthy_percentage"`
 	StartTimestamp         int64
 	Timeout                time.Duration `json:"timeout"`
 	PollingInterval        time.Duration `json:"polling_interval"`

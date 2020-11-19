@@ -18,11 +18,15 @@ package tool
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -197,4 +201,26 @@ func SetCommonHeader() http.Header {
 // ParseTargetGroupName parses target group ARN and return target group name
 func ParseTargetGroupName(arn string) string {
 	return strings.Split(arn, "/")[1]
+}
+
+// LocalCheck checks whether or not to continue when it is run on localhost.
+// Cannot add windows because goployer could be run on Windows..
+func LocalCheck(message string, autoApply bool) error {
+	// From local os, you need to ensure that this command is intended
+	if runtime.GOOS == "darwin" && !autoApply {
+		if !AskContinue(message) {
+			return errors.New("you declined to run command")
+		}
+	}
+	return nil
+}
+
+// PrintTemplate prints template with data
+func PrintTemplate(data interface{}, t *template.Template) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 5, 3, ' ', tabwriter.TabIndent)
+	err := t.Execute(w, data)
+	if err != nil {
+		return err
+	}
+	return w.Flush()
 }

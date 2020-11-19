@@ -84,6 +84,12 @@ const (
 	// DefaultHealthcheckGracePeriod is the default healthcheck grace period
 	DefaultHealthcheckGracePeriod = 300
 
+	// DefaultInstanceWarmup is the default duration for instance warmup
+	DefaultInstanceWarmup = 300
+
+	// DefaultMinHealthyPercentage is the default value of minimum healthy instance percentage for refresh
+	DefaultMinHealthyPercentage = 90
+
 	// S3Prefix is prefix of s3 URL
 	S3Prefix = "s3://"
 

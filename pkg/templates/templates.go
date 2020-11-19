@@ -183,3 +183,10 @@ TOTAL	MEAN	MAX	P95	P99
 {{- end }}
 
 `
+
+const InstanceRefreshStatusTemplate = `{{decorate "bold" "Name"}}:	{{ .Target.AutoScalingGroupName }}
+{{decorate "bold" "Instance Refresh ID"}}:	{{ .Summary.InstanceRefreshId }}
+{{decorate "bold" "Start Time"}}:	{{ .Summary.StartTime }}
+{{decorate "bold" "End Time"}}:	{{ .Summary.EndTime }}
+{{decorate "bold" "Status"}}:	{{ .Summary.Status }}
+`

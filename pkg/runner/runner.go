@@ -20,9 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/GwonsooLee/kubenx/pkg/color"
@@ -37,6 +37,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/helper"
 	"github.com/DevopsArtFactory/goployer/pkg/initializer"
 	"github.com/DevopsArtFactory/goployer/pkg/inspector"
+	"github.com/DevopsArtFactory/goployer/pkg/refresh"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
@@ -48,6 +49,29 @@ type Runner struct {
 	Collector  collector.Collector
 	Slacker    slack.Slack
 	FuncMapper map[string]func() error
+}
+
+// NewRunner creates a new runner
+func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
+	newRunner := Runner{
+		Logger:  Logger.New(),
+		Builder: newBuilder,
+		Slacker: slack.NewSlackClient(newBuilder.Config.SlackOff),
+	}
+
+	if checkManifestCommands(mode) {
+		newRunner.Collector = collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole)
+	}
+
+	newRunner.FuncMapper = map[string]func() error{
+		"deploy":  newRunner.Deploy,
+		"delete":  newRunner.Delete,
+		"status":  newRunner.Status,
+		"update":  newRunner.Update,
+		"refresh": newRunner.Refresh,
+	}
+
+	return newRunner, nil
 }
 
 // SetupBuilder setup builder struct for configuration
@@ -219,28 +243,6 @@ func withRunner(builderSt builder.Builder, mode string, postAction func(slacker 
 	return postAction(runner.Slacker)
 }
 
-// NewRunner creates a new runner
-func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
-	newRunner := Runner{
-		Logger:  Logger.New(),
-		Builder: newBuilder,
-		Slacker: slack.NewSlackClient(newBuilder.Config.SlackOff),
-	}
-
-	if checkManifestCommands(mode) {
-		newRunner.Collector = collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole)
-	}
-
-	newRunner.FuncMapper = map[string]func() error{
-		"deploy": newRunner.Deploy,
-		"delete": newRunner.Delete,
-		"status": newRunner.Status,
-		"update": newRunner.Update,
-	}
-
-	return newRunner, nil
-}
-
 // LogFormatting sets log format
 func (r Runner) LogFormatting(logLevel string) {
 	r.Logger.SetOutput(os.Stdout)
@@ -266,7 +268,7 @@ func (r Runner) Deploy() error {
 		}
 	}()
 
-	if err := r.LocalCheck("Do you really want to deploy this application? "); err != nil {
+	if err := tool.LocalCheck("Do you really want to deploy this application? ", r.Builder.Config.AutoApply); err != nil {
 		return err
 	}
 
@@ -412,7 +414,7 @@ func (r Runner) Delete() error {
 		}
 	}()
 
-	if err := r.LocalCheck("Do you really want to delete applications? "); err != nil {
+	if err := tool.LocalCheck("Do you really want to delete applications? ", r.Builder.Config.AutoApply); err != nil {
 		return err
 	}
 
@@ -554,7 +556,7 @@ func (r Runner) Update() error {
 	color.Green.Fprintln(os.Stdout, "[ TO BE ]")
 	color.Green.Fprintf(os.Stdout, "Min: %d, Desired: %d, Max: %d", newCapacity.Min, newCapacity.Desired, newCapacity.Max)
 
-	if err := r.LocalCheck("Do you really want to update? "); err != nil {
+	if err := tool.LocalCheck("Do you really want to update? ", r.Builder.Config.AutoApply); err != nil {
 		return err
 	}
 
@@ -602,7 +604,55 @@ func (r Runner) Update() error {
 	return nil
 }
 
-//Generate new deployer
+// Refresh will refresh autoscaling group instances
+func (r Runner) Refresh() error {
+	i := inspector.New(r.Builder.Config.Region)
+
+	asg, err := i.SelectStack(r.Builder.Config.Application)
+	if err != nil {
+		return err
+	}
+	r.Logger.Debugf("Selected target autoscaling group: %s", asg)
+
+	group, err := i.GetStackInformation(asg)
+	if err != nil {
+		return err
+	}
+
+	r.Logger.Debugf("Autoscaling group found: %s", *group.AutoScalingGroupARN)
+
+	if err := tool.LocalCheck("Do you really want to refresh? ", r.Builder.Config.AutoApply); err != nil {
+		return err
+	}
+
+	r.Logger.Debug("Create a new refresher")
+	refresher := refresh.New(r.Builder.Config.Region)
+	refresher.SetTarget(group)
+
+	input := make(chan error)
+	go func(ch chan error) {
+		ch <- refresher.StartRefresh(r.Builder.Config.InstanceWarmup, r.Builder.Config.MinHealthyPercentage)
+	}(input)
+
+	time.Sleep(3 * time.Second)
+
+	if err := refresher.StatusCheck(r.Builder.Config.PollingInterval, r.Builder.Config.Timeout); err != nil {
+		return err
+	}
+
+	if err := refresher.PrintResult(); err != nil {
+		return err
+	}
+
+	if err := <-input; err != nil {
+		r.Logger.Warn(err.Error())
+	}
+
+	r.Logger.Infof("Refresh operation is finished")
+	return nil
+}
+
+// Generate new deployer
 func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.AWSConfig, apiTestTemplates []*schemas.APITestTemplate, region string, slack slack.Slack, c collector.Collector) deployer.DeployManager {
 	var att *schemas.APITestTemplate
 	if stack.APITestEnabled {
@@ -670,16 +720,6 @@ func askApplicationName() (string, error) {
 // checkManifestCommands checks if mode is needed to run manifest validation
 func checkManifestCommands(mode string) bool {
 	return tool.IsStringInArray(mode, []string{"deploy", "delete"})
-}
-
-func (r Runner) LocalCheck(message string) error {
-	// From local os, you need to ensure that this command is intended
-	if runtime.GOOS == "darwin" && !r.Builder.Config.AutoApply {
-		if !tool.AskContinue(message) {
-			return errors.New("you declined to run command")
-		}
-	}
-	return nil
 }
 
 // CheckUpdateInformation checks if updated information is valid or not

@@ -50,12 +50,13 @@ var zeroTimeout = 0 * time.Minute
 var zeroPollingInterval = 0 * time.Second
 
 var flagKey = map[string]string{
-	"deploy": "deploySet",
-	"delete": "fullSet",
-	"init":   "initSet",
-	"status": "statusSet",
-	"update": "updateSet",
-	"add":    "addSet",
+	"deploy":  "deploySet",
+	"delete":  "fullSet",
+	"init":    "initSet",
+	"status":  "statusSet",
+	"update":  "updateSet",
+	"add":     "addSet",
+	"refresh": "refreshSet",
 }
 
 var CommonFlagRegistry = []Flag{
@@ -414,6 +415,50 @@ var FlagRegistry = map[string][]Flag{
 			Usage:         "Desired instance capacity you want to update with",
 			Value:         aws.Int(-1),
 			DefValue:      -1,
+			FlagAddMethod: "IntVar",
+		},
+		{
+			Name:          "polling-interval",
+			Usage:         "Time to interval for polling health check (default 60s)",
+			Value:         &zeroPollingInterval,
+			DefValue:      pollingInterval,
+			FlagAddMethod: "DurationVar",
+		},
+		{
+			Name:          "timeout",
+			Usage:         "Time to wait for deploy to finish before timing out (default 60m)",
+			Value:         &zeroTimeout,
+			DefValue:      timeout,
+			FlagAddMethod: "DurationVar",
+		},
+	},
+	"refreshSet": {
+		{
+			Name:          "region",
+			Usage:         "Region of autoscaling group",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
+			FlagAddMethod: "StringVar",
+		},
+		{
+			Name:          "auto-apply",
+			Usage:         "Apply command without confirmation from local terminal",
+			Value:         aws.Bool(false),
+			DefValue:      false,
+			FlagAddMethod: "BoolVar",
+		},
+		{
+			Name:          "instance-warmup",
+			Usage:         "How much time it takes a newly launched instance to be ready to use.",
+			Value:         aws.Int(constants.DefaultInstanceWarmup),
+			DefValue:      constants.DefaultInstanceWarmup,
+			FlagAddMethod: "IntVar",
+		},
+		{
+			Name:          "min-healthy-percentage",
+			Usage:         "At least this percentage of the desired capacity of the Auto Scaling group must remain healthy during this operation to allow it to continue.",
+			Value:         aws.Int(constants.DefaultMinHealthyPercentage),
+			DefValue:      constants.DefaultMinHealthyPercentage,
 			FlagAddMethod: "IntVar",
 		},
 		{
