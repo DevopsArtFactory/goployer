@@ -345,7 +345,7 @@ func TestCheckValidationStack(t *testing.T) {
 
 	b.Stacks[0].BlockDevices[0].VolumeType = "gp2"
 	b.Stacks[0].BlockDevices[0].VolumeSize = 0
-	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of gp2 type should be larger than 1GiB" {
+	if err := b.CheckValidation(); err == nil || err.Error() != "volume size of gp2 or gp3 type should be larger than 1GiB" {
 		t.Errorf("validation failed: volume size - gp2")
 	}
 
