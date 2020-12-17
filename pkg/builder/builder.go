@@ -336,8 +336,8 @@ func (b Builder) CheckValidation() error {
 					return fmt.Errorf("not available volume type : %s", block.VolumeType)
 				}
 
-				if block.VolumeType == "gp2" && block.VolumeSize < 1 {
-					return errors.New("volume size of gp2 type should be larger than 1GiB")
+				if tool.IsStringInArray(block.VolumeType, []string{"gp2", "gp3"}) && block.VolumeSize < 1 {
+					return errors.New("volume size of gp2 or gp3 type should be larger than 1GiB")
 				}
 
 				if tool.IsStringInArray(block.VolumeType, constants.IopsRequiredBlockType) && block.VolumeSize < 4 {

@@ -96,6 +96,17 @@ stacks:
     lifecycle_callbacks:
       pre_terminate_past_cluster:
         - service hello stop
+    # lifecycle hooks
+    lifecycle_hooks:
+      # Lifecycle hooks for launching new instances
+      launch_transition:
+        - lifecycle_hook_name: hello-launch-lifecycle-hook
+          heartbeat_timeout: 30
+          default_result: CONTINUE
+          notification_metadata: "this is test for launching"
+          #notification_target_arn: arn:aws:sns:ap-northeast-2:816736805842:test
+          #role_arn: arn:aws:iam::816736805842:role/test-autoscaling-role
+
     regions:
       - region: ap-northeast-2
         instance_type: t3.medium
@@ -278,6 +289,9 @@ stacks:
         volume_size: 8
         volume_type: "io2"
         iops: 100
+      - device_name: /dev/xvdb
+        volume_size: 400
+        volume_type: "gp3"
     autoscaling: *autoscaling_policy
     alarms: *autoscaling_alarms
 
