@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= amd64
 BUILD_DIR ?= ./out
@@ -183,8 +184,7 @@ api-test:
 .PHONY: coverage
 coverage: $(BUILD_DIR)
 	@ go test -count=1 -race -cover -short -timeout=90s -coverprofile=out/coverage.txt -coverpkg="./pkg/...,./hack..." $(TEST_PACKAGES)
-	@- curl -s https://codecov.io/bash > $(BUILD_DIR)/upload_coverage && bash $(BUILD_DIR)/upload_coverage
-
+	@- curl -s https://codecov.io/bash > $(BUILD_DIR)/upload_coverage && bash $(BUILD_DIR)/upload_coverage -t $(COVERAGE_TOKEN)
 .PHONY: linters
 linters: $(BUILD_DIR)
 	@ ./hack/linters.sh

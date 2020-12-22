@@ -680,6 +680,8 @@ func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.A
 		d = deployer.NewBlueGreen(&h)
 	case constants.CanaryDeployment:
 		d = deployer.NewCanary(&h)
+	case constants.RollingUpdateDeployment:
+		d = deployer.NewRollingUpdate(&h)
 	}
 
 	return d

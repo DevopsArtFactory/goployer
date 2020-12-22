@@ -145,10 +145,12 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 		}
 	}
 
-	for i := range stacks {
+	for i, stack := range stacks {
 		if b.Config.PollingInterval > 0 {
 			stacks[i].PollingInterval = b.Config.PollingInterval
 		}
+
+		stacks[i].ReplacementType = strings.ToLower(stack.ReplacementType)
 	}
 
 	b.Stacks = stacks

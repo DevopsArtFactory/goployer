@@ -44,9 +44,9 @@ type Canary struct {
 	*Deployer
 }
 
-// NewCanary creates new BlueGreen deployment deployer
+// NewCanary creates new canary deployment deployer
 func NewCanary(h *helper.DeployerHelper) *Canary {
-	awsClients := []aws.Client{}
+	var awsClients []aws.Client
 	for _, region := range h.Stack.Regions {
 		if len(h.Region) > 0 && h.Region != region.Region {
 			h.Logger.Debugf("skip creating aws clients in %s region", region.Region)
@@ -55,25 +55,7 @@ func NewCanary(h *helper.DeployerHelper) *Canary {
 		awsClients = append(awsClients, aws.BootstrapServices(region.Region, h.Stack.AssumeRole))
 	}
 
-	deployerStruct := Deployer{
-		Mode:              h.Stack.ReplacementType,
-		Logger:            h.Logger,
-		AwsConfig:         h.AwsConfig,
-		AWSClients:        awsClients,
-		APITestTemplate:   h.APITestTemplates,
-		AsgNames:          map[string]string{},
-		PrevAsgs:          map[string][]string{},
-		PrevInstances:     map[string][]string{},
-		PrevInstanceCount: map[string]schemas.Capacity{},
-		PrevVersions:      map[string][]int{},
-		SecurityGroup:     map[string]*string{},
-		CanaryFlag:        map[string]bool{},
-		LatestAsg:         map[string]string{},
-		Stack:             h.Stack,
-		Slack:             h.Slack,
-		Collector:         h.Collector,
-		StepStatus:        helper.InitStartStatus(),
-	}
+	d := InitDeploymentConfiguration(h, awsClients)
 
 	return &Canary{
 		PrevHealthCheckTargetGroups: map[string]string{},
@@ -81,7 +63,7 @@ func NewCanary(h *helper.DeployerHelper) *Canary {
 		TargetGroups:                map[string][]*string{},
 		LoadBalancer:                map[string]string{},
 		LBSecurityGroup:             map[string]*string{},
-		Deployer:                    &deployerStruct,
+		Deployer:                    &d,
 	}
 }
 
@@ -156,11 +138,11 @@ func (c *Canary) Deploy(config schemas.Config) error {
 				return err
 			}
 		case false:
-			changedRegion, err := c.RunCanaryDeployment(config, region, tgDetail, canaryLoadBalancer, canaryVersion)
+			changedRegionConfig, err := c.RunCanaryDeployment(config, region, tgDetail, canaryLoadBalancer, canaryVersion)
 			if err != nil {
 				return err
 			}
-			c.Stack.Regions[i] = changedRegion
+			c.Stack.Regions[i] = changedRegionConfig
 		}
 	}
 
@@ -332,7 +314,7 @@ func (c *Canary) RunAPITest(config schemas.Config) error {
 
 // ValidateCanaryDeployment validates if configuration is right for canary deployment
 func (c *Canary) ValidateCanaryDeployment(config schemas.Config, region string) error {
-	if !c.Deployer.CanaryFlag[region] && config.CompleteCanary {
+	if c.Deployer.DeploymentFlag[region] != constants.CanaryDeployment && config.CompleteCanary {
 		return errors.New("you cannot complete canary deployment before start canary before")
 	}
 
@@ -805,36 +787,6 @@ func (c *Canary) CleanPreviousCanaryResources(region schemas.RegionConfig, compl
 	return nil
 }
 
-// ResizingAutoScalingGroup sets autoscaling group instance count to desired value
-func (c *Canary) ResizingAutoScalingGroup(asg string, region schemas.RegionConfig, capacity schemas.Capacity) error {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	c.Logger.Info(fmt.Sprintf("[Canary complete]Modifying the size of autoscaling group: %s(%s)", asg, c.Stack.Stack))
-	c.Slack.SendSimpleMessage(fmt.Sprintf("[Canary complete]Modifying the size of autoscaling group: %s/%s", asg, c.Stack.Stack))
-
-	retry := int64(3)
-	for {
-		retry, err = client.EC2Service.UpdateAutoScalingGroupSize(asg, capacity.Min, capacity.Max, capacity.Desired, retry)
-		if err != nil {
-			if retry > 0 {
-				c.Logger.Debugf("error occurred and remained retry count is %d", retry)
-				time.Sleep(time.Duration(1+(2-retry)) * time.Second)
-			} else {
-				return err
-			}
-		}
-
-		if err == nil {
-			break
-		}
-	}
-
-	return nil
-}
-
 //  DeleteLoadBalancer deletes load balancer
 func (c *Canary) DeleteLoadBalancer(region schemas.RegionConfig) error {
 	if len(c.LoadBalancer[region.Region]) == 0 {
@@ -1083,7 +1035,7 @@ func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.Regio
 
 // CompleteCanaryDeployment completes canary deployment
 func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.RegionConfig, latestASG string) error {
-	asgDetail, err := c.Deployer.DescribeAutoScalingGroup(latestASG, region)
+	asgDetail, err := c.Deployer.DescribeAutoScalingGroup(latestASG, region.Region)
 	if err != nil {
 		return err
 	}
@@ -1122,7 +1074,7 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 	}
 
 	c.Logger.Debugf("Resizing latest autoscaling group: min - %d, desired - %d, max - %d", appliedCapacity.Min, appliedCapacity.Desired, appliedCapacity.Max)
-	if err := c.ResizingAutoScalingGroup(latestASG, region, appliedCapacity); err != nil {
+	if err := c.Deployer.ResizingAutoScalingGroup(latestASG, region.Region, appliedCapacity); err != nil {
 		return err
 	}
 

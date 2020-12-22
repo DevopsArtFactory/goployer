@@ -6,3 +6,4 @@ build
 venv
 .DS_Store
 configs/*
+.env
