@@ -39,6 +39,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/collector"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/helper"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/slack"
 	"github.com/DevopsArtFactory/goployer/pkg/templates"
@@ -62,9 +63,10 @@ type Deployer struct {
 	AWSClients        []aws.Client
 	LocalProvider     builder.UserdataProvider
 	Slack             slack.Slack
+	AppliedCapacity   *schemas.Capacity
 	Collector         collector.Collector
 	StepStatus        map[int64]bool
-	CanaryFlag        map[string]bool
+	DeploymentFlag    map[string]string
 }
 
 type APIAttacker struct {
@@ -75,9 +77,33 @@ type APIAttacker struct {
 	Targets  []vegeta.Target
 }
 
+// InitDeploymentConfiguration returns initialized configurations for Deployer
+func InitDeploymentConfiguration(h *helper.DeployerHelper, awsClients []aws.Client) Deployer {
+	return Deployer{
+		Mode:              h.Stack.ReplacementType,
+		Logger:            h.Logger,
+		AwsConfig:         h.AwsConfig,
+		AWSClients:        awsClients,
+		APITestTemplate:   h.APITestTemplates,
+		AsgNames:          map[string]string{},
+		PrevAsgs:          map[string][]string{},
+		PrevInstances:     map[string][]string{},
+		PrevInstanceCount: map[string]schemas.Capacity{},
+		PrevVersions:      map[string][]int{},
+		SecurityGroup:     map[string]*string{},
+		DeploymentFlag:    map[string]string{},
+		LatestAsg:         map[string]string{},
+		Stack:             h.Stack,
+		Slack:             h.Slack,
+		Collector:         h.Collector,
+		AppliedCapacity:   nil,
+		StepStatus:        helper.InitStartStatus(),
+	}
+}
+
 // Polling is polling healthy information from instance/target group
 func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.Client, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
-	if *asg.AutoScalingGroupName == "" {
+	if asg.AutoScalingGroupName == nil {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
 
@@ -85,7 +111,7 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 	if !forceManifestCapacity && d.PrevInstanceCount[region.Region].Desired > d.Stack.Capacity.Desired && d.Mode != constants.CanaryDeployment {
 		threshold = d.PrevInstanceCount[region.Region].Desired
 	} else {
-		threshold = d.Stack.Capacity.Desired
+		threshold = d.AppliedCapacity.Desired
 	}
 
 	if region.HealthcheckTargetGroup == "" && region.HealthcheckLB == "" {
@@ -167,28 +193,7 @@ func (d *Deployer) CheckTerminating(client aws.Client, target string, disableMet
 	}
 	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target))
 
-	if err := d.CleanAutoscalingSet(client, target); err != nil {
-		d.Logger.Errorf(err.Error())
-		return false
-	}
-
-	if !disableMetrics {
-		d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
-		if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
-			d.Logger.Errorf(err.Error())
-			return false
-		}
-		d.Logger.Debugf("update status of %s is finished", target)
-	}
-
-	d.Logger.Debugf("Start deleting launch templates in %s", target)
-	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
-		d.Logger.Errorln(err.Error())
-		return false
-	}
-	d.Logger.Debugf("Launch templates are deleted in %s\n", target)
-
-	return true
+	return d.ClearResources(client, target, disableMetrics)
 }
 
 // CleanAutoscalingSet cleans autoscaling group itself
@@ -437,8 +442,6 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 	// Make Frigga
 	frigga := tool.Frigga{}
 	for _, region := range d.Stack.Regions {
-		//Region check
-		//If region id is passed from command line, then deployer will deploy in that region only.
 		if config.Region != "" && config.Region != region.Region {
 			d.Logger.Debug("This region is skipped by user : " + region.Region)
 			continue
@@ -447,7 +450,7 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 		var prevAsgs []string
 		var prevInstanceIds []string
 		var prevVersions []int
-		canaryFlag := false
+		deploymentFlag := constants.EmptyString
 
 		//Setup frigga with prefix
 		frigga.Prefix = tool.BuildPrefixName(d.AwsConfig.Name, d.Stack.Env, region.Region)
@@ -477,20 +480,22 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 			prevInstanceCount.Max = *asgGroup.MaxSize
 			prevInstanceCount.Min = *asgGroup.MinSize
 
-			if d.Mode == constants.CanaryDeployment {
-				isCanaryAuto := false
-				for _, tag := range asgGroup.Tags {
-					if *tag.Key == constants.DeploymentTagKey && *tag.Value == constants.CanaryDeployment {
-						canaryFlag = true
-						isCanaryAuto = true
-						break
+			isBeingCanaryDeployed := false
+			for _, tag := range asgGroup.Tags {
+				if *tag.Key == constants.DeploymentTagKey {
+					switch strings.ToLower(*tag.Value) {
+					case constants.CanaryDeployment:
+						deploymentFlag = constants.CanaryDeployment
+						isBeingCanaryDeployed = true
+					case constants.RollingUpdateDeployment:
+						// return error because rolling update modifies previous autoscaling group capacity
+						return fmt.Errorf("cannot deploy because rolling update is being processed now")
 					}
+					break
 				}
+			}
 
-				if isCanaryAuto || config.CompleteCanary {
-					prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
-				}
-			} else {
+			if d.Mode != constants.CanaryDeployment || isBeingCanaryDeployed || config.CompleteCanary {
 				prevAsgs = append(prevAsgs, *asgGroup.AutoScalingGroupName)
 			}
 
@@ -502,19 +507,20 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 		if latestAsg == nil && d.Mode == constants.CanaryDeployment {
 			d.StepStatus[constants.StepCheckPrevious] = true
 		}
-		d.Logger.Infof("Previous Versions : %s", strings.Join(prevAsgs, " | "))
+
+		if len(prevAsgs) > 0 {
+			d.Logger.Infof("Previous Versions : %s", strings.Join(prevAsgs, " | "))
+		}
 
 		d.PrevAsgs[region.Region] = prevAsgs
 		d.PrevInstances[region.Region] = prevInstanceIds
 		d.PrevVersions[region.Region] = prevVersions
 		d.PrevInstanceCount[region.Region] = prevInstanceCount
-		d.CanaryFlag[region.Region] = canaryFlag
+		d.DeploymentFlag[region.Region] = deploymentFlag
 		if latestAsg != nil {
 			d.LatestAsg[region.Region] = *latestAsg.AutoScalingGroupName
 			d.Logger.Infof("Latest autoscaling group version : %s", *latestAsg.AutoScalingGroupName)
 		}
-
-		d.Logger.Debugf("Previous deployment with canary: %t", canaryFlag)
 	}
 
 	d.StepStatus[constants.StepCheckPrevious] = true
@@ -689,14 +695,15 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	}
 
 	d.AsgNames[region.Region] = newAsgName
-	d.Stack.Capacity.Desired = appliedCapacity.Desired
+	d.AppliedCapacity = &appliedCapacity
+	//d.Stack.Capacity.Desired = appliedCapacity.Desired
 
 	return nil
 }
 
 // DecideCapacity returns Applied Capacity for deployment
 func (d *Deployer) DecideCapacity(forceManifestCapacity, completeCanary bool, region string) (schemas.Capacity, error) {
-	if d.Mode == constants.CanaryDeployment && !completeCanary {
+	if NeedToInitializeCapacity(d.Mode, completeCanary) {
 		return schemas.Capacity{
 			Min:     1,
 			Max:     1,
@@ -704,15 +711,18 @@ func (d *Deployer) DecideCapacity(forceManifestCapacity, completeCanary bool, re
 		}, nil
 	}
 
-	var appliedCapacity schemas.Capacity
-
-	if !forceManifestCapacity && d.PrevInstanceCount[region].Desired > d.Stack.Capacity.Desired {
-		appliedCapacity = d.PrevInstanceCount[region]
-	} else {
-		appliedCapacity = d.Stack.Capacity
-	}
+	appliedCapacity := d.CompareWithCurrentCapacity(forceManifestCapacity, region)
 
 	return appliedCapacity, nil
+}
+
+// CompareWithCurrentCapacity compares capacity of manifest with the one in current deployment to adjust capacity
+// in order to prevent sudden decrease of capacity which could impact current environment
+func (d *Deployer) CompareWithCurrentCapacity(forceManifestCapacity bool, region string) schemas.Capacity {
+	if !forceManifestCapacity && d.PrevInstanceCount[region].Desired > d.Stack.Capacity.Desired {
+		return d.PrevInstanceCount[region]
+	}
+	return d.Stack.Capacity
 }
 
 // GenerateTags creates tag list for autoscaling group
@@ -805,11 +815,11 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 		})
 	}
 
-	// Canary Tags
+	// DeploymentTag Tags
 	if d.Mode == constants.CanaryDeployment {
 		ret = append(ret, &autoscaling.Tag{
 			Key:   eaws.String(constants.DeploymentTagKey),
-			Value: eaws.String(constants.CanaryDeployment),
+			Value: eaws.String(d.Mode),
 		})
 	}
 
@@ -1061,6 +1071,36 @@ func (d Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 	return nil
 }
 
+//ReducePreviousAutoScalingGroupCapacity cleans previous version of autoscaling group
+func (d Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreaseCnt int64) (bool, error) {
+	isDone := true
+
+	if len(d.PrevAsgs[region]) > 0 {
+		// Decrease the count of autoscaling group capacity by decreaseCnt
+		for _, asg := range d.PrevAsgs[region] {
+			d.Logger.Infof("[%s]Previous version: %s, decrease count: %d", region, asg, decreaseCnt)
+
+			asgDetail, err := d.DescribeAutoScalingGroup(asg, region)
+			if err != nil {
+				return false, err
+			}
+
+			if !IfEmptyAutoscalingGroup(*asgDetail.DesiredCapacity, asgDetail.Instances) {
+				isDone = false
+				nextCapacity, err := MakeCapacity(*asgDetail.MinSize-decreaseCnt, *asgDetail.MaxSize-decreaseCnt, *asgDetail.DesiredCapacity-decreaseCnt)
+				if err != nil {
+					return false, err
+				}
+				if err := d.ResizingAutoScalingGroup(asg, region, *nextCapacity); err != nil {
+					d.Logger.Errorf(err.Error())
+				}
+			}
+		}
+	}
+
+	return isDone, nil
+}
+
 // CleanChecking checks if instances in previous autoscaling groups are terminated or not
 func (d *Deployer) CleanChecking(config schemas.Config) (bool, error) {
 	var finished []string
@@ -1073,24 +1113,17 @@ func (d *Deployer) CleanChecking(config schemas.Config) (bool, error) {
 
 	//Valid Count
 	validCount := 1
-	if config.Region == "" {
+	if len(config.Region) == 0 {
 		validCount = len(d.Stack.Regions)
-	}
-
-	if len(config.Region) > 0 {
-		if !CheckRegionExist(config.Region, d.Stack.Regions) {
-			validCount = 0
-		}
+	} else if !CheckRegionExist(config.Region, d.Stack.Regions) {
+		validCount = 0
 	}
 
 	for _, region := range d.Stack.Regions {
-		//Region check
-		//If region id is passed from command line, then deployer will deploy in that region only.
-		if config.Region != "" && config.Region != region.Region {
+		if len(config.Region) > 0 && config.Region != region.Region {
 			d.Logger.Debugf("This region is skipped by user : %s", region.Region)
 			continue
 		}
-
 		d.Logger.Infof("Checking Termination stack for region starts : %s", region.Region)
 
 		//select client
@@ -1110,7 +1143,7 @@ func (d *Deployer) CleanChecking(config schemas.Config) (bool, error) {
 		for _, target := range targets {
 			ok := d.CheckTerminating(client, target, config.DisableMetrics)
 			if ok {
-				d.Logger.Infof("finished : %s", target)
+				d.Logger.Infof("Termination finished: %s", target)
 				okCount++
 			}
 		}
@@ -1125,6 +1158,32 @@ func (d *Deployer) CleanChecking(config schemas.Config) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// ClearResources removes all resources of deployment and record metrics
+func (d *Deployer) ClearResources(client aws.Client, target string, disableMetrics bool) bool {
+	if err := d.CleanAutoscalingSet(client, target); err != nil {
+		d.Logger.Errorf(err.Error())
+		return false
+	}
+
+	if !disableMetrics {
+		d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
+		if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
+			d.Logger.Errorf(err.Error())
+			return false
+		}
+		d.Logger.Debugf("update status of %s is finished", target)
+	}
+
+	d.Logger.Debugf("Start deleting launch templates in %s", target)
+	if err := client.EC2Service.DeleteLaunchTemplates(target); err != nil {
+		d.Logger.Errorln(err.Error())
+		return false
+	}
+	d.Logger.Debugf("Launch templates are deleted in %s\n", target)
+
+	return true
 }
 
 // StartGatheringMetrics starts to gather the whole metrics from deployer
@@ -1207,8 +1266,8 @@ func (d *Deployer) RunAPITest(config schemas.Config) error {
 }
 
 // DescribeAutoScalingGroup describes autoscaling group
-func (d *Deployer) DescribeAutoScalingGroup(asg string, region schemas.RegionConfig) (*autoscaling.Group, error) {
-	client, err := selectClientFromList(d.AWSClients, region.Region)
+func (d *Deployer) DescribeAutoScalingGroup(asg, region string) (*autoscaling.Group, error) {
+	client, err := selectClientFromList(d.AWSClients, region)
 	if err != nil {
 		return nil, err
 	}
@@ -1242,4 +1301,72 @@ func getCurrentVersion(prevVersions []int) int {
 		return 0
 	}
 	return (prevVersions[len(prevVersions)-1] + 1) % 1000
+}
+
+// NeedToInitializeCapacity checks if deployment process needs initialized capacity
+// If this value is true, then capacity will be adjusted to min: 1,desired: 1,max: 1
+func NeedToInitializeCapacity(mode string, completeCanary bool) bool {
+	return mode == constants.RollingUpdateDeployment || (mode == constants.CanaryDeployment && !completeCanary)
+}
+
+// ResizingAutoScalingGroup sets autoscaling group instance count to desired value
+func (d *Deployer) ResizingAutoScalingGroup(asg, region string, capacity schemas.Capacity) error {
+	client, err := selectClientFromList(d.AWSClients, region)
+	if err != nil {
+		return err
+	}
+
+	d.Logger.Infof("Modifying the size of autoscaling group: %s(%s)", asg, d.Stack.Stack)
+	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group: %s/%s", asg, d.Stack.Stack))
+
+	retry := int64(3)
+	for {
+		retry, err = client.EC2Service.UpdateAutoScalingGroupSize(asg, capacity.Min, capacity.Max, capacity.Desired, retry)
+		if err != nil {
+			if retry > 0 {
+				d.Logger.Debugf("error occurred and remained retry count is %d", retry)
+				time.Sleep(time.Duration(1+(2-retry)) * time.Second)
+			} else {
+				return err
+			}
+		}
+
+		if err == nil {
+			break
+		}
+	}
+
+	return nil
+}
+
+// IfEmptyAutoscalingGroup
+func IfEmptyAutoscalingGroup(desired int64, instances []*autoscaling.Instance) bool {
+	return desired == 0 || len(instances) == 0
+}
+
+// MakeCapacity makes capacity object with min,max,desired
+func MakeCapacity(min, max, desired int64) (*schemas.Capacity, error) {
+	if min < 0 {
+		min = 0
+	}
+
+	if max < 0 {
+		max = 0
+	}
+
+	if desired < 0 {
+		desired = 0
+	}
+
+	if min > desired || min > max || desired > max {
+		return nil, fmt.Errorf("capacity modification is wrong, min: %d, desired: %d, max: %d", min, desired, max)
+	}
+
+	capacity := &schemas.Capacity{
+		Min:     min,
+		Max:     max,
+		Desired: desired,
+	}
+
+	return capacity, nil
 }

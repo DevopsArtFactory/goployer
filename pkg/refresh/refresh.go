@@ -53,7 +53,7 @@ func (r *Refresher) SetTarget(group *autoscaling.Group) {
 func (r *Refresher) StartRefresh(instanceWarmup, minHealthyPercentage int64) error {
 	logrus.Debugf("Start to trigger instance refresh")
 	logrus.Debugf("Instance Warmup time: %ds", instanceWarmup)
-	logrus.Debugf("Minimum healthy instance percentage: %d%", minHealthyPercentage)
+	logrus.Debugf("Minimum healthy instance percentage: %d", minHealthyPercentage)
 	id, err := r.AWSClient.EC2Service.StartInstanceRefresh(r.TargetGroup.AutoScalingGroupName, instanceWarmup, minHealthyPercentage)
 	if err != nil {
 		return err

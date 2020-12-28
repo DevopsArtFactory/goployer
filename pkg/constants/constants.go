@@ -48,6 +48,9 @@ const (
 	// InServiceStatus means status in service
 	InServiceStatus = "InService"
 
+	// PendingStatus means pending status
+	PendingStatus = "Pending"
+
 	// TestString is "test"
 	TestString = "test"
 
@@ -163,8 +166,9 @@ const (
 	CanaryMark = "canary"
 
 	// Deployment Methods
-	BlueGreenDeployment = "BlueGreen"
-	CanaryDeployment    = "Canary"
+	BlueGreenDeployment     = "bluegreen"
+	CanaryDeployment        = "canary"
+	RollingUpdateDeployment = "rollingupdate"
 )
 
 var (

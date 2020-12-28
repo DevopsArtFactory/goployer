@@ -46,25 +46,8 @@ func NewBlueGreen(h *helper.DeployerHelper) *BlueGreen {
 		awsClients = append(awsClients, aws.BootstrapServices(region.Region, h.Stack.AssumeRole))
 	}
 
-	d := Deployer{
-		Mode:              h.Stack.ReplacementType,
-		Logger:            h.Logger,
-		AwsConfig:         h.AwsConfig,
-		AWSClients:        awsClients,
-		APITestTemplate:   h.APITestTemplates,
-		AsgNames:          map[string]string{},
-		PrevAsgs:          map[string][]string{},
-		PrevInstances:     map[string][]string{},
-		PrevInstanceCount: map[string]schemas.Capacity{},
-		PrevVersions:      map[string][]int{},
-		SecurityGroup:     map[string]*string{},
-		CanaryFlag:        map[string]bool{},
-		LatestAsg:         map[string]string{},
-		Stack:             h.Stack,
-		Slack:             h.Slack,
-		Collector:         h.Collector,
-		StepStatus:        helper.InitStartStatus(),
-	}
+	d := InitDeploymentConfiguration(h, awsClients)
+
 	return &BlueGreen{
 		Deployer: &d,
 	}
