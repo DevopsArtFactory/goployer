@@ -1068,7 +1068,7 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 		return err
 	}
 
-	appliedCapacity, err := c.Deployer.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region)
+	appliedCapacity, err := c.Deployer.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region, len(c.PrevAsgs[region.Region]), c.Stack.RollingUpdateInstanceCount)
 	if err != nil {
 		return err
 	}

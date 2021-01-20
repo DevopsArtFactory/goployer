@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
@@ -76,14 +78,13 @@ func (r *RollingUpdate) CheckPreviousResources(config schemas.Config) error {
 	return nil
 }
 
-// Deploy runs deployments with canary approach
+// Deploy runs deployments with rolling update approach
 func (r *RollingUpdate) Deploy(config schemas.Config) error {
 	if !r.StepStatus[constants.StepCheckPrevious] {
 		return nil
 	}
 	r.Logger.Infof("Deploy Mode is %s", r.Mode)
 
-	//Get LocalFileProvider
 	r.LocalProvider = builder.SetUserdataProvider(r.Stack.Userdata, r.AwsConfig.Userdata)
 	for _, region := range r.Stack.Regions {
 		if config.Region != "" && config.Region != region.Region {
@@ -140,7 +141,7 @@ func (r *RollingUpdate) FinishAdditionalWork(config schemas.Config) error {
 
 	if !skipped {
 		for _, region := range r.Stack.Regions {
-			if config.Region != "" && config.Region != region.Region {
+			if len(config.Region) > 0 && config.Region != region.Region {
 				r.Logger.Debugf("This region is skipped by user : %s", region.Region)
 				continue
 			}
@@ -263,7 +264,12 @@ func (r *RollingUpdate) CleanChecking(config schemas.Config) error {
 
 // CompleteRollingUpdate processes the whole process of rolling update
 func (r *RollingUpdate) CompleteRollingUpdate(config schemas.Config, region schemas.RegionConfig) error {
-	latestASG := r.LatestAsg[region.Region]
+	latestASG, ok := r.LatestAsg[region.Region]
+	if !ok {
+		return nil
+	}
+	logrus.Debugf("Completing rolling update process: %s", latestASG)
+
 	asgDetail, err := r.Deployer.DescribeAutoScalingGroup(latestASG, region.Region)
 	if err != nil {
 		return err
@@ -273,7 +279,7 @@ func (r *RollingUpdate) CompleteRollingUpdate(config schemas.Config, region sche
 		return fmt.Errorf("no autoscaling group information retrieved. Please check autoscaling group resource: %s", latestASG)
 	}
 
-	appliedCapacity, err := r.Deployer.DecideCapacity(config.ForceManifestCapacity, false, region.Region)
+	appliedCapacity, err := r.Deployer.DecideCapacity(config.ForceManifestCapacity, false, region.Region, len(r.PrevAsgs[region.Region]), r.Stack.RollingUpdateInstanceCount)
 	if err != nil {
 		return err
 	}
@@ -283,13 +289,13 @@ func (r *RollingUpdate) CompleteRollingUpdate(config schemas.Config, region sche
 	previousFinished := false
 	for !IsFinishedRollingUpdate(appliedCapacity, targetCapacity) || !previousFinished {
 		if !previousFinished {
-			previousFinished, err = r.Deployer.ReducePreviousAutoScalingGroupCapacity(region.Region, 1)
+			previousFinished, err = r.Deployer.ReducePreviousAutoScalingGroupCapacity(region.Region, r.Stack.RollingUpdateInstanceCount)
 			if err != nil {
 				return err
 			}
 		}
 
-		if err := RetrieveNextCapacity(&appliedCapacity, targetCapacity); err != nil {
+		if err := RetrieveNextCapacity(&appliedCapacity, targetCapacity, r.Stack.RollingUpdateInstanceCount); err != nil {
 			return err
 		}
 
@@ -309,17 +315,26 @@ func (r *RollingUpdate) CompleteRollingUpdate(config schemas.Config, region sche
 }
 
 // RetrieveNextCapacity add one capacity at a time
-func RetrieveNextCapacity(capacity *schemas.Capacity, targetCapacity schemas.Capacity) error {
+func RetrieveNextCapacity(capacity *schemas.Capacity, targetCapacity schemas.Capacity, increaseInstanceCount int64) error {
 	if targetCapacity.Min > capacity.Min {
-		capacity.Min++
+		capacity.Min += increaseInstanceCount
+		if capacity.Min > targetCapacity.Min {
+			capacity.Min = targetCapacity.Min
+		}
 	}
 
 	if targetCapacity.Desired > capacity.Desired {
-		capacity.Desired++
+		capacity.Desired += increaseInstanceCount
+		if capacity.Desired > targetCapacity.Desired {
+			capacity.Desired = targetCapacity.Desired
+		}
 	}
 
 	if targetCapacity.Max > capacity.Max {
-		capacity.Max++
+		capacity.Max += increaseInstanceCount
+		if capacity.Max > targetCapacity.Max {
+			capacity.Max = targetCapacity.Max
+		}
 	}
 	return nil
 }

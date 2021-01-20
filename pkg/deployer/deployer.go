@@ -235,17 +235,17 @@ func (d *Deployer) ResizingAutoScalingGroupToZero(client aws.Client, asg string)
 
 // RunLifecycleCallbacks runs commands before terminating.
 func (d *Deployer) RunLifecycleCallbacks(client aws.Client, region string) bool {
-	target := d.PrevInstances[region]
-	if len(target) == 0 {
+	targets := d.PrevInstances[region]
+	if len(targets) == 0 {
 		d.Logger.Debugf("no target instance exists\n")
 		return false
 	}
 
 	commands := d.Stack.LifecycleCallbacks.PreTerminatePastClusters
 
-	d.Logger.Debugf("run lifecycle callbacks before termination : %s", target)
+	d.Logger.Debugf("run lifecycle callbacks before termination : %s", targets)
 	return client.SSMService.SendCommand(
-		eaws.StringSlice(target),
+		eaws.StringSlice(targets),
 		eaws.StringSlice(commands),
 	)
 }
@@ -640,7 +640,7 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		return err
 	}
 
-	appliedCapacity, err := d.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region)
+	appliedCapacity, err := d.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region, len(d.PrevAsgs[region.Region]), d.Stack.RollingUpdateInstanceCount)
 	if err != nil {
 		return err
 	}
@@ -702,12 +702,17 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 }
 
 // DecideCapacity returns Applied Capacity for deployment
-func (d *Deployer) DecideCapacity(forceManifestCapacity, completeCanary bool, region string) (schemas.Capacity, error) {
-	if NeedToInitializeCapacity(d.Mode, completeCanary) {
+func (d *Deployer) DecideCapacity(forceManifestCapacity, completeCanary bool, region string, prevAsgCount int, rollingUpdateInstanceCount int64) (schemas.Capacity, error) {
+	if prevAsgCount > 0 && NeedToInitializeCapacity(d.Mode, completeCanary) {
+		instanceCnt := int64(1)
+		if d.Mode == constants.RollingUpdateDeployment {
+			instanceCnt = rollingUpdateInstanceCount
+		}
+
 		return schemas.Capacity{
-			Min:     1,
-			Max:     1,
-			Desired: 1,
+			Min:     instanceCnt,
+			Max:     instanceCnt,
+			Desired: instanceCnt,
 		}, nil
 	}
 
@@ -1369,4 +1374,17 @@ func MakeCapacity(min, max, desired int64) (*schemas.Capacity, error) {
 	}
 
 	return capacity, nil
+}
+
+// CheckRegionExist checks if target region is really in regions described in manifest file
+func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
+	regionExists := false
+	for _, region := range regions {
+		if region.Region == target {
+			regionExists = true
+			break
+		}
+	}
+
+	return regionExists
 }

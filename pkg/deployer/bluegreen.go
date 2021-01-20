@@ -206,19 +206,6 @@ func (b *BlueGreen) CleanChecking(config schemas.Config) error {
 	return nil
 }
 
-// CheckRegionExist checks if target region is really in regions described in manifest file
-func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
-	regionExists := false
-	for _, region := range regions {
-		if region.Region == target {
-			regionExists = true
-			break
-		}
-	}
-
-	return regionExists
-}
-
 // GatherMetrics gathers the whole metrics from deployer
 func (b *BlueGreen) GatherMetrics(config schemas.Config) error {
 	if config.DisableMetrics {

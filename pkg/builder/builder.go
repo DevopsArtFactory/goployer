@@ -151,6 +151,9 @@ func (b Builder) SetStacks(stacks []schemas.Stack) Builder {
 		}
 
 		stacks[i].ReplacementType = strings.ToLower(stack.ReplacementType)
+		if stacks[i].ReplacementType == constants.RollingUpdateDeployment && stacks[i].RollingUpdateInstanceCount == 0 {
+			stacks[i].RollingUpdateInstanceCount = 1
+		}
 	}
 
 	b.Stacks = stacks
@@ -538,68 +541,6 @@ func (b Builder) PrintSummary(out io.Writer, targetStack, targetRegion string) e
 	}
 
 	return nil
-}
-
-// MakeSummary prints all configurations in summary
-func (b Builder) MakeSummary(targetStack string) string {
-	summary := []string{}
-	formatting := `
-============================================================
-Target Stack Deployment Information
-============================================================
-name             	: %s
-env              	: %s
-timeout          	: %.0f min
-polling-interval 	: %.0f sec
-assume role      	: %s
-ansible-extra-vars  	: %s
-extra tags       	: %s
-============================================================
-Stack
-============================================================`
-	summary = append(summary, fmt.Sprintf(formatting, b.AwsConfig.Name, b.Config.Env, b.Config.Timeout.Minutes(), b.Config.PollingInterval.Seconds(), b.Config.AssumeRole, b.Config.AnsibleExtraVars, b.Config.ExtraTags))
-
-	for _, stack := range b.Stacks {
-		if stack.Stack == targetStack {
-			summary = append(summary, printEnvironment(stack))
-		}
-	}
-
-	return strings.Join(summary, "\n")
-}
-
-// printEnvironment prints configurations of environment
-func printEnvironment(stack schemas.Stack) string {
-	formatting := `[ %s ]
-Account             	: %s
-Environment             : %s
-IAM Instance Profile    : %s
-tags              	: %s 
-Capacity                : %+v
-MixedInstancesPolicy
-- Enabled 			: %t
-- Override 			: %+v
-- OnDemandPercentage  		: %d
-- SpotAllocationStrategy 	: %s
-- SpotInstancePools 		: %d
-- SpotMaxPrice 			: %s
-	
-============================================================`
-	summary := fmt.Sprintf(formatting,
-		stack.Stack,
-		stack.Account,
-		stack.Env,
-		stack.IamInstanceProfile,
-		strings.Join(stack.Tags, ","),
-		stack.Capacity,
-		stack.MixedInstancesPolicy.Enabled,
-		stack.MixedInstancesPolicy.Override,
-		stack.MixedInstancesPolicy.OnDemandPercentage,
-		stack.MixedInstancesPolicy.SpotAllocationStrategy,
-		stack.MixedInstancesPolicy.SpotInstancePools,
-		stack.MixedInstancesPolicy.SpotMaxPrice,
-	)
-	return summary
 }
 
 // Parsing Manifest File
