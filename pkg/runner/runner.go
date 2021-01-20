@@ -59,7 +59,7 @@ func NewRunner(newBuilder builder.Builder, mode string) (Runner, error) {
 		Slacker: slack.NewSlackClient(newBuilder.Config.SlackOff),
 	}
 
-	if checkManifestCommands(mode) {
+	if checkBuilderConfigurationNeeded(mode) {
 		newRunner.Collector = collector.NewCollector(newBuilder.MetricConfig, newBuilder.Config.AssumeRole)
 	}
 
@@ -82,7 +82,7 @@ func SetupBuilder(mode string) (builder.Builder, error) {
 		return builder.Builder{}, err
 	}
 
-	if !checkManifestCommands(mode) {
+	if !checkBuilderConfigurationNeeded(mode) {
 		return builderSt, nil
 	}
 
@@ -204,7 +204,7 @@ func AddManifest(args []string) error {
 
 // Start function is the starting point of all processes.
 func Start(builderSt builder.Builder, mode string) error {
-	if checkManifestCommands(mode) {
+	if checkBuilderConfigurationNeeded(mode) {
 		// Check validation of configurations
 		if err := builderSt.CheckValidation(); err != nil {
 			return err
@@ -719,8 +719,8 @@ func askApplicationName() (string, error) {
 	return answer, nil
 }
 
-// checkManifestCommands checks if mode is needed to run manifest validation
-func checkManifestCommands(mode string) bool {
+// checkBuilderConfigurationNeeded checks if mode needs configuration settings like builder, metrics etc
+func checkBuilderConfigurationNeeded(mode string) bool {
 	return tool.IsStringInArray(mode, []string{"deploy", "delete"})
 }
 

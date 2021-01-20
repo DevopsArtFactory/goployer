@@ -121,6 +121,9 @@ type Stack struct {
 	// Type of Replacement for deployment
 	ReplacementType string `yaml:"replacement_type"`
 
+	// Instance count per round in rolling update replacement type
+	RollingUpdateInstanceCount int64 `yaml:"rolling_update_instance_count"`
+
 	// Userdata configuration for stack deployment
 	Userdata Userdata `yaml:"userdata,omitempty"`
 
@@ -300,7 +303,7 @@ type RegionConfig struct {
 	// Type of EC2 instance
 	InstanceType string `yaml:"instance_type"`
 
-	// Key name of SSH access
+	// Key name ofSSH access
 	SSHKey string `yaml:"ssh_key"`
 
 	// Amazon AMI ID

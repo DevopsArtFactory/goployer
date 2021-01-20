@@ -48,12 +48,12 @@ func TestDeployer_DecideCapacity(t *testing.T) {
 
 	forceManifestCapacity := false
 	completeCanary := false
-	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion); out != prev {
+	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != prev {
 		t.Error("BlueGreen capacity setting error")
 	}
 
 	forceManifestCapacity = true
-	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion); out != intended {
+	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != intended {
 		t.Error("BlueGreen capacity setting error with forceManifestCapacity")
 	}
 
@@ -63,19 +63,19 @@ func TestDeployer_DecideCapacity(t *testing.T) {
 		Desired: 1,
 	}
 	deployer.Mode = constants.CanaryDeployment
-	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion); out != canaryIntended {
+	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != canaryIntended {
 		t.Error("Canary capacity setting error")
 	}
 
 	completeCanary = true
 	forceManifestCapacity = false
 	deployer.Mode = constants.CanaryDeployment
-	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion); out != prev {
+	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != prev {
 		t.Error("Canary capacity setting error with completeCanary")
 	}
 
 	forceManifestCapacity = true
-	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion); out != intended {
+	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != intended {
 		t.Error("Canary capacity setting error with forceManifestCapacity")
 	}
 }
