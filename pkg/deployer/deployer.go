@@ -107,12 +107,7 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
 
-	var threshold int64
-	if !forceManifestCapacity && d.PrevInstanceCount[region.Region].Desired > d.Stack.Capacity.Desired && d.Mode != constants.CanaryDeployment {
-		threshold = d.PrevInstanceCount[region.Region].Desired
-	} else {
-		threshold = d.AppliedCapacity.Desired
-	}
+	threshold := d.AppliedCapacity.Desired
 
 	if region.HealthcheckTargetGroup == "" && region.HealthcheckLB == "" {
 		d.Logger.Info("health check skipped because of neither target group nor classic load balancer specified")
