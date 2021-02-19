@@ -372,7 +372,7 @@ func (b Builder) CheckValidation() error {
 					}
 
 					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
-						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty : %s", l.LifecycleHookName)
+						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty: %s", l.LifecycleHookName)
 					}
 
 					if l.HeartbeatTimeout == 0 {
@@ -388,13 +388,23 @@ func (b Builder) CheckValidation() error {
 					}
 
 					if len(l.RoleARN) > 0 && len(l.NotificationTargetARN) == 0 {
-						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty  : %s", l.LifecycleHookName)
+						return fmt.Errorf("notification_target_arn is needed if role_arn is not empty: %s", l.LifecycleHookName)
 					}
 
 					if l.HeartbeatTimeout == 0 {
 						Logger.Warnf("you didn't specify the heartbeat timeout. you might have to wait too long time.")
 					}
 				}
+			}
+		}
+
+		if stack.ReplacementType == constants.BlueGreenDeployment {
+			if stack.TerminationDelayRate > 100 {
+				return fmt.Errorf("termination_delay_rate cannot exceed 100. It should be 0<=x<=100")
+			}
+
+			if stack.TerminationDelayRate < 0 {
+				return fmt.Errorf("termination_delay_rate cannot be negative. It should be 0<=x<=100")
 			}
 		}
 

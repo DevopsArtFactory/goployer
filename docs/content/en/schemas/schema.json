@@ -86,6 +86,10 @@
       "description": "Templates for API Test",
       "x-intellij-html-description": "Templates for API Test"
     },
+    "AWSConfig": {
+      "description": "AWS Related Configurations except for stack",
+      "x-intellij-html-description": "AWS Related Configurations except for stack"
+    },
     "AlarmConfigs": {
       "properties": {
         "alarm_actions": {
@@ -456,6 +460,16 @@
           "x-intellij-html-description": "Target group list of load balancer",
           "default": "[]"
         },
+        "termination_policies": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "List of termination policies of autoscaling group. Default will be applied if nothing is specified",
+          "x-intellij-html-description": "List of termination policies of autoscaling group. Default will be applied if nothing is specified",
+          "default": "[]"
+        },
         "use_public_subnets": {
           "type": "boolean",
           "description": "Whether or not to use public subnets",
@@ -483,6 +497,7 @@
         "target_groups",
         "loadbalancers",
         "availability_zones",
+        "termination_policies",
         "use_public_subnets",
         "detailed_monitoring_enabled"
       ],
@@ -703,6 +718,12 @@
           "x-intellij-html-description": "Type of Replacement for deployment",
           "default": "\"\""
         },
+        "rolling_update_instance_count": {
+          "type": "integer",
+          "description": "Instance count per round in rolling update replacement type",
+          "x-intellij-html-description": "Instance count per round in rolling update replacement type",
+          "default": "0"
+        },
         "stack": {
           "type": "string",
           "description": "Name of stack",
@@ -719,6 +740,12 @@
           "x-intellij-html-description": "Stack specific tags",
           "default": "[]"
         },
+        "termination_delay_rate": {
+          "type": "integer",
+          "description": "Percentage of instances to terminate in one batch during termination process in BlueGreen deployment for termination delay",
+          "x-intellij-html-description": "Percentage of instances to terminate in one batch during termination process in BlueGreen deployment for termination delay",
+          "default": "0"
+        },
         "userdata": {
           "$ref": "#/definitions/Userdata",
           "description": "configuration for stack deployment",
@@ -731,6 +758,8 @@
         "account",
         "env",
         "replacement_type",
+        "termination_delay_rate",
+        "rolling_update_instance_count",
         "userdata",
         "iam_instance_profile",
         "tags",

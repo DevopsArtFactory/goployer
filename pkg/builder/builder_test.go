@@ -404,10 +404,22 @@ func TestCheckValidationStack(t *testing.T) {
 			},
 		},
 	}
-	if err := b.CheckValidation(); err == nil || err.Error() != "notification_target_arn is needed if role_arn is not empty : test" {
+	if err := b.CheckValidation(); err == nil || err.Error() != "notification_target_arn is needed if role_arn is not empty: test" {
 		t.Errorf("validation failed: lifecycle hook role")
 	}
 	b.Stacks[0].LifecycleHooks = nil
+
+	b.Stacks[0].ReplacementType = constants.BlueGreenDeployment
+	b.Stacks[0].TerminationDelayRate = 101
+	if err := b.CheckValidation(); err == nil || err.Error() != "termination_delay_rate cannot exceed 100. It should be 0<=x<=100" {
+		t.Errorf("validation failed: termination delay rate exceed 100")
+	}
+
+	b.Stacks[0].TerminationDelayRate = -1
+	if err := b.CheckValidation(); err == nil || err.Error() != "termination_delay_rate cannot be negative. It should be 0<=x<=100" {
+		t.Errorf("validation failed: termination delay rate negative")
+	}
+	b.Stacks[0].TerminationDelayRate = 0
 
 	b.Stacks[0].Regions = []schemas.RegionConfig{
 		{
