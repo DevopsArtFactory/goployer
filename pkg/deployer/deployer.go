@@ -168,27 +168,40 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 
 // CheckTerminating checks if all of instances are terminated well
 func (d *Deployer) CheckTerminating(client aws.Client, target string, disableMetrics bool) bool {
-	asgInfo, err := client.EC2Service.GetMatchingAutoscalingGroup(target)
+	done, err := d.CheckAutoscalingInstanceCount(client, target, 0)
 	if err != nil {
 		d.Logger.Errorf(err.Error())
 		return true
 	}
 
-	if asgInfo == nil {
-		d.Logger.Infof("Already deleted autoscaling group : %s", target)
-		return true
-	}
-
-	d.Logger.Infof("Waiting for instance termination in asg %s", target)
-	if len(asgInfo.Instances) > 0 {
-		d.Logger.Infof("%d instance found : %s", len(asgInfo.Instances), target)
-		d.Slack.SendSimpleMessage(fmt.Sprintf("Still %d instance found : %s", len(asgInfo.Instances), target))
-
+	if done {
+		d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target))
+	} else {
 		return false
 	}
-	d.Slack.SendSimpleMessage(fmt.Sprintf(":+1: All instances are deleted : %s", target))
 
 	return d.ClearResources(client, target, disableMetrics)
+}
+
+// CheckAutoscalingInstanceCount checks instance count in the autoscaling group with desired value
+func (d *Deployer) CheckAutoscalingInstanceCount(client aws.Client, asg string, desired int) (bool, error) {
+	asgInfo, err := client.EC2Service.GetMatchingAutoscalingGroup(asg)
+	if err != nil {
+		return false, err
+	}
+
+	if asgInfo == nil {
+		return false, fmt.Errorf("autoscaling group does not exist: %s", asg)
+	}
+
+	if len(asgInfo.Instances) > desired {
+		d.Logger.Infof("still terminating<< desired: %d, current: %d: %s", desired, len(asgInfo.Instances), asg)
+		d.Slack.SendSimpleMessage(fmt.Sprintf("Still found %d instance to delete : %s", len(asgInfo.Instances)-desired, asg))
+
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // CleanAutoscalingSet cleans autoscaling group itself
@@ -202,15 +215,15 @@ func (d *Deployer) CleanAutoscalingSet(client aws.Client, target string) error {
 	return nil
 }
 
-// ResizingAutoScalingGroupToZero set autoscaling group instance count to 0
-func (d *Deployer) ResizingAutoScalingGroupToZero(client aws.Client, asg string) error {
-	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s(%s)", asg, d.Stack.Stack))
-	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to 0 : %s/%s", asg, d.Stack.Stack))
+// ResizingAutoScalingGroupCount set autoscaling group instance count to 0
+func (d *Deployer) ResizingAutoScalingGroupCount(client aws.Client, asg string, count int64) error {
+	d.Logger.Info(fmt.Sprintf("Modifying the size of autoscaling group to %d : %s(%s)", count, asg, d.Stack.Stack))
+	d.Slack.SendSimpleMessage(fmt.Sprintf("Modifying the size of autoscaling group to %d : %s/%s", count, asg, d.Stack.Stack))
 
 	retry := int64(3)
 	var err error
 	for {
-		retry, err = client.EC2Service.UpdateAutoScalingGroupSize(asg, 0, 0, 0, retry)
+		retry, err = client.EC2Service.UpdateAutoScalingGroupSize(asg, count, count, count, retry)
 		if err != nil {
 			if retry > 0 {
 				d.Logger.Debugf("error occurred and remained retry count is %d", retry)
@@ -996,8 +1009,8 @@ func (d *Deployer) DoCommonAdditionalWork(config schemas.Config) error {
 // TriggerLifecycleCallbacks runs lifecycle callbacks before cleaning.
 func (d *Deployer) TriggerLifecycleCallbacks(config schemas.Config) error {
 	skipped := false
-	if d.Stack.LifecycleCallbacks == nil || len(d.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 {
-		d.Logger.Debugf("no lifecycle callbacks in %s\n", d.Stack.Stack)
+	if d.Stack.LifecycleCallbacks == nil || len(d.Stack.LifecycleCallbacks.PreTerminatePastClusters) == 0 || (d.Mode == constants.BlueGreenDeployment && d.Stack.TerminationDelayRate > 0) {
+		d.Logger.Debugf("no need to run lifecycle callbacks in %s\n", d.Stack.Stack)
 		skipped = true
 	}
 
@@ -1050,16 +1063,46 @@ func (d Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 			return err
 		}
 
-		// First make autoscaling group size to 0
+		// First, make autoscaling group size to 0
 		if len(d.PrevAsgs[region.Region]) > 0 {
 			for _, asg := range d.PrevAsgs[region.Region] {
+				// skip if this is canary deployment
 				if _, ok := d.LatestAsg[region.Region]; ok && asg == d.LatestAsg[region.Region] && d.Mode == constants.CanaryDeployment {
 					continue
 				}
 
-				d.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
-				if err := d.ResizingAutoScalingGroupToZero(client, asg); err != nil {
-					d.Logger.Errorf(err.Error())
+				next := int64(0)
+				if d.Mode == constants.BlueGreenDeployment && d.Stack.TerminationDelayRate > 0 && d.AppliedCapacity != nil {
+					total := d.AppliedCapacity.Desired
+					current := total
+					reduceCnt := getTerminationDelayInstanceCount(current, d.Stack.TerminationDelayRate)
+					for current > 0 {
+						next = getNextTargetInstanceCount(current, reduceCnt)
+						d.Logger.Debugf("resizing target autoscaling group : %s, total: %d, current: %d, desired: %d", asg, total, current, next)
+						if err := d.ResizingAutoScalingGroupCount(client, asg, next); err != nil {
+							d.Logger.Errorf(err.Error())
+						}
+
+						done := false
+						for !done {
+							done, err = d.CheckAutoscalingInstanceCount(client, asg, int(next))
+							if err != nil {
+								d.Logger.Errorf(err.Error())
+								return nil
+							}
+
+							if !done {
+								time.Sleep(config.PollingInterval)
+							}
+						}
+
+						current = next
+					}
+				} else {
+					d.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
+					if err := d.ResizingAutoScalingGroupCount(client, asg, next); err != nil {
+						d.Logger.Errorf(err.Error())
+					}
 				}
 			}
 		} else {
@@ -1382,4 +1425,25 @@ func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
 	}
 
 	return regionExists
+}
+
+// getTerminationDelayInstanceCount returns the number of instances to reduce according to termination delay rate.
+func getTerminationDelayInstanceCount(total, terminationDelayRate int64) int64 {
+	base := (total * terminationDelayRate) / 100
+
+	if base == 0 {
+		base = 1
+	}
+
+	return base
+}
+
+// getNextTargetInstanceCount returns the next desired instance count
+func getNextTargetInstanceCount(current, reduceCnt int64) int64 {
+	base := current - reduceCnt
+	if base < 0 {
+		base = 0
+	}
+
+	return base
 }

@@ -46,6 +46,7 @@ stacks:
     account: dev
     env: dev
     replacement_type: BlueGreen
+    termination_delay_rate: 50
     iam_instance_profile: app-hello-profile
     ebs_optimized: true
     block_devices:
@@ -56,9 +57,9 @@ stacks:
         volume_type: "st1"
         volume_size: 500
     capacity:
-      min: 3
-      max: 3
-      desired: 3
+      min: 4
+      max: 4
+      desired: 4
     autoscaling: *autoscaling_policy
     alarms: *autoscaling_alarms
     lifecycle_callbacks:
@@ -74,7 +75,7 @@ stacks:
         vpc: vpc-artd_apnortheast2
         detailed_monitoring_enabled: false
         security_groups:
-          - hello-artd_apnortheast2
+          #- hello-artd_apnortheast2
           - default-artd_apnortheast2
         healthcheck_target_group: hello-artdapne2-ext
         availability_zones:

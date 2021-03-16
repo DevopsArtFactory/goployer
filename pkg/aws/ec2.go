@@ -404,7 +404,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) ([]*string,
 			return nil, err
 		}
 
-		//If it matches 0 or more than 1, it is wrong
+		// if it matches 0 or more than 1, it is wrong
 		if len(result.SecurityGroups) != 1 {
 			var matched []string
 			for _, s := range result.SecurityGroups {

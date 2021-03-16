@@ -121,6 +121,9 @@ type Stack struct {
 	// Type of Replacement for deployment
 	ReplacementType string `yaml:"replacement_type"`
 
+	// Percentage of instances to terminate in one batch during termination process in BlueGreen deployment for termination delay
+	TerminationDelayRate int64 `yaml:"termination_delay_rate"`
+
 	// Instance count per round in rolling update replacement type
 	RollingUpdateInstanceCount int64 `yaml:"rolling_update_instance_count"`
 
@@ -303,7 +306,7 @@ type RegionConfig struct {
 	// Type of EC2 instance
 	InstanceType string `yaml:"instance_type"`
 
-	// Key name ofSSH access
+	// Key name of SSH access
 	SSHKey string `yaml:"ssh_key"`
 
 	// Amazon AMI ID
