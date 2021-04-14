@@ -55,6 +55,11 @@ func getElbClientFn(session client.ConfigProvider, region string, creds *credent
 
 // GetTargetGroupARNs returns arn list of target groups
 func (e ELBV2Client) GetTargetGroupARNs(targetGroups []string) ([]*string, error) {
+	// Return nil if there is no target group.
+	if len(targetGroups) == 0 {
+		return nil, nil
+	}
+
 	tgWithDetails, err := e.DescribeTargetGroups(aws.StringSlice(targetGroups))
 	if err != nil {
 		return nil, err

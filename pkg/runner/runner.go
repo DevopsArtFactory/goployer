@@ -630,10 +630,10 @@ func (r Runner) Refresh() error {
 	refresher.SetTarget(group)
 
 	input := make(chan error)
+
 	go func(ch chan error) {
 		ch <- refresher.StartRefresh(r.Builder.Config.InstanceWarmup, r.Builder.Config.MinHealthyPercentage)
 	}(input)
-
 	time.Sleep(3 * time.Second)
 
 	if err := refresher.StatusCheck(r.Builder.Config.PollingInterval, r.Builder.Config.Timeout); err != nil {
@@ -682,6 +682,8 @@ func getDeployer(logger *Logger.Logger, stack schemas.Stack, awsConfig schemas.A
 		d = deployer.NewCanary(&h)
 	case constants.RollingUpdateDeployment:
 		d = deployer.NewRollingUpdate(&h)
+	case constants.DeployOnly:
+		d = deployer.NewDeployOnly(&h)
 	}
 
 	return d
