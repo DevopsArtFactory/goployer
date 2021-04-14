@@ -421,6 +421,10 @@ func (c *Canary) AttachToOriginalTargetGroups(config schemas.Config) error {
 			return err
 		}
 
+		if targetGroupARNs == nil {
+			return fmt.Errorf("there is no target group specified")
+		}
+
 		c.Logger.Debugf("Attach autoscaling group to original target groups: %s", c.AsgNames[region.Region])
 		if err := client.EC2Service.AttachAsgToTargetGroups(c.AsgNames[region.Region], targetGroupARNs); err != nil {
 			return err

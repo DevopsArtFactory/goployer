@@ -118,6 +118,11 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 	var err error
 	validHostCount := int64(0)
 
+	if len(region.HealthcheckLB) == 0 && len(region.HealthcheckTargetGroup) == 0 {
+		Logger.Infof("No health check target for this autoscaling group: %s / %s", *asg.AutoScalingGroupName, region.Region)
+		return true, nil
+	}
+
 	d.Logger.Debugf("[Checking healthy host count] Autoscaling Group: %s", *asg.AutoScalingGroupName)
 	if len(region.HealthcheckTargetGroup) > 0 {
 		var healthCheckTargetGroupArn *string
@@ -648,6 +653,10 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		return err
 	}
 
+	if targetGroupARNs == nil {
+		Logger.Debugf("target group does not exist: %s", newAsgName)
+	}
+
 	appliedCapacity, err := d.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region, len(d.PrevAsgs[region.Region]), d.Stack.RollingUpdateInstanceCount)
 	if err != nil {
 		return err
@@ -704,7 +713,6 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 
 	d.AsgNames[region.Region] = newAsgName
 	d.AppliedCapacity = &appliedCapacity
-	//d.Stack.Capacity.Desired = appliedCapacity.Desired
 
 	return nil
 }
@@ -1048,9 +1056,9 @@ func (d *Deployer) TriggerLifecycleCallbacks(config schemas.Config) error {
 }
 
 //CleanPreviousAutoScalingGroup cleans previous version of autoscaling group
-func (d Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
+func (d *Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 	for _, region := range d.Stack.Regions {
-		if config.Region != "" && config.Region != region.Region {
+		if config.Region != constants.EmptyString && config.Region != region.Region {
 			d.Logger.Debugf("This region is skipped by user: %s", region.Region)
 			continue
 		}
@@ -1115,7 +1123,7 @@ func (d Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 }
 
 //ReducePreviousAutoScalingGroupCapacity cleans previous version of autoscaling group
-func (d Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreaseCnt int64) (bool, error) {
+func (d *Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreaseCnt int64) (bool, error) {
 	isDone := true
 
 	if len(d.PrevAsgs[region]) > 0 {
@@ -1416,15 +1424,13 @@ func MakeCapacity(min, max, desired int64) (*schemas.Capacity, error) {
 
 // CheckRegionExist checks if target region is really in regions described in manifest file
 func CheckRegionExist(target string, regions []schemas.RegionConfig) bool {
-	regionExists := false
 	for _, region := range regions {
 		if region.Region == target {
-			regionExists = true
-			break
+			return true
 		}
 	}
 
-	return regionExists
+	return false
 }
 
 // getTerminationDelayInstanceCount returns the number of instances to reduce according to termination delay rate.

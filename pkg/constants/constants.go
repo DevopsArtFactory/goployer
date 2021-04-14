@@ -169,6 +169,7 @@ const (
 	BlueGreenDeployment     = "bluegreen"
 	CanaryDeployment        = "canary"
 	RollingUpdateDeployment = "rollingupdate"
+	DeployOnly              = "deployonly"
 )
 
 var (
