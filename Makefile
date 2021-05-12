@@ -107,7 +107,7 @@ update-edge: format cross $(BUILD_DIR)/VERSION upload-edge-only
 update-experimental: format cross $(BUILD_DIR)/VERSION upload-experimental-only
 
 .PHONY: release
-release: format cross $(BUILD_DIR)/VERSION upload-release-only
+release: format clean cross $(BUILD_DIR)/VERSION upload-release-only
 
 .PHONY: build
 build: format cross $(BUILD_DIR)/VERSION

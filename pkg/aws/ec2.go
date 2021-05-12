@@ -276,11 +276,14 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 		ImageId:                 aws.String(ami),
 		KeyName:                 aws.String(keyName),
 		InstanceType:            aws.String(instanceType),
-		IamInstanceProfile:      aws.String(iamProfileName),
 		UserData:                aws.String(userdata),
 		SecurityGroups:          securityGroups,
 		EbsOptimized:            aws.Bool(ebsOptimized),
 		BlockDeviceMappings:     blockDevices,
+	}
+
+	if len(iamProfileName) > 0 {
+		input.IamInstanceProfile = aws.String(iamProfileName)
 	}
 
 	_, err := e.AsClient.CreateLaunchConfiguration(input)

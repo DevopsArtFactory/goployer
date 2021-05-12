@@ -467,6 +467,7 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 
 		//Setup frigga with prefix
 		frigga.Prefix = tool.BuildPrefixName(d.AwsConfig.Name, d.Stack.Env, region.Region)
+		d.Logger.Debugf("Prefix name: %s", frigga.Prefix)
 
 		//select client
 		client, err := selectClientFromList(d.AWSClients, region.Region)
@@ -479,6 +480,7 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 		if err != nil {
 			return err
 		}
+		d.Logger.Debugf("Previous asg count: %d", len(asgGroups))
 
 		//Get All Previous Autoscaling Groups and versions
 		var prevInstanceCount schemas.Capacity
