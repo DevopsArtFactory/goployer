@@ -100,6 +100,15 @@ func TestCheckValidationConfig(t *testing.T) {
 		t.Errorf("validation failed: metric file")
 	}
 	b.Config.DisableMetrics = true
+	b.Config.OverrideSpotType = "t3.small,t2.large|m5.small"
+	if err := b.CheckValidation(); err == nil || err.Error() != "you must using delimiter '|'" {
+		t.Errorf("validation failed: OverrideSpotType")
+	}
+
+	b.Config.OverrideSpotType = "t3.small|c6g.medium|t2.large"
+	if err := b.CheckValidation(); err == nil || err.Error() != "you can only use same type of spot instance type(arm64 and intel_x86 type)" {
+		t.Errorf("validation failed: OverrideSpotInstanceType")
+	}
 }
 
 func TestCheckValidationScheduledAction(t *testing.T) {

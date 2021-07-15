@@ -30,6 +30,7 @@ type Config struct { // Do not add comments for this struct
 	ExtraTags              string `json:"extra_tags"`
 	AnsibleExtraVars       string `json:"ansible_extra_vars"`
 	OverrideInstanceType   string `json:"override_instance_type"`
+	OverrideSpotType       string `json:"override_spot_types"`
 	ReleaseNotes           string `json:"release_notes"`
 	ReleaseNotesBase64     string `json:"release_notes_base64"`
 	Application            string

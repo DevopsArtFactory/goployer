@@ -603,7 +603,7 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		instanceType = config.OverrideInstanceType
 
 		if d.Stack.MixedInstancesPolicy.Enabled {
-			d.Logger.Warnf("--override-instance-type won't be applied because mixed_instances_policy is enabled")
+			d.Logger.Warnf("if you want override-instance-type in  mixed_instances_policy, you must use --override-spot-instance-type option")
 		}
 
 		d.Logger.Debugf("Instance type is overridden with %s", config.OverrideInstanceType)
@@ -672,6 +672,12 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 
 	if len(region.TerminationPolicies) > 0 {
 		terminationPolicies = eaws.StringSlice(region.TerminationPolicies)
+	}
+
+	if d.Stack.MixedInstancesPolicy.Enabled {
+		if len(config.OverrideSpotType) > 0 {
+			d.Stack.MixedInstancesPolicy.Override = strings.Split(config.OverrideSpotType, "|")
+		}
 	}
 
 	err = client.EC2Service.CreateAutoScalingGroup(

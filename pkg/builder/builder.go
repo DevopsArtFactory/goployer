@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -59,6 +60,8 @@ type Builder struct { // Do not add comments for this struct
 	APITestTemplates []*schemas.APITestTemplate
 }
 
+var armTypeList = []string{"a1", "m6g", "m6gd", "t4g", "c6g", "c6gd", "c6gn", "r6g", "r6gd", "x2gd"}
+
 type UserdataProvider interface {
 	Provide() (string, error)
 }
@@ -70,6 +73,8 @@ type LocalProvider struct {
 type S3Provider struct {
 	Path string
 }
+
+const delimiterRegex = "[,/|!@$%^&*_=`~]+"
 
 // Provide provides userdata from local file
 func (l LocalProvider) Provide() (string, error) {
@@ -238,6 +243,25 @@ func (b Builder) CheckValidation() error {
 		}
 	}
 
+	overRideSpotInstanceType := b.Config.OverrideSpotType
+	if len(overRideSpotInstanceType) > 0 {
+		var delimiterCount = strings.Count(overRideSpotInstanceType, "|")
+		spotInstanceTypes := regexp.MustCompile(delimiterRegex).Split(overRideSpotInstanceType, -1)
+		spotInstanceTypeCount := len(spotInstanceTypes)
+		if delimiterCount != spotInstanceTypeCount-1 {
+			return errors.New("you must using delimiter '|'")
+		}
+		var armTypeCount = 0
+		for _, spotInstanceType := range spotInstanceTypes {
+			instanceTypeCategory := strings.Split(spotInstanceType, ".")
+			if Contains(armTypeList, instanceTypeCategory[0]) {
+				armTypeCount++
+			}
+		}
+		if !(spotInstanceTypeCount == armTypeCount || armTypeCount == 0) {
+			return errors.New("you can only use same type of spot instance type(arm64 and intel_x86 type)")
+		}
+	}
 	// duplicated value check
 	stackMap := map[string]int{}
 	for _, stack := range b.Stacks {
@@ -496,6 +520,15 @@ func (b Builder) CheckValidation() error {
 	}
 
 	return nil
+}
+
+func Contains(items []string, target string) bool {
+	for _, element := range items {
+		if target == element {
+			return true
+		}
+	}
+	return false
 }
 
 // MakeSummary prints all configurations in summary
