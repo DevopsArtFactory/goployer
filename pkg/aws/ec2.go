@@ -318,7 +318,6 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
 			ImageId:      aws.String(ami),
 			InstanceType: aws.String(instanceType),
-			KeyName:      aws.String(keyName),
 			IamInstanceProfile: &ec2.LaunchTemplateIamInstanceProfileSpecificationRequest{
 				Name: aws.String(iamProfileName),
 			},
@@ -331,7 +330,11 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 	}
 
 	if len(blockDevices) > 0 {
-		input.LaunchTemplateData.BlockDeviceMappings = blockDevices
+		input.LaunchTemplateData.SetBlockDeviceMappings(blockDevices)
+	}
+
+	if len(keyName) > 0 {
+		input.LaunchTemplateData.SetKeyName(keyName)
 	}
 
 	if instanceMarketOptions != nil && !mixedInstancePolicyEnabled {
@@ -341,19 +344,19 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 		}
 
 		if instanceMarketOptions.SpotOptions.BlockDurationMinutes > 0 {
-			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.BlockDurationMinutes = aws.Int64(instanceMarketOptions.SpotOptions.BlockDurationMinutes)
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SetBlockDurationMinutes(instanceMarketOptions.SpotOptions.BlockDurationMinutes)
 		}
 
 		if len(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior) > 0 {
-			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior = aws.String(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior)
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SetInstanceInterruptionBehavior(instanceMarketOptions.SpotOptions.InstanceInterruptionBehavior)
 		}
 
 		if len(instanceMarketOptions.SpotOptions.SpotInstanceType) > 0 {
-			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SpotInstanceType = aws.String(instanceMarketOptions.SpotOptions.SpotInstanceType)
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SetSpotInstanceType(instanceMarketOptions.SpotOptions.SpotInstanceType)
 		}
 
 		if len(instanceMarketOptions.SpotOptions.MaxPrice) > 0 {
-			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.MaxPrice = aws.String(instanceMarketOptions.SpotOptions.MaxPrice)
+			input.LaunchTemplateData.InstanceMarketOptions.SpotOptions.SetMaxPrice(instanceMarketOptions.SpotOptions.MaxPrice)
 		}
 	}
 
