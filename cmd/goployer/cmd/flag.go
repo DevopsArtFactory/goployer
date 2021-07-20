@@ -166,6 +166,13 @@ var FlagRegistry = map[string][]Flag{
 			FlagAddMethod: "StringVar",
 		},
 		{
+			Name:          "override-spot-types",
+			Usage:         "Spot Instance Type to override",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
+			FlagAddMethod: "StringVar",
+		},
+		{
 			Name:          "disable-metrics",
 			Usage:         "Disable gathering metrics.",
 			Value:         aws.Bool(false),
@@ -298,6 +305,13 @@ var FlagRegistry = map[string][]Flag{
 		{
 			Name:          "override-instance-type",
 			Usage:         "Instance Type to override",
+			Value:         aws.String(constants.EmptyString),
+			DefValue:      constants.EmptyString,
+			FlagAddMethod: "StringVar",
+		},
+		{
+			Name:          "override-spot-types",
+			Usage:         "Spot Instance Type to override",
 			Value:         aws.String(constants.EmptyString),
 			DefValue:      constants.EmptyString,
 			FlagAddMethod: "StringVar",

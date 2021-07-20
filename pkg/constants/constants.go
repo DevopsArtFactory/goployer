@@ -170,6 +170,8 @@ const (
 	CanaryDeployment        = "canary"
 	RollingUpdateDeployment = "rollingupdate"
 	DeployOnly              = "deployonly"
+
+	DelimiterRegex = "[,/|!@$%^&*_=`~]+"
 )
 
 var (

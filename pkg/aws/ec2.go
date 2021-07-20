@@ -1224,3 +1224,28 @@ func (e EC2Client) DescribeInstanceRefreshes(name, id *string) (*autoscaling.Ins
 
 	return targets[0], nil
 }
+
+func (e EC2Client) DescribeInstanceTypes(client Client) ([]string, error) {
+	var instanceTypeList []string
+	ec2svc := client.EC2Service.Client
+	params := &ec2.DescribeInstanceTypesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("processor-info.supported-architecture"),
+				Values: []*string{aws.String("arm64")},
+			},
+		},
+	}
+	result, err := ec2svc.DescribeInstanceTypes(params)
+	if err == nil {
+		for i := 0; i < len(result.InstanceTypes); i++ {
+			instanceType := strings.Split(*result.InstanceTypes[i].InstanceType, ".")[0]
+			if !tool.IsStringInArray(instanceType, instanceTypeList) {
+				instanceTypeList = append(instanceTypeList, instanceType)
+			}
+		}
+	} else {
+		return nil, errors.New("you cannot get instanceType from aws, please check your configuration")
+	}
+	return instanceTypeList, nil
+}

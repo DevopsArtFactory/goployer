@@ -99,7 +99,6 @@ func TestCheckValidationConfig(t *testing.T) {
 	if err := b.CheckValidation(); err == nil || err.Error() != fmt.Sprintf("no %s file exists", constants.MetricYamlPath) {
 		t.Errorf("validation failed: metric file")
 	}
-	b.Config.DisableMetrics = true
 }
 
 func TestCheckValidationScheduledAction(t *testing.T) {

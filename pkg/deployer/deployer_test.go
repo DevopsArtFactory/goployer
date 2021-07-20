@@ -79,3 +79,12 @@ func TestDeployer_DecideCapacity(t *testing.T) {
 		t.Error("Canary capacity setting error with forceManifestCapacity")
 	}
 }
+
+func TestDeployer_ValidateOption(t *testing.T) {
+	overRideSpotInstanceType := "t2.small|t3.small"
+	instanceTypeList := []string{"c6g", "t4g", "m6g", "a1", "r6g"}
+	validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
+	if validErr != nil {
+		t.Errorf("Invalid Override Spot Types Option: %s", validErr)
+	}
+}

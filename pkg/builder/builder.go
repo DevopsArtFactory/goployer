@@ -237,7 +237,6 @@ func (b Builder) CheckValidation() error {
 			return fmt.Errorf("no %s file exists", constants.MetricYamlPath)
 		}
 	}
-
 	// duplicated value check
 	stackMap := map[string]int{}
 	for _, stack := range b.Stacks {
