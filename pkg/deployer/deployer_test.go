@@ -19,6 +19,7 @@ package deployer
 import (
 	"testing"
 
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
@@ -77,5 +78,18 @@ func TestDeployer_DecideCapacity(t *testing.T) {
 	forceManifestCapacity = true
 	if out, _ := deployer.DecideCapacity(forceManifestCapacity, completeCanary, constants.DefaultRegion, len(deployer.PrevAsgs[constants.DefaultRegion]), deployer.Stack.RollingUpdateInstanceCount); out != intended {
 		t.Error("Canary capacity setting error with forceManifestCapacity")
+	}
+}
+
+func TestDeployer_ValidateOption(t *testing.T) {
+	overRideSpotInstanceType := "c6g.medium|c6g.large"
+	client := aws.BootstrapServices("ap-northeast-2", "")
+	instanceTypeList, InstanceTypeErr := client.EC2Service.DescribeInstanceTypes(client)
+	if InstanceTypeErr != nil {
+		t.Errorf("Failed to Get Arm64 Instance Types : %s", overRideSpotInstanceType)
+	}
+	validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
+	if validErr != nil {
+		t.Errorf("Invalid Override Spot Types Option: %s", overRideSpotInstanceType)
 	}
 }

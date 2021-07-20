@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -601,11 +602,9 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	instanceType := region.InstanceType
 	if len(config.OverrideInstanceType) > 0 {
 		instanceType = config.OverrideInstanceType
-
 		if d.Stack.MixedInstancesPolicy.Enabled {
 			d.Logger.Warnf("if you want override-instance-type in  mixed_instances_policy, you must use --override-spot-instance-type option")
 		}
-
 		d.Logger.Debugf("Instance type is overridden with %s", config.OverrideInstanceType)
 	}
 
@@ -676,7 +675,18 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 
 	if d.Stack.MixedInstancesPolicy.Enabled {
 		if len(config.OverrideSpotType) > 0 {
-			d.Stack.MixedInstancesPolicy.Override = strings.Split(config.OverrideSpotType, "|")
+			overRideSpotInstanceType := config.OverrideSpotType
+			instanceTypeList, instanceTypeErr := client.EC2Service.DescribeInstanceTypes(client)
+			if instanceTypeErr == nil {
+				vaildErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
+				if vaildErr == nil {
+					d.Stack.MixedInstancesPolicy.Override = strings.Split(config.OverrideSpotType, "|")
+				} else {
+					return vaildErr
+				}
+			} else {
+				return instanceTypeErr
+			}
 		}
 	}
 
@@ -1460,4 +1470,24 @@ func getNextTargetInstanceCount(current, reduceCnt int64) int64 {
 	}
 
 	return base
+}
+
+func checkSpotInstanceOption(overRideSpotInstanceType string, instanceTypeList []string) error {
+	var delimiterCount = strings.Count(overRideSpotInstanceType, "|")
+	spotInstanceTypes := regexp.MustCompile(constants.DelimiterRegex).Split(overRideSpotInstanceType, -1)
+	spotInstanceTypeCount := len(spotInstanceTypes)
+	if delimiterCount != spotInstanceTypeCount-1 {
+		return errors.New("you must use '|' for delimiter")
+	}
+	var armTypeCount = 0
+	for _, spotInstanceType := range spotInstanceTypes {
+		instanceType := strings.Split(spotInstanceType, ".")[0]
+		if tool.IsStringInArray(instanceType, instanceTypeList) {
+			armTypeCount++
+		}
+	}
+	if !(spotInstanceTypeCount == armTypeCount || armTypeCount == 0) {
+		return errors.New("you can only use same type of spot instance type(arm64 and intel_x86 type)")
+	}
+	return nil
 }

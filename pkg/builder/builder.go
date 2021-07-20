@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -37,7 +36,6 @@ import (
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/templates"
@@ -237,29 +235,6 @@ func (b Builder) CheckValidation() error {
 
 		if !tool.CheckFileExists(constants.MetricYamlPath) {
 			return fmt.Errorf("no %s file exists", constants.MetricYamlPath)
-		}
-	}
-	armTypeList, err := getArm64InstanceTypes(targetRegion, b.Config.AssumeRole)
-	if err != nil {
-		return err
-	}
-	overRideSpotInstanceType := b.Config.OverrideSpotType
-	if len(overRideSpotInstanceType) > 0 {
-		var delimiterCount = strings.Count(overRideSpotInstanceType, "|")
-		spotInstanceTypes := regexp.MustCompile(constants.DelimiterRegex).Split(overRideSpotInstanceType, -1)
-		spotInstanceTypeCount := len(spotInstanceTypes)
-		if delimiterCount != spotInstanceTypeCount-1 {
-			return errors.New("you must use '|' for delimiter")
-		}
-		var armTypeCount = 0
-		for _, spotInstanceType := range spotInstanceTypes {
-			instanceType := strings.Split(spotInstanceType, ".")[0]
-			if tool.IsStringInArray(instanceType, armTypeList) {
-				armTypeCount++
-			}
-		}
-		if !(spotInstanceTypeCount == armTypeCount || armTypeCount == 0) {
-			return errors.New("you can only use same type of spot instance type(arm64 and intel_x86 type)")
 		}
 	}
 	// duplicated value check
@@ -888,13 +863,4 @@ func ExtractAppliedConfig(config schemas.Config) [][]string {
 	}
 
 	return data
-}
-
-func getArm64InstanceTypes(targetRegion string, assumeRole string) ([]string, error) {
-	client := aws.BootstrapServices(targetRegion, assumeRole)
-	instanceTypeList, err := client.EC2Service.DescribeInstanceTypes(client)
-	if err != nil {
-		return nil, errors.New("you cannot get instanceType from aws, please check your configuration")
-	}
-	return instanceTypeList, err
 }
