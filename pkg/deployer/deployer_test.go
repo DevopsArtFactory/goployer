@@ -82,14 +82,14 @@ func TestDeployer_DecideCapacity(t *testing.T) {
 }
 
 func TestDeployer_ValidateOption(t *testing.T) {
-	overRideSpotInstanceType := "c6g.medium|c6g.large"
+	overRideSpotInstanceType := "t2.small|t3.small"
 	client := aws.BootstrapServices("ap-northeast-2", "")
 	instanceTypeList, InstanceTypeErr := client.EC2Service.DescribeInstanceTypes(client)
 	if InstanceTypeErr != nil {
-		t.Errorf("Failed to Get Arm64 Instance Types : %s", overRideSpotInstanceType)
+		t.Errorf("Failed to Get Arm64 Instance Types : %s", InstanceTypeErr)
 	}
 	validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
 	if validErr != nil {
-		t.Errorf("Invalid Override Spot Types Option: %s", overRideSpotInstanceType)
+		t.Errorf("Invalid Override Spot Types Option: %s", validErr)
 	}
 }
