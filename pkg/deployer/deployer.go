@@ -678,11 +678,11 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 			overRideSpotInstanceType := config.OverrideSpotType
 			instanceTypeList, instanceTypeErr := client.EC2Service.DescribeInstanceTypes(client)
 			if instanceTypeErr == nil {
-				vaildErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
-				if vaildErr == nil {
+				validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
+				if validErr == nil {
 					d.Stack.MixedInstancesPolicy.Override = strings.Split(config.OverrideSpotType, "|")
 				} else {
-					return vaildErr
+					return validErr
 				}
 			} else {
 				return instanceTypeErr
