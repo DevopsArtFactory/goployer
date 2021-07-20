@@ -101,7 +101,7 @@ func TestCheckValidationConfig(t *testing.T) {
 	}
 	b.Config.DisableMetrics = true
 	b.Config.OverrideSpotType = "t3.small,t2.large|m5.small"
-	if err := b.CheckValidation(); err == nil || err.Error() != "you must using delimiter '|'" {
+	if err := b.CheckValidation(); err == nil || err.Error() != "you must use '|' for delimiter" {
 		t.Errorf("validation failed: OverrideSpotType")
 	}
 

@@ -37,6 +37,7 @@ import (
 	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 	"github.com/DevopsArtFactory/goployer/pkg/templates"
@@ -60,8 +61,6 @@ type Builder struct { // Do not add comments for this struct
 	APITestTemplates []*schemas.APITestTemplate
 }
 
-var armTypeList = []string{"a1", "m6g", "m6gd", "t4g", "c6g", "c6gd", "c6gn", "r6g", "r6gd", "x2gd"}
-
 type UserdataProvider interface {
 	Provide() (string, error)
 }
@@ -73,8 +72,6 @@ type LocalProvider struct {
 type S3Provider struct {
 	Path string
 }
-
-const delimiterRegex = "[,/|!@$%^&*_=`~]+"
 
 // Provide provides userdata from local file
 func (l LocalProvider) Provide() (string, error) {
@@ -242,19 +239,22 @@ func (b Builder) CheckValidation() error {
 			return fmt.Errorf("no %s file exists", constants.MetricYamlPath)
 		}
 	}
-
+	armTypeList, err := getArm64InstanceTypes(targetRegion, b.Config.AssumeRole)
+	if err != nil {
+		return err
+	}
 	overRideSpotInstanceType := b.Config.OverrideSpotType
 	if len(overRideSpotInstanceType) > 0 {
 		var delimiterCount = strings.Count(overRideSpotInstanceType, "|")
-		spotInstanceTypes := regexp.MustCompile(delimiterRegex).Split(overRideSpotInstanceType, -1)
+		spotInstanceTypes := regexp.MustCompile(constants.DelimiterRegex).Split(overRideSpotInstanceType, -1)
 		spotInstanceTypeCount := len(spotInstanceTypes)
 		if delimiterCount != spotInstanceTypeCount-1 {
-			return errors.New("you must using delimiter '|'")
+			return errors.New("you must use '|' for delimiter")
 		}
 		var armTypeCount = 0
 		for _, spotInstanceType := range spotInstanceTypes {
-			instanceTypeCategory := strings.Split(spotInstanceType, ".")
-			if Contains(armTypeList, instanceTypeCategory[0]) {
+			instanceType := strings.Split(spotInstanceType, ".")[0]
+			if tool.IsStringInArray(instanceType, armTypeList) {
 				armTypeCount++
 			}
 		}
@@ -520,15 +520,6 @@ func (b Builder) CheckValidation() error {
 	}
 
 	return nil
-}
-
-func Contains(items []string, target string) bool {
-	for _, element := range items {
-		if target == element {
-			return true
-		}
-	}
-	return false
 }
 
 // MakeSummary prints all configurations in summary
@@ -897,4 +888,13 @@ func ExtractAppliedConfig(config schemas.Config) [][]string {
 	}
 
 	return data
+}
+
+func getArm64InstanceTypes(targetRegion string, assumeRole string) ([]string, error) {
+	client := aws.BootstrapServices(targetRegion, assumeRole)
+	instanceTypeList, err := client.EC2Service.DescribeInstanceTypes(client)
+	if err != nil {
+		return nil, errors.New("you cannot get instanceType from aws, please check your configuration")
+	}
+	return instanceTypeList, err
 }
