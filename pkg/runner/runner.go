@@ -319,6 +319,7 @@ func (r Runner) Deploy() error {
 	}
 	r.Logger.Debugf("successfully assign deployer to stacks")
 
+	errs := make(chan error)
 	// Check Previous Version
 	for _, d := range deployers {
 		wg.Add(1)
@@ -326,82 +327,135 @@ func (r Runner) Deploy() error {
 			defer wg.Done()
 			if err := deployer.CheckPreviousResources(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
+				errs <- err
 			}
 
 			if err := deployer.Deploy(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepDeploy] deploy step error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag := checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 	// Health checking step
+	errs = make(chan error)
+	fmt.Println("get int HealthChecking")
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.HealthChecking(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepHealthCheck] check previous deployer error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
+	//AdditionalWork
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			// Attach scaling policy
 			if err := deployer.FinishAdditionalWork(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepFinishAdditionalWork] finish additional work error occurred: %s", err.Error())
+				errs <- err
 			}
 
 			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepTriggerLifecycleCallbacks] trigger lifecycle callbacks error occurred: %s", err.Error())
+				errs <- err
 			}
 
 			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepCleanPreviousVersion] clean previous verson error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
+	//CleanChecking
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.CleanChecking(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepCleanChecking] clean checking error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 	// gather metrics of previous version
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepGatherMetrics] gather metrics error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 	// API Test
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.RunAPITest(r.Builder.Config); err != nil {
-				r.Logger.Errorf("API test error occurred: %s", err.Error())
+				r.Logger.Errorf("[StepRunAPITest] API test error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 	return nil
 }
 
@@ -449,51 +503,79 @@ func (r Runner) Delete() error {
 	r.Logger.Debugf("successfully assign deployer to stacks")
 
 	// Check Previous Version
+	errs := make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.GetDeployer().CheckPrevious(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepCheckPrevious] check previous deployer error occurred: %s", err.Error())
+				errs <- err
 			}
 
 			deployer.GetDeployer().SkipDeployStep()
 
 			// Trigger Lifecycle Callbacks
 			if err := deployer.TriggerLifecycleCallbacks(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepTriggerLifecycleCallbacks] trigger lifecycle callbacks error occurred: %s", err.Error())
+				errs <- err
 			}
 
 			// Clear previous Version
 			if err := deployer.CleanPreviousVersion(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepCleanPreviousVersion] clean previous version error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag := checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.CleanChecking(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepCleanChecking] clean checking error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
-
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 	// gather metrics of previous version
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.GatherMetrics(r.Builder.Config); err != nil {
-				r.Logger.Errorf(err.Error())
+				r.Logger.Errorf("[StepGatherMetrics] gather metrics error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 
 	return nil
 }
@@ -586,6 +668,7 @@ func (r Runner) Update() error {
 	}
 
 	// Health checking step
+	errs := make(chan error)
 	r.Logger.Debugf("Start health checking")
 	for _, d := range deployers {
 		wg.Add(1)
@@ -593,13 +676,20 @@ func (r Runner) Update() error {
 			defer wg.Done()
 			if err := deployer.HealthChecking(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepHealthCheck] check previous deployer error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag := checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 
-	wg.Wait()
 	r.Logger.Debugf("Health check process is done")
-
 	r.Logger.Infof("update operation is finished")
 	return nil
 }
@@ -762,4 +852,15 @@ func nullCheck(input, origin int64) int64 {
 	}
 
 	return input
+}
+
+func checkError(errs chan error) error {
+	if errs != nil {
+		for err := range errs {
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
