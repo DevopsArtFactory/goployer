@@ -17,7 +17,12 @@ limitations under the license.
 package runner
 
 import (
+	"fmt"
+	"math/rand"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-test/deep"
 
@@ -84,5 +89,32 @@ func TestCheckUpdateInformation(t *testing.T) {
 		if (CheckUpdateInformation(td.old, td.now) == nil) != td.expected {
 			t.Errorf("validation error")
 		}
+	}
+}
+
+func TestGoroutineError(t *testing.T) {
+	wg := sync.WaitGroup{}
+	errs := make(chan error)
+	leaks := make(map[int]struct{})
+
+	for i := 0; i < 4; i++ {
+		leaks[i] = struct{}{}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			defer delete(leaks, i)
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+			errs <- fmt.Errorf("goroutine %d's error returned", i)
+		}(i)
+	}
+
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	errFlag := checkError(errs)
+	if !strings.Contains(errFlag.Error(), "error returned") {
+		t.Errorf("validation error")
 	}
 }
