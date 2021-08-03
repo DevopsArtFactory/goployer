@@ -676,9 +676,10 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	if d.Stack.MixedInstancesPolicy.Enabled {
 		if len(config.OverrideSpotType) > 0 {
 			overRideSpotInstanceType := config.OverrideSpotType
-			instanceTypeList, instanceTypeErr := client.EC2Service.DescribeInstanceTypes(client)
-			if instanceTypeErr == nil {
-				validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList)
+			instanceTypeList, instanceTypeErr := client.EC2Service.DescribeInstanceTypes()
+			amiImgArchitecture, amiImageErr := client.EC2Service.DescribeAMIArchitecture(region.AmiID)
+			if instanceTypeErr == nil && amiImageErr == nil {
+				validErr := checkSpotInstanceOption(overRideSpotInstanceType, instanceTypeList, amiImgArchitecture)
 				if validErr == nil {
 					d.Stack.MixedInstancesPolicy.Override = strings.Split(config.OverrideSpotType, "|")
 				} else {
@@ -1472,7 +1473,7 @@ func getNextTargetInstanceCount(current, reduceCnt int64) int64 {
 	return base
 }
 
-func checkSpotInstanceOption(overRideSpotInstanceType string, instanceTypeList []string) error {
+func checkSpotInstanceOption(overRideSpotInstanceType string, instanceTypeList []string, architecture string) error {
 	var delimiterCount = strings.Count(overRideSpotInstanceType, "|")
 	spotInstanceTypes := regexp.MustCompile(constants.DelimiterRegex).Split(overRideSpotInstanceType, -1)
 	spotInstanceTypeCount := len(spotInstanceTypes)
@@ -1488,6 +1489,9 @@ func checkSpotInstanceOption(overRideSpotInstanceType string, instanceTypeList [
 	}
 	if !(spotInstanceTypeCount == armTypeCount || armTypeCount == 0) {
 		return errors.New("you can only use same type of spot instance type(arm64 and intel_x86 type)")
+	}
+	if ((spotInstanceTypeCount == armTypeCount) && !strings.Contains(architecture, "arm64")) || (armTypeCount == 0 && strings.Contains(architecture, "arm64")) {
+		return errors.New("you can only use same architecture of AMI and override spot instance type(arm64 and intel_x86 type)")
 	}
 	return nil
 }
