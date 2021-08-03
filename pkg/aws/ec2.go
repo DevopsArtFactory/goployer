@@ -1225,9 +1225,9 @@ func (e EC2Client) DescribeInstanceRefreshes(name, id *string) (*autoscaling.Ins
 	return targets[0], nil
 }
 
-func (e EC2Client) DescribeInstanceTypes(client Client) ([]string, error) {
+//aws ec2 describe-instance-types --filters Name=processor-info.supported-architecture,Values=arm64 --query "InstanceTypes[*].InstanceType"
+func (e EC2Client) DescribeInstanceTypes() ([]string, error) {
 	var instanceTypeList []string
-	ec2svc := client.EC2Service.Client
 	params := &ec2.DescribeInstanceTypesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -1236,7 +1236,7 @@ func (e EC2Client) DescribeInstanceTypes(client Client) ([]string, error) {
 			},
 		},
 	}
-	result, err := ec2svc.DescribeInstanceTypes(params)
+	result, err := e.Client.DescribeInstanceTypes(params)
 	if err == nil {
 		for i := 0; i < len(result.InstanceTypes); i++ {
 			instanceType := strings.Split(*result.InstanceTypes[i].InstanceType, ".")[0]
@@ -1248,4 +1248,24 @@ func (e EC2Client) DescribeInstanceTypes(client Client) ([]string, error) {
 		return nil, errors.New("you cannot get instanceType from aws, please check your configuration")
 	}
 	return instanceTypeList, nil
+}
+
+//$ aws ec2 describe-images --filters Name=image-id,Values=ami-01288945bd24ed49a --query "Images[*].Architecture"
+func (e EC2Client) DescribeAMIArchitecture(amiID string) (string, error) {
+	var amiArchitecture string
+	params := &ec2.DescribeImagesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("image-id"),
+				Values: []*string{aws.String(amiID)},
+			},
+		},
+	}
+	result, err := e.Client.DescribeImages(params)
+	if err == nil {
+		amiArchitecture = *result.Images[0].Architecture
+	} else {
+		return "", errors.New("you cannot get ami-architecture from aws, please check your configuration")
+	}
+	return amiArchitecture, nil
 }
