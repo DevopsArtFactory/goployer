@@ -51,7 +51,7 @@ type Config struct { // Do not add comments for this struct
 	DownSizingUpdate       bool
 }
 
-//Yaml configuration from manifest file
+// Yaml configuration from manifest file
 type YamlConfig struct {
 	// Application Name
 	Name string `yaml:"name"`
@@ -315,6 +315,9 @@ type RegionConfig struct {
 
 	// Name of VPC
 	VPC string `yaml:"vpc"`
+
+	// Ids of subnets
+	SubnetIDs []string `yaml:"subnet_ids"`
 
 	// Class load balancer name for healthcheck
 	HealthcheckLB string `yaml:"healthcheck_load_balancer"`

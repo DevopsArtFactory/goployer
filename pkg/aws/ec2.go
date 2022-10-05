@@ -456,7 +456,7 @@ func (e EC2Client) MakeBlockDevices(blocks []schemas.BlockDevice) []*autoscaling
 	return ret
 }
 
-//MakeLaunchTemplateBlockDeviceMappings returns list of block device mappings for launch template
+// MakeLaunchTemplateBlockDeviceMappings returns list of block device mappings for launch template
 func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockDevice) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
 	ret := []*ec2.LaunchTemplateBlockDeviceMappingRequest{}
 
@@ -706,7 +706,7 @@ func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, ret
 	return 0, nil
 }
 
-//CreateScalingPolicy creates scaling policy
+// CreateScalingPolicy creates scaling policy
 func (e EC2Client) CreateScalingPolicy(policy schemas.ScalePolicy, asgName string) (*string, error) {
 	input := &autoscaling.PutScalingPolicyInput{
 		AdjustmentType:       aws.String(policy.AdjustmentType),
@@ -1225,7 +1225,7 @@ func (e EC2Client) DescribeInstanceRefreshes(name, id *string) (*autoscaling.Ins
 	return targets[0], nil
 }
 
-//aws ec2 describe-instance-types --filters Name=processor-info.supported-architecture,Values=arm64 --query "InstanceTypes[*].InstanceType"
+// aws ec2 describe-instance-types --filters Name=processor-info.supported-architecture,Values=arm64 --query "InstanceTypes[*].InstanceType"
 func (e EC2Client) DescribeInstanceTypes() ([]string, error) {
 	var instanceTypeList []string
 	params := &ec2.DescribeInstanceTypesInput{
@@ -1250,7 +1250,7 @@ func (e EC2Client) DescribeInstanceTypes() ([]string, error) {
 	return instanceTypeList, nil
 }
 
-//$ aws ec2 describe-images --filters Name=image-id,Values=ami-01288945bd24ed49a --query "Images[*].Architecture"
+// $ aws ec2 describe-images --filters Name=image-id,Values=ami-01288945bd24ed49a --query "Images[*].Architecture"
 func (e EC2Client) DescribeAMIArchitecture(amiID string) (string, error) {
 	var amiArchitecture string
 	params := &ec2.DescribeImagesInput{

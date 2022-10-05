@@ -66,7 +66,9 @@ github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
-# github.com/c2h5oh/datasize v0.0.0-20200825124411-48ed595a09d2
+# github.com/bmizerany/perks v0.0.0-20220928223023-dcf613bf3504
+## explicit
+# github.com/dgryski/go-gk v0.0.0-20200319235926-a69029f61654
 ## explicit
 # github.com/fatih/color v1.9.0
 ## explicit
@@ -170,10 +172,10 @@ github.com/spf13/pflag
 # github.com/spf13/viper v1.7.1
 ## explicit
 github.com/spf13/viper
+# github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d
+## explicit
 # github.com/subosito/gotenv v1.2.0
 github.com/subosito/gotenv
-# github.com/tsenart/go-tsz v0.0.0-20180814235614-0bd30b3df1c3
-## explicit
 # github.com/tsenart/vegeta v12.7.0+incompatible
 ## explicit
 github.com/tsenart/vegeta/lib
