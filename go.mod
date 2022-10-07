@@ -6,7 +6,8 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.1.0
 	github.com/GwonsooLee/kubenx v1.0.0
 	github.com/aws/aws-sdk-go v1.42.4
-	github.com/c2h5oh/datasize v0.0.0-20200825124411-48ed595a09d2 // indirect
+	github.com/bmizerany/perks v0.0.0-20220928223023-dcf613bf3504 // indirect
+	github.com/dgryski/go-gk v0.0.0-20200319235926-a69029f61654 // indirect
 	github.com/fatih/color v1.9.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-test/deep v1.0.4
@@ -27,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
-	github.com/tsenart/go-tsz v0.0.0-20180814235614-0bd30b3df1c3 // indirect
+	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d // indirect
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de // indirect
 	gopkg.in/ini.v1 v1.57.0

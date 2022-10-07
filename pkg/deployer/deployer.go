@@ -644,9 +644,17 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	if err != nil {
 		return err
 	}
-	subnets, err := client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
-	if err != nil {
-		return err
+
+	subnets := region.SubnetIDs
+	if len(subnets) == 0 {
+		Logger.Info("Not Subnet ID Specific")
+		subnets, err = client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
+		if err != nil {
+			return err
+		}
+	} else {
+		subnetIds := strings.Join(subnets, " ")
+		Logger.Infof("Subnet ID are Specific : %s", subnetIds)
 	}
 
 	targetGroupARNs, err := client.ELBV2Service.GetTargetGroupARNs(targetGroups)
@@ -1074,7 +1082,7 @@ func (d *Deployer) TriggerLifecycleCallbacks(config schemas.Config) error {
 	return nil
 }
 
-//CleanPreviousAutoScalingGroup cleans previous version of autoscaling group
+// CleanPreviousAutoScalingGroup cleans previous version of autoscaling group
 func (d *Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 	for _, region := range d.Stack.Regions {
 		if config.Region != constants.EmptyString && config.Region != region.Region {
@@ -1141,7 +1149,7 @@ func (d *Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 	return nil
 }
 
-//ReducePreviousAutoScalingGroupCapacity cleans previous version of autoscaling group
+// ReducePreviousAutoScalingGroupCapacity cleans previous version of autoscaling group
 func (d *Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreaseCnt int64) (bool, error) {
 	isDone := true
 

@@ -537,9 +537,16 @@ func (c *Canary) CreateCanaryLoadBalancer(region schemas.RegionConfig, groupID *
 		return nil, err
 	}
 
-	subnets, err := client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
-	if err != nil {
-		return nil, err
+	subnets := region.SubnetIDs
+	if len(subnets) == 0 {
+		c.Logger.Info("Not Subnet ID Specific")
+		subnets, err = client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		subnetIds := strings.Join(subnets, " ")
+		c.Logger.Infof("Subnet ID are Specific : %s", subnetIds)
 	}
 
 	lb, err := client.ELBV2Service.CreateLoadBalancer(newLBName, subnets, groupID)
@@ -791,7 +798,7 @@ func (c *Canary) CleanPreviousCanaryResources(region schemas.RegionConfig, compl
 	return nil
 }
 
-//  DeleteLoadBalancer deletes load balancer
+// DeleteLoadBalancer deletes load balancer
 func (c *Canary) DeleteLoadBalancer(region schemas.RegionConfig) error {
 	if len(c.LoadBalancer[region.Region]) == 0 {
 		c.Logger.Debugf("No load balancer to delete")
@@ -813,7 +820,7 @@ func (c *Canary) DeleteLoadBalancer(region schemas.RegionConfig) error {
 	return nil
 }
 
-//  DeleteLBSecurityGroup deletes load balancer security group
+// DeleteLBSecurityGroup deletes load balancer security group
 func (c *Canary) DeleteLBSecurityGroup(region schemas.RegionConfig) error {
 	if c.LBSecurityGroup[region.Region] == nil {
 		c.Logger.Debugf("No lb security group to delete")
@@ -850,7 +857,7 @@ func (c *Canary) DeleteLBSecurityGroup(region schemas.RegionConfig) error {
 	return nil
 }
 
-//  DeleteEC2SecurityGroup deletes EC2 security group for canary
+// DeleteEC2SecurityGroup deletes EC2 security group for canary
 func (c *Canary) DeleteEC2SecurityGroup(region schemas.RegionConfig) error {
 	if c.Deployer.SecurityGroup[region.Region] == nil {
 		c.Logger.Debugf("No EC2 security group to delete")
@@ -872,7 +879,7 @@ func (c *Canary) DeleteEC2SecurityGroup(region schemas.RegionConfig) error {
 	return nil
 }
 
-//  DeleteEC2IngressRules deletes ingress rules for EC2
+// DeleteEC2IngressRules deletes ingress rules for EC2
 func (c *Canary) DeleteEC2IngressRules(region schemas.RegionConfig) error {
 	if c.Deployer.SecurityGroup[region.Region] == nil {
 		c.Logger.Debugf("No EC2 security group to delete")
