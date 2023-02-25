@@ -30,7 +30,7 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/streadway/quantile v0.0.0-20220407130108-4246515d968d // indirect
 	github.com/tsenart/vegeta v12.7.0+incompatible
-	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de // indirect
+	golang.org/x/crypto v0.1.0 // indirect
 	gopkg.in/ini.v1 v1.57.0
 	gopkg.in/yaml.v2 v2.3.0
 )
