@@ -25,7 +25,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/version"
 )
 
-//Create Command for get pod
+// Create Command for get pod
 func NewVersionCommand() *cobra.Command {
 	return NewCmd("version").
 		WithDescription("check goployer release version").

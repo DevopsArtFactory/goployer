@@ -40,7 +40,7 @@ func getSsmClientFn(session client.ConfigProvider, region string, creds *credent
 	return ssm.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
-//SSM Send command
+// SSM Send command
 func (s SSMClient) SendCommand(target []*string, commands []*string) bool {
 	input := &ssm.SendCommandInput{
 		DocumentName:   aws.String("AWS-RunShellScript"),

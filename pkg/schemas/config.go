@@ -244,6 +244,12 @@ type BlockDevice struct {
 
 	// IOPS for io1, io2 volume
 	Iops int64 `yaml:"iops"`
+
+	// Enable Encrypted
+	Encrypted bool `yaml:"encrypted"`
+
+	// KMS key
+	KmsKeyId string `yaml:"kmsKeyId"`
 }
 
 // Lifecycle Callback configuration

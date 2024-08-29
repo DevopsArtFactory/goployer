@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/kms"
 	Logger "github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
@@ -37,14 +38,16 @@ import (
 )
 
 type EC2Client struct {
-	Client   *ec2.EC2
-	AsClient *autoscaling.AutoScaling
+	Client    *ec2.EC2
+	AsClient  *autoscaling.AutoScaling
+	KMSClient *kms.KMS
 }
 
 func NewEC2Client(session client.ConfigProvider, region string, creds *credentials.Credentials) EC2Client {
 	return EC2Client{
-		Client:   getEC2ClientFn(session, region, creds),
-		AsClient: getAsgClientFn(session, region, creds),
+		Client:    getEC2ClientFn(session, region, creds),
+		AsClient:  getAsgClientFn(session, region, creds),
+		KMSClient: getKMSClientFn(session, region, creds),
 	}
 }
 
@@ -62,6 +65,14 @@ func getAsgClientFn(session client.ConfigProvider, region string, creds *credent
 		return autoscaling.New(session, &aws.Config{Region: aws.String(region)})
 	}
 	return autoscaling.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
+}
+
+// getEC2ClientFn creates an EC2 client
+func getKMSClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *kms.KMS {
+	if creds == nil {
+		return kms.New(session, &aws.Config{Region: aws.String(region)})
+	}
+	return kms.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
 // GetMatchingAutoscalingGroup returns only one matching autoscaling group information
@@ -134,7 +145,7 @@ func (e EC2Client) DeleteLaunchTemplates(asgName string) error {
 	return nil
 }
 
-// Delete Autoscaling group Set
+// DeleteAutoscalingSet Delete Autoscaling group Set
 func (e EC2Client) DeleteAutoscalingSet(asgName string) error {
 	input := &autoscaling.DeleteAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asgName),
@@ -148,7 +159,7 @@ func (e EC2Client) DeleteAutoscalingSet(asgName string) error {
 	return nil
 }
 
-// Get All matching autoscaling groups with aws prefix
+// GetAllMatchingAutoscalingGroupsWithPrefix Get All matching autoscaling groups with aws prefix
 // By this function, you could get the latest version of deployment
 func (e EC2Client) GetAllMatchingAutoscalingGroupsWithPrefix(prefix string) ([]*autoscaling.Group, error) {
 	asgGroups, err := getAutoScalingGroups(e.AsClient, []*autoscaling.Group{}, nil)
@@ -269,7 +280,7 @@ func deleteLaunchTemplate(client *ec2.EC2, ltName string) error {
 	return nil
 }
 
-// Create New Launch Configuration
+// CreateNewLaunchConfiguration Create New Launch Configuration
 func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized bool, securityGroups []*string, blockDevices []*autoscaling.BlockDeviceMapping) bool {
 	input := &autoscaling.CreateLaunchConfigurationInput{
 		LaunchConfigurationName: aws.String(name),
@@ -312,7 +323,7 @@ func (e EC2Client) CreateNewLaunchConfiguration(name, ami, instanceType, keyName
 	return true
 }
 
-// Create New Launch Template
+// CreateNewLaunchTemplate Create New Launch Template
 func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iamProfileName, userdata string, ebsOptimized, mixedInstancePolicyEnabled bool, securityGroups []*string, blockDevices []*ec2.LaunchTemplateBlockDeviceMappingRequest, instanceMarketOptions *schemas.InstanceMarketOptions, detailedMonitoringEnabled bool) error {
 	input := &ec2.CreateLaunchTemplateInput{
 		LaunchTemplateData: &ec2.RequestLaunchTemplateData{
@@ -370,7 +381,7 @@ func (e EC2Client) CreateNewLaunchTemplate(name, ami, instanceType, keyName, iam
 	return nil
 }
 
-// Get All Security Group Information New Launch Configuration
+// GetSecurityGroupList Get All Security Group Information New Launch Configuration
 func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) ([]*string, error) {
 	if len(sgList) == 0 {
 		return nil, errors.New("need to specify at least one security group")
@@ -427,7 +438,7 @@ func (e EC2Client) GetSecurityGroupList(vpc string, sgList []string) ([]*string,
 
 // MakeBlockDevices returns list of block device mapping for launch configuration
 func (e EC2Client) MakeBlockDevices(blocks []schemas.BlockDevice) []*autoscaling.BlockDeviceMapping {
-	ret := []*autoscaling.BlockDeviceMapping{}
+	var ret []*autoscaling.BlockDeviceMapping
 
 	for _, block := range blocks {
 		bType := block.VolumeType
@@ -458,7 +469,7 @@ func (e EC2Client) MakeBlockDevices(blocks []schemas.BlockDevice) []*autoscaling
 
 // MakeLaunchTemplateBlockDeviceMappings returns list of block device mappings for launch template
 func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockDevice) []*ec2.LaunchTemplateBlockDeviceMappingRequest {
-	ret := []*ec2.LaunchTemplateBlockDeviceMappingRequest{}
+	var ret []*ec2.LaunchTemplateBlockDeviceMappingRequest
 
 	for _, block := range blocks {
 		bType := block.VolumeType
@@ -473,12 +484,27 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 			bSize = 16
 		}
 
-		tmp := ec2.LaunchTemplateBlockDeviceMappingRequest{
-			DeviceName: aws.String(block.DeviceName),
-			Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
+		enabledEBSEncrypted := block.Encrypted
+		kmsKeyArn := e.getKMSKeyArn(block.KmsKeyId)
+		LaunchTemplateEbsBlockDevice := &ec2.LaunchTemplateEbsBlockDeviceRequest{}
+
+		if enabledEBSEncrypted {
+			LaunchTemplateEbsBlockDevice = &ec2.LaunchTemplateEbsBlockDeviceRequest{
 				VolumeSize: aws.Int64(bSize),
 				VolumeType: aws.String(bType),
-			},
+				Encrypted:  aws.Bool(enabledEBSEncrypted),
+				KmsKeyId:   aws.String(kmsKeyArn),
+			}
+		} else {
+			LaunchTemplateEbsBlockDevice = &ec2.LaunchTemplateEbsBlockDeviceRequest{
+				VolumeSize: aws.Int64(bSize),
+				VolumeType: aws.String(bType),
+			}
+		}
+
+		tmp := ec2.LaunchTemplateBlockDeviceMappingRequest{
+			DeviceName:  aws.String(block.DeviceName),
+			Ebs:         LaunchTemplateEbsBlockDevice,
 			NoDevice:    nil,
 			VirtualName: nil,
 		}
@@ -539,7 +565,7 @@ func (e EC2Client) CreateAutoScalingGroup(name, launchTemplateName, healthcheckT
 	capacity schemas.Capacity,
 	loadbalancers, availabilityZones []string,
 	targetGroupArns, terminationPolicies []*string,
-	tags []*(autoscaling.Tag),
+	tags []*autoscaling.Tag,
 	subnets []string,
 	mixedInstancePolicy schemas.MixedInstancesPolicy,
 	hooks []*autoscaling.LifecycleHookSpecification) error {
@@ -689,7 +715,7 @@ func (e EC2Client) GetSubnets(vpc string, usePublicSubnets bool, azs []string) (
 	return ret, nil
 }
 
-// Update Autoscaling Group size
+// UpdateAutoScalingGroupSize Update Autoscaling Group size
 func (e EC2Client) UpdateAutoScalingGroupSize(asg string, min, max, desired, retry int64) (int64, error) {
 	input := &autoscaling.UpdateAutoScalingGroupInput{
 		AutoScalingGroupName: aws.String(asg),
@@ -1268,4 +1294,44 @@ func (e EC2Client) DescribeAMIArchitecture(amiID string) (string, error) {
 		return "", errors.New("you cannot get ami-architecture from aws, please check your configuration")
 	}
 	return amiArchitecture, nil
+}
+
+func (e EC2Client) getKMSKeyArn(kmsKeyId string) string {
+
+	kmsAlias := kmsKeyId
+
+	if kmsAlias == "" {
+		Logger.Info("Volume Encrypt default KMS Key(aws/ebs)")
+		kmsAlias = "alias/aws/ebs"
+	} else if !strings.HasPrefix(kmsAlias, "alias") {
+		var sb strings.Builder
+		sb.WriteString("alias/")
+		sb.WriteString(kmsAlias)
+		kmsAlias = sb.String()
+	}
+
+	input := &kms.DescribeKeyInput{
+		KeyId: aws.String(kmsAlias),
+	}
+
+	result, err := e.KMSClient.DescribeKey(input)
+	if err != nil {
+		var aerr awserr.Error
+		if errors.As(err, &aerr) {
+			switch aerr.Code() {
+			case kms.ErrCodeNotFoundException:
+				Logger.Println(kms.ErrCodeNotFoundException, aerr.Error())
+			case kms.ErrCodeInvalidArnException:
+				Logger.Println(kms.ErrCodeInvalidArnException, aerr.Error())
+			case kms.ErrCodeDependencyTimeoutException:
+				Logger.Println(kms.ErrCodeDependencyTimeoutException, aerr.Error())
+			case kms.ErrCodeInternalException:
+				Logger.Println(kms.ErrCodeInternalException, aerr.Error())
+			default:
+				Logger.Println(aerr.Error())
+			}
+		}
+		return ""
+	}
+	return *result.KeyMetadata.Arn
 }

@@ -71,7 +71,7 @@ func (c command) SetPreRunWithArgs(function func(context.Context, io.Writer, []s
 	return c
 }
 
-//Run command without Argument
+// Run command without Argument
 func (c command) RunWithNoArgs(function func(context.Context, io.Writer, string) error) *cobra.Command {
 	c.cmd.Args = cobra.NoArgs
 	c.cmd.RunE = func(*cobra.Command, []string) error {
