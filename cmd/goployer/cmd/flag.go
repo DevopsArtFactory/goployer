@@ -523,7 +523,7 @@ func reflectValueOf(values []interface{}) []reflect.Value {
 	return results
 }
 
-//Add command flags
+// Add command flags
 func SetCommandFlags(cmd *cobra.Command) {
 	var flagsForCommand []*Flag
 

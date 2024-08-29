@@ -153,7 +153,7 @@ func (b *BlueGreen) TriggerLifecycleCallbacks(config schemas.Config) error {
 	return b.Deployer.TriggerLifecycleCallbacks(config)
 }
 
-//CleanPreviousVersion cleans previous version of autoscaling group
+// CleanPreviousVersion cleans previous version of autoscaling group
 func (b *BlueGreen) CleanPreviousVersion(config schemas.Config) error {
 	if !b.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil

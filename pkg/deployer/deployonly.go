@@ -138,7 +138,7 @@ func (d *DeployOnly) TriggerLifecycleCallbacks(config schemas.Config) error {
 	return d.Deployer.TriggerLifecycleCallbacks(config)
 }
 
-//CleanPreviousVersion cleans previous version of autoscaling group
+// CleanPreviousVersion cleans previous version of autoscaling group
 func (d *DeployOnly) CleanPreviousVersion(config schemas.Config) error {
 	if !d.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil

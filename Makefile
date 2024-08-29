@@ -24,6 +24,7 @@ S3_RELEASE_PATH ?= s3://$(RELEASE_BUCKET)/releases/$(VERSION)
 S3_RELEASE_LATEST ?= s3://$(RELEASE_BUCKET)/releases/latest
 S3_BLEEDING_EDGE_LATEST ?= s3://$(RELEASE_BUCKET)/edge/latest
 S3_EXPERIMENTAL_LATEST ?= s3://$(RELEASE_BUCKET)/experimental/latest
+VERSION = 2.1.0
 
 GCP_ONLY ?= false
 GCP_PROJECT ?= goployer
@@ -143,7 +144,7 @@ upload-release-only: version
 	aws s3 cp $(S3_RELEASE_PATH)/ $(S3_RELEASE_LATEST)/ --recursive --acl public-read
 
 	docker build --build-arg GOPLOYER_VERSION=edge --build-arg GOPLOYER_URL=https://goployer.s3.ap-northeast-2.amazonaws.com/edge/latest/goployer-linux-amd64 -t devopsart/goployer:latest deploy
-	docker push devopsart/goployer:latest
+	docker push devopsart/goployer:latest\
 
 .PHONY: clean
 clean:

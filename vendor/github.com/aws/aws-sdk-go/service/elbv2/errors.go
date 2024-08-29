@@ -22,11 +22,23 @@ const (
 	// The specified Availability Zone is not supported.
 	ErrCodeAvailabilityZoneNotSupportedException = "AvailabilityZoneNotSupported"
 
+	// ErrCodeCaCertificatesBundleNotFoundException for service response error code
+	// "CaCertificatesBundleNotFound".
+	//
+	// The specified ca certificate bundle does not exist.
+	ErrCodeCaCertificatesBundleNotFoundException = "CaCertificatesBundleNotFound"
+
 	// ErrCodeCertificateNotFoundException for service response error code
 	// "CertificateNotFound".
 	//
 	// The specified certificate does not exist.
 	ErrCodeCertificateNotFoundException = "CertificateNotFound"
+
+	// ErrCodeDeleteAssociationSameAccountException for service response error code
+	// "DeleteAssociationSameAccount".
+	//
+	// The specified association cannot be within the same account.
+	ErrCodeDeleteAssociationSameAccountException = "DeleteAssociationSameAccount"
 
 	// ErrCodeDuplicateListenerException for service response error code
 	// "DuplicateListener".
@@ -52,6 +64,12 @@ const (
 	// A target group with the specified name already exists.
 	ErrCodeDuplicateTargetGroupNameException = "DuplicateTargetGroupName"
 
+	// ErrCodeDuplicateTrustStoreNameException for service response error code
+	// "DuplicateTrustStoreName".
+	//
+	// A trust store with the specified name already exists.
+	ErrCodeDuplicateTrustStoreNameException = "DuplicateTrustStoreName"
+
 	// ErrCodeHealthUnavailableException for service response error code
 	// "HealthUnavailable".
 	//
@@ -65,6 +83,12 @@ const (
 	// The specified configuration is not valid with this protocol.
 	ErrCodeIncompatibleProtocolsException = "IncompatibleProtocols"
 
+	// ErrCodeInvalidCaCertificatesBundleException for service response error code
+	// "InvalidCaCertificatesBundle".
+	//
+	// The specified ca certificate bundle is in an invalid format, or corrupt.
+	ErrCodeInvalidCaCertificatesBundleException = "InvalidCaCertificatesBundle"
+
 	// ErrCodeInvalidConfigurationRequestException for service response error code
 	// "InvalidConfigurationRequest".
 	//
@@ -76,6 +100,12 @@ const (
 	//
 	// The requested action is not valid.
 	ErrCodeInvalidLoadBalancerActionException = "InvalidLoadBalancerAction"
+
+	// ErrCodeInvalidRevocationContentException for service response error code
+	// "InvalidRevocationContent".
+	//
+	// The provided revocation file is an invalid format, or uses an incorrect algorithm.
+	ErrCodeInvalidRevocationContentException = "InvalidRevocationContent"
 
 	// ErrCodeInvalidSchemeException for service response error code
 	// "InvalidScheme".
@@ -131,6 +161,24 @@ const (
 	//
 	// A specified resource is in use.
 	ErrCodeResourceInUseException = "ResourceInUse"
+
+	// ErrCodeResourceNotFoundException for service response error code
+	// "ResourceNotFound".
+	//
+	// The specified resource does not exist.
+	ErrCodeResourceNotFoundException = "ResourceNotFound"
+
+	// ErrCodeRevocationContentNotFoundException for service response error code
+	// "RevocationContentNotFound".
+	//
+	// The specified revocation file does not exist.
+	ErrCodeRevocationContentNotFoundException = "RevocationContentNotFound"
+
+	// ErrCodeRevocationIdNotFoundException for service response error code
+	// "RevocationIdNotFound".
+	//
+	// The specified revocation ID does not exist.
+	ErrCodeRevocationIdNotFoundException = "RevocationIdNotFound"
 
 	// ErrCodeRuleNotFoundException for service response error code
 	// "RuleNotFound".
@@ -203,7 +251,7 @@ const (
 	// ErrCodeTooManyTagsException for service response error code
 	// "TooManyTags".
 	//
-	// You've reached the limit on the number of tags per load balancer.
+	// You've reached the limit on the number of tags for this resource.
 	ErrCodeTooManyTagsException = "TooManyTags"
 
 	// ErrCodeTooManyTargetGroupsException for service response error code
@@ -219,6 +267,19 @@ const (
 	// You've reached the limit on the number of targets.
 	ErrCodeTooManyTargetsException = "TooManyTargets"
 
+	// ErrCodeTooManyTrustStoreRevocationEntriesException for service response error code
+	// "TooManyTrustStoreRevocationEntries".
+	//
+	// The specified trust store has too many revocation entries.
+	ErrCodeTooManyTrustStoreRevocationEntriesException = "TooManyTrustStoreRevocationEntries"
+
+	// ErrCodeTooManyTrustStoresException for service response error code
+	// "TooManyTrustStores".
+	//
+	// You've reached the limit on the number of trust stores for your Amazon Web
+	// Services account.
+	ErrCodeTooManyTrustStoresException = "TooManyTrustStores"
+
 	// ErrCodeTooManyUniqueTargetGroupsPerLoadBalancerException for service response error code
 	// "TooManyUniqueTargetGroupsPerLoadBalancer".
 	//
@@ -226,6 +287,30 @@ const (
 	// across all listeners. If a target group is used by multiple actions for a
 	// load balancer, it is counted as only one use.
 	ErrCodeTooManyUniqueTargetGroupsPerLoadBalancerException = "TooManyUniqueTargetGroupsPerLoadBalancer"
+
+	// ErrCodeTrustStoreAssociationNotFoundException for service response error code
+	// "AssociationNotFound".
+	//
+	// The specified association does not exist.
+	ErrCodeTrustStoreAssociationNotFoundException = "AssociationNotFound"
+
+	// ErrCodeTrustStoreInUseException for service response error code
+	// "TrustStoreInUse".
+	//
+	// The specified trust store is currently in use.
+	ErrCodeTrustStoreInUseException = "TrustStoreInUse"
+
+	// ErrCodeTrustStoreNotFoundException for service response error code
+	// "TrustStoreNotFound".
+	//
+	// The specified trust store does not exist.
+	ErrCodeTrustStoreNotFoundException = "TrustStoreNotFound"
+
+	// ErrCodeTrustStoreNotReadyException for service response error code
+	// "TrustStoreNotReady".
+	//
+	// The specified trust store is not active.
+	ErrCodeTrustStoreNotReadyException = "TrustStoreNotReady"
 
 	// ErrCodeUnsupportedProtocolException for service response error code
 	// "UnsupportedProtocol".

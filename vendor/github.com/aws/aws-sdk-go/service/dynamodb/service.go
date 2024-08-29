@@ -42,15 +42,20 @@ const (
 // aws.Config parameter to add your extra config.
 //
 // Example:
-//     mySession := session.Must(session.NewSession())
 //
-//     // Create a DynamoDB client from just a session.
-//     svc := dynamodb.New(mySession)
+//	mySession := session.Must(session.NewSession())
 //
-//     // Create a DynamoDB client with additional configuration
-//     svc := dynamodb.New(mySession, aws.NewConfig().WithRegion("us-west-2"))
+//	// Create a DynamoDB client from just a session.
+//	svc := dynamodb.New(mySession)
+//
+//	// Create a DynamoDB client with additional configuration
+//	svc := dynamodb.New(mySession, aws.NewConfig().WithRegion("us-west-2"))
 func New(p client.ConfigProvider, cfgs ...*aws.Config) *DynamoDB {
 	c := p.ClientConfig(EndpointsID, cfgs...)
+	if c.SigningNameDerived || len(c.SigningName) == 0 {
+		c.SigningName = EndpointsID
+		// No Fallback
+	}
 	return newClient(*c.Config, c.Handlers, c.PartitionID, c.Endpoint, c.SigningRegion, c.SigningName, c.ResolvedRegion)
 }
 

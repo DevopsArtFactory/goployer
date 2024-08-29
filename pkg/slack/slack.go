@@ -142,7 +142,7 @@ func (s Slack) CreateDividerSection() *slack.DividerBlock {
 	return slack.NewDividerBlock()
 }
 
-//ValidClient validates slack variables
+// ValidClient validates slack variables
 func (s Slack) ValidClient() bool {
 	if (len(s.WebhookURL) == 0 && (len(s.Token) == 0 || len(s.ChannelID) == 0)) || s.SlackOff {
 		return false

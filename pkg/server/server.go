@@ -104,7 +104,7 @@ func (s Server) GetAddr() string {
 	return fmt.Sprintf("%s:%d", s.ServerConfig.Addr, s.ServerConfig.Port)
 }
 
-//parameterParsing returns RequestBody
+// parameterParsing returns RequestBody
 func parameterParsing(body io.Reader) (RequestBody, error) {
 	decoder := json.NewDecoder(body)
 

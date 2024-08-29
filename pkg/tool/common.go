@@ -60,7 +60,7 @@ func IsStringInPointerArray(s string, arr []*string) bool {
 	return false
 }
 
-//CheckTimeout compares now-start time with timeout
+// CheckTimeout compares now-start time with timeout
 func CheckTimeout(start int64, timeout time.Duration) (bool, error) {
 	now := time.Now().Unix()
 	timeoutSec := int64(timeout / time.Second)
