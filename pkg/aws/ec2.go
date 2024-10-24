@@ -485,15 +485,22 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 		}
 
 		enabledEBSEncrypted := block.Encrypted
-		kmsKeyArn := e.getKMSKeyArn(block.KmsKeyId)
+
 		LaunchTemplateEbsBlockDevice := &ec2.LaunchTemplateEbsBlockDeviceRequest{}
 
 		if enabledEBSEncrypted {
+			keyId, err := e.getKmsKeyIdByAlias(block.KmsAlias)
+
+			if err != nil {
+				Logger.Fatalf("Error: %v", err)
+			}
+
+			fmt.Printf("KMS Key ID for alias %s: %s\n", block.KmsAlias, keyId)
 			LaunchTemplateEbsBlockDevice = &ec2.LaunchTemplateEbsBlockDeviceRequest{
 				VolumeSize: aws.Int64(bSize),
 				VolumeType: aws.String(bType),
 				Encrypted:  aws.Bool(enabledEBSEncrypted),
-				KmsKeyId:   aws.String(kmsKeyArn),
+				KmsKeyId:   aws.String(keyId),
 			}
 		} else {
 			LaunchTemplateEbsBlockDevice = &ec2.LaunchTemplateEbsBlockDeviceRequest{
@@ -1296,42 +1303,29 @@ func (e EC2Client) DescribeAMIArchitecture(amiID string) (string, error) {
 	return amiArchitecture, nil
 }
 
-func (e EC2Client) getKMSKeyArn(kmsKeyId string) string {
+func (e EC2Client) getKmsKeyIdByAlias(alias string) (string, error) {
 
-	kmsAlias := kmsKeyId
-
-	if kmsAlias == "" {
+	if len(alias) == 0 {
 		Logger.Info("Volume Encrypt default KMS Key(aws/ebs)")
-		kmsAlias = "alias/aws/ebs"
-	} else if !strings.HasPrefix(kmsAlias, "alias") {
+		alias = "alias/aws/ebs"
+	} else if !strings.HasPrefix(alias, "alias") {
 		var sb strings.Builder
 		sb.WriteString("alias/")
-		sb.WriteString(kmsAlias)
-		kmsAlias = sb.String()
+		sb.WriteString(alias)
+		alias = sb.String()
 	}
 
-	input := &kms.DescribeKeyInput{
-		KeyId: aws.String(kmsAlias),
-	}
-
-	result, err := e.KMSClient.DescribeKey(input)
+	result, err := e.KMSClient.ListAliases(&kms.ListAliasesInput{})
 	if err != nil {
-		var aerr awserr.Error
-		if errors.As(err, &aerr) {
-			switch aerr.Code() {
-			case kms.ErrCodeNotFoundException:
-				Logger.Println(kms.ErrCodeNotFoundException, aerr.Error())
-			case kms.ErrCodeInvalidArnException:
-				Logger.Println(kms.ErrCodeInvalidArnException, aerr.Error())
-			case kms.ErrCodeDependencyTimeoutException:
-				Logger.Println(kms.ErrCodeDependencyTimeoutException, aerr.Error())
-			case kms.ErrCodeInternalException:
-				Logger.Println(kms.ErrCodeInternalException, aerr.Error())
-			default:
-				Logger.Println(aerr.Error())
+		return "", fmt.Errorf("failed to list aliases, %v", err)
+	}
+
+	for _, aliasEntry := range result.Aliases {
+		if aliasEntry.AliasName != nil && *aliasEntry.AliasName == alias {
+			if aliasEntry.TargetKeyId != nil {
+				return *aliasEntry.TargetKeyId, nil
 			}
 		}
-		return ""
 	}
-	return *result.KeyMetadata.Arn
+	return "", fmt.Errorf("alias %s not found", alias)
 }

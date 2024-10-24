@@ -249,7 +249,7 @@ type BlockDevice struct {
 	Encrypted bool `yaml:"encrypted"`
 
 	// KMS key
-	KmsKeyId string `yaml:"kmsKeyId"`
+	KmsAlias string `yaml:"kmsAlias"`
 }
 
 // Lifecycle Callback configuration
