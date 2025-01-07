@@ -958,6 +958,21 @@ func (d *Deployer) HealthChecking(config schemas.Config) (bool, error) {
 		}
 		d.Logger.Debugf("Health check target autoscaling group: %s / %s", region.Region, *asg.AutoScalingGroupName)
 
+		if len(asg.Instances) > 0 {
+			for _, instance := range asg.Instances {
+				success, err := client.SSMService.MonitorAnsibleLog(*instance.InstanceId)
+				if err != nil {
+					d.Logger.Error(fmt.Sprintf("Error monitoring ansible log: %v", err))
+					return false, err
+				}
+				if !success {
+					d.Logger.Error("Ansible execution failed")
+					return false, err
+				}
+			}
+			d.Logger.Info("Ansible execution completed successfully")
+		}
+
 		isHealthy, err := d.Polling(region, asg, client, config.ForceManifestCapacity, isUpdate, config.DownSizingUpdate)
 		if err != nil {
 			return false, err
