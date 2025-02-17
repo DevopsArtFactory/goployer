@@ -28,7 +28,7 @@ RUN yum update -y && \
     git \
     wget \
     openssl \
-    java-1.8.0-openjdk-devel.x86_64
+    java-1.8.0-amazon-corretto-devel
 
 COPY --from=docker:27.2.0 /usr/local/bin/docker /usr/local/bin/
 COPY --from=download-goployer goployer /usr/local/bin/

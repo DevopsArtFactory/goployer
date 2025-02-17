@@ -596,6 +596,8 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	}
 
 	blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(d.Stack.BlockDevices)
+	d.Logger.Debugf("additional blokcDevice infomation %s", blockDevices[0].Ebs.String())
+
 	ebsOptimized := d.Stack.EbsOptimized
 
 	// Instance Type Override
@@ -645,7 +647,10 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		return err
 	}
 
-	subnets := region.SubnetIDs
+	subnets := make([]string, 0)
+	if len(region.SubnetIDs) != 0 {
+		subnets = region.SubnetIDs
+	}
 	if len(subnets) == 0 {
 		Logger.Info("Not Subnet ID Specific")
 		subnets, err = client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
