@@ -17,10 +17,14 @@ limitations under the license.
 package aws
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
 type SSMClient struct {
@@ -57,4 +61,76 @@ func (s SSMClient) SendCommand(target []*string, commands []*string) bool {
 	}
 
 	return true
+}
+
+func (s SSMClient) MonitorAnsibleLog(instanceId string) (bool, error) {
+	input := &ssm.SendCommandInput{
+		DocumentName: aws.String("AWS-RunShellScript"),
+		InstanceIds:  []*string{aws.String(instanceId)},
+		Parameters: map[string][]*string{
+			"commands": []*string{
+				aws.String("tail -f /var/log/ansible.log"),
+			},
+		},
+	}
+
+	output, err := s.Client.SendCommand(input)
+	if err != nil {
+		return false, err
+	}
+
+	var lastContent string
+	for {
+		commandOutput, err := s.Client.GetCommandInvocation(&ssm.GetCommandInvocationInput{
+			CommandId:  output.Command.CommandId,
+			InstanceId: aws.String(instanceId),
+		})
+		if err != nil {
+			return false, err
+		}
+
+		if *commandOutput.Status != "Success" {
+			continue
+		}
+
+		currentContent := *commandOutput.StandardOutputContent
+		if newContent := strings.TrimPrefix(currentContent, lastContent); newContent != "" {
+			logrus.Info(fmt.Sprintf("\n%s", newContent))
+			lastContent = currentContent
+		}
+
+		if !strings.Contains(currentContent, "PLAY RECAP") {
+			time.Sleep(time.Second)
+			continue
+		}
+
+		playRecapLines := extractPlayRecap(currentContent)
+		logrus.Info(fmt.Sprintf("Ansible Execution Completed:\n%s", playRecapLines))
+
+		if !strings.Contains(playRecapLines, "failed=0") || !strings.Contains(playRecapLines, "unreachable=0") {
+			return false, fmt.Errorf("ansible execution failed: %s", playRecapLines)
+		}
+
+		return true, nil
+	}
+}
+
+func extractPlayRecap(log string) string {
+	lines := strings.Split(log, "\n")
+	var recap []string
+	inRecap := false
+
+	for _, line := range lines {
+		if strings.Contains(line, "PLAY RECAP") {
+			inRecap = true
+		}
+		if inRecap {
+			recap = append(recap, line)
+			if strings.TrimSpace(line) == "" {
+				break
+			}
+		}
+	}
+
+	return strings.Join(recap, "\n")
 }
