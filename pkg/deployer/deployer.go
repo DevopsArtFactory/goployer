@@ -1,17 +1,17 @@
 /*
-copyright 2020 the Goployer authors
+Copyright 2020 The Goployer Authors
 
-licensed under the apache license, version 2.0 (the "license");
-you may not use this file except in compliance with the license.
-you may obtain a copy of the license at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at:
 
-    http://www.apache.org/licenses/license-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
-unless required by applicable law or agreed to in writing, software
-distributed under the license is distributed on an "as is" basis,
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" basis,
 without warranties or conditions of any kind, either express or implied.
-see the license for the specific language governing permissions and
-limitations under the license.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package deployer
@@ -47,7 +47,7 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
-// Deployer per stack
+// Deployer for each stack
 type Deployer struct {
 	Mode              string
 	AsgNames          map[string]string
@@ -78,7 +78,7 @@ type APIAttacker struct {
 	Targets  []vegeta.Target
 }
 
-// InitDeploymentConfiguration returns initialized configurations for Deployer
+// InitDeploymentConfiguration initializes and returns configurations for the Deployer.
 func InitDeploymentConfiguration(h *helper.DeployerHelper, awsClients []aws.Client) Deployer {
 	return Deployer{
 		Mode:              h.Stack.ReplacementType,
@@ -102,7 +102,7 @@ func InitDeploymentConfiguration(h *helper.DeployerHelper, awsClients []aws.Clie
 	}
 }
 
-// Polling is polling healthy information from instance/target group
+// Polling retrieves health information from instances or target groups.
 func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.Client, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
 	if asg.AutoScalingGroupName == nil {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
@@ -172,7 +172,7 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 	return false, nil
 }
 
-// CheckTerminating checks if all of instances are terminated well
+// CheckTerminating verifies whether all instances have been successfully terminated.
 func (d *Deployer) CheckTerminating(client aws.Client, target string, disableMetrics bool) bool {
 	done, err := d.CheckAutoscalingInstanceCount(client, target, 0)
 	if err != nil {
@@ -247,7 +247,7 @@ func (d *Deployer) ResizingAutoScalingGroupCount(client aws.Client, asg string, 
 	return nil
 }
 
-// RunLifecycleCallbacks runs commands before terminating.
+// RunLifecycleCallbacks executes commands before termination.
 func (d *Deployer) RunLifecycleCallbacks(client aws.Client, region string) bool {
 	targets := d.PrevInstances[region]
 	if len(targets) == 0 {
@@ -445,7 +445,7 @@ func (d *Deployer) GetStackName() string {
 	return d.Stack.Stack
 }
 
-// SkipDeployStep skips deployment processes
+// SkipDeployStep skips the deployment process.
 func (d *Deployer) SkipDeployStep() {
 	d.StepStatus[constants.StepDeploy] = true
 	d.StepStatus[constants.StepAdditionalWork] = true
@@ -596,7 +596,7 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	}
 
 	blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(d.Stack.BlockDevices)
-	d.Logger.Debugf("additional blokcDevice infomation %s", blockDevices[0].Ebs.String())
+	d.Logger.Debugf("additional blockDevice information %s", blockDevices[0].Ebs.String())
 
 	ebsOptimized := d.Stack.EbsOptimized
 
