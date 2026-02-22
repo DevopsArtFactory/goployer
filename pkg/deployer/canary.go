@@ -754,7 +754,7 @@ func (c *Canary) CleanPreviousCanaryResources(region schemas.RegionConfig, compl
 
 		c.Logger.Debugf("[Resizing] target autoscaling group : %s", *asg.AutoScalingGroupName)
 		if err := c.ResizingAutoScalingGroupCount(client, *asg.AutoScalingGroupName, 0); err != nil {
-			c.Logger.Errorf(err.Error())
+			c.Logger.Error(err.Error())
 		}
 		c.Logger.Debugf("Resizing autoscaling group finished: %s", *asg.AutoScalingGroupName)
 

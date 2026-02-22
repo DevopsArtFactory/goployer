@@ -44,7 +44,7 @@ func ParseMetricConfig(disabledMetrics bool, filename string) (schemas.MetricCon
 
 	err = yaml.Unmarshal(yamlFile, &metricConfig)
 	if err != nil {
-		Logger.Errorf(err.Error())
+		Logger.Error(err.Error())
 		return metricConfig, err
 	}
 

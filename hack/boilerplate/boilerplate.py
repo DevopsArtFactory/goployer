@@ -8,7 +8,7 @@ import re
 import sys
 
 
-SKIPPED_DIRS = ["Godeps", "third_party", ".git", "vendor", "examples", "base-infrastructure", "node_modules", "venv"]
+SKIPPED_DIRS = ["themes", "Godeps", "third_party", ".git", "vendor", "examples", "base-infrastructure", "node_modules", "venv"]
 SKIPPED_FILES = ["install_golint.sh", "boilerplate.py", "golangci-lint.sh", "pedantic-imports.sh", "preview-docs.sh", "gofmt.sh", "boilerplate.sh", "linters.sh", "deploy.sh", "test_userdata.sh"]
 
 parser = argparse.ArgumentParser()

@@ -87,7 +87,7 @@ func DecorateAttr(attrString, message string) string {
 	case "underline":
 		attr = color.Underline
 	case "underline bold":
-		return color.New(color.Underline).Add(color.Bold).Sprintf(message)
+		return color.New(color.Underline).Add(color.Bold).Sprintf("%s", message)
 	case "bold":
 		attr = color.Bold
 	case "yellow":
@@ -108,7 +108,7 @@ func DecorateAttr(attrString, message string) string {
 		attr = color.FgHiWhite
 	}
 
-	return color.New(attr).Sprintf(message)
+	return color.New(attr).Sprintf("%s", message)
 }
 
 // GetRandomRGBColor creates random RGB color

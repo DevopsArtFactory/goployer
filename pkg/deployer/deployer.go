@@ -178,7 +178,7 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 func (d *Deployer) CheckTerminating(client aws.Client, target string, disableMetrics bool) bool {
 	done, err := d.CheckAutoscalingInstanceCount(client, target, 0)
 	if err != nil {
-		d.Logger.Errorf(err.Error())
+		d.Logger.Error(err.Error())
 		return true
 	}
 
@@ -1185,14 +1185,14 @@ func (d *Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 						next = getNextTargetInstanceCount(current, reduceCnt)
 						d.Logger.Debugf("resizing target autoscaling group : %s, total: %d, current: %d, desired: %d", asg, total, current, next)
 						if err := d.ResizingAutoScalingGroupCount(client, asg, next); err != nil {
-							d.Logger.Errorf(err.Error())
+							d.Logger.Error(err.Error())
 						}
 
 						done := false
 						for !done {
 							done, err = d.CheckAutoscalingInstanceCount(client, asg, int(next))
 							if err != nil {
-								d.Logger.Errorf(err.Error())
+								d.Logger.Error(err.Error())
 								return nil
 							}
 
@@ -1206,7 +1206,7 @@ func (d *Deployer) CleanPreviousAutoScalingGroup(config schemas.Config) error {
 				} else {
 					d.Logger.Debugf("[Resizing to 0] target autoscaling group : %s", asg)
 					if err := d.ResizingAutoScalingGroupCount(client, asg, next); err != nil {
-						d.Logger.Errorf(err.Error())
+						d.Logger.Error(err.Error())
 					}
 				}
 			}
@@ -1240,7 +1240,7 @@ func (d *Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreas
 					return false, err
 				}
 				if err := d.ResizingAutoScalingGroup(asg, region, *nextCapacity); err != nil {
-					d.Logger.Errorf(err.Error())
+					d.Logger.Error(err.Error())
 				}
 			}
 		}
@@ -1311,14 +1311,14 @@ func (d *Deployer) CleanChecking(config schemas.Config) (bool, error) {
 // ClearResources removes all resources of deployment and record metrics
 func (d *Deployer) ClearResources(client aws.Client, target string, disableMetrics bool) bool {
 	if err := d.CleanAutoscalingSet(client, target); err != nil {
-		d.Logger.Errorf(err.Error())
+		d.Logger.Error(err.Error())
 		return false
 	}
 
 	if !disableMetrics {
 		d.Logger.Debugf("update status of autoscaling group to teminated : %s", target)
 		if err := d.Collector.UpdateStatus(target, "terminated", nil); err != nil {
-			d.Logger.Errorf(err.Error())
+			d.Logger.Error(err.Error())
 			return false
 		}
 		d.Logger.Debugf("update status of %s is finished", target)
@@ -1363,7 +1363,7 @@ func (d *Deployer) StartGatheringMetrics(config schemas.Config) error {
 
 			if len(errorList) > 0 {
 				for _, e := range errorList {
-					d.Logger.Errorf(e.Error())
+					d.Logger.Error(e.Error())
 				}
 				return errors.New("error occurred on gathering metrics")
 			}

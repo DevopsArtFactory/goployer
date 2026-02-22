@@ -249,8 +249,11 @@ type BlockDevice struct {
 	// Enable Encrypted
 	Encrypted bool `yaml:"encrypted"`
 
-	// KMS key
+	// KMS key alias
 	KmsAlias string `yaml:"kmsAlias"`
+
+	// KMS key ID (ARN or key ID)
+	KmsKeyId string `yaml:"kmsKeyId"`
 
 	// Whether to delete the volume on instance termination
 	DeleteOnTermination bool `yaml:"delete_on_termination"`

@@ -84,18 +84,18 @@ func (s Server) Healthcheck(w http.ResponseWriter, req *http.Request) {
 func (s Server) TriggerDeploy(w http.ResponseWriter, req *http.Request) {
 	body, err := parameterParsing(req.Body)
 	if err != nil {
-		s.Logger.Errorf(err.Error())
+		s.Logger.Error(err.Error())
 		return
 	}
 
 	builder, err := runner.ServerSetup(body.Config)
 	if err != nil {
-		s.Logger.Errorf(err.Error())
+		s.Logger.Error(err.Error())
 		return
 	}
 
 	if err := runner.Start(builder, "server"); err != nil {
-		s.Logger.Errorf(err.Error())
+		s.Logger.Error(err.Error())
 		return
 	}
 }

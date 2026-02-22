@@ -622,10 +622,20 @@ func (e EC2Client) MakeLaunchTemplateBlockDeviceMappings(blocks []schemas.BlockD
 		var LaunchTemplateEbsBlockDevice *ec2.LaunchTemplateEbsBlockDeviceRequest
 
 		if enabledEBSEncrypted {
-			keyId, err := e.getKmsKeyIdByAlias(block.KmsAlias)
-			if err != nil {
-				Logger.Fatal(fmt.Sprintf("Error: %s", err.Error()))
+			var keyId string
+			var err error
+
+			// Priority: KmsKeyId > KmsAlias
+			if len(block.KmsKeyId) > 0 {
+				keyId = block.KmsKeyId
+				Logger.Infof("Using provided KMS Key ID: %s", keyId)
+			} else {
+				keyId, err = e.getKmsKeyIdByAlias(block.KmsAlias)
+				if err != nil {
+					Logger.Fatal(fmt.Sprintf("Error: %s", err.Error()))
+				}
 			}
+
 			LaunchTemplateEbsBlockDevice = &ec2.LaunchTemplateEbsBlockDeviceRequest{
 				VolumeSize:          aws.Int64(block.VolumeSize),
 				VolumeType:          aws.String(block.VolumeType),
