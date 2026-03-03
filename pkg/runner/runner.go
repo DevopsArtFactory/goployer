@@ -585,7 +585,7 @@ func (r Runner) Update() error {
 		return err
 	}
 
-	oldCapacity := makeCapacityStruct(*group.MinSize, *group.MaxSize, *group.DesiredCapacity)
+	oldCapacity := makeCapacityStruct(int64(*group.MinSize), int64(*group.MaxSize), int64(*group.DesiredCapacity))
 	newCapacity := makeCapacityStruct(nullCheck(r.Builder.Config.Min, oldCapacity.Min), nullCheck(r.Builder.Config.Max, oldCapacity.Max), nullCheck(r.Builder.Config.Desired, oldCapacity.Desired))
 	if err := CheckUpdateInformation(oldCapacity, newCapacity); err != nil {
 		return err

@@ -8,3 +8,4 @@ venv
 configs/*
 .env
 **/pkg/sumdb
+vendor/

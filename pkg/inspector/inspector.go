@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
@@ -117,7 +117,7 @@ func (i Inspector) GetStacks(application string) ([]string, error) {
 	return options, nil
 }
 
-func (i Inspector) GetStackInformation(asgName string) (*autoscaling.Group, error) {
+func (i Inspector) GetStackInformation(asgName string) (*astypes.AutoScalingGroup, error) {
 	asg, err := i.AWSClient.EC2Service.GetMatchingAutoscalingGroup(asgName)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (i Inspector) GetStackInformation(asgName string) (*autoscaling.Group, erro
 }
 
 // GetLaunchTemplateInformation retrieves single launch template information
-func (i Inspector) GetLaunchTemplateInformation(ltID string) (*ec2.LaunchTemplateVersion, error) {
+func (i Inspector) GetLaunchTemplateInformation(ltID string) (*ec2types.LaunchTemplateVersion, error) {
 	lt, err := i.AWSClient.EC2Service.GetMatchingLaunchTemplate(ltID)
 	if err != nil {
 		return nil, nil
@@ -137,7 +137,7 @@ func (i Inspector) GetLaunchTemplateInformation(ltID string) (*ec2.LaunchTemplat
 }
 
 // GetSecurityGroupsInformation retrieves security groups' information
-func (i Inspector) GetSecurityGroupsInformation(sgIds []*string) ([]*ec2.SecurityGroup, error) {
+func (i Inspector) GetSecurityGroupsInformation(sgIds []string) ([]ec2types.SecurityGroup, error) {
 	if len(sgIds) == 0 {
 		return nil, nil
 	}
@@ -151,13 +151,13 @@ func (i Inspector) GetSecurityGroupsInformation(sgIds []*string) ([]*ec2.Securit
 }
 
 // SetStatusSummary creates status summary structure
-func (i Inspector) SetStatusSummary(asg *autoscaling.Group, sgs []*ec2.SecurityGroup) StatusSummary {
+func (i Inspector) SetStatusSummary(asg *astypes.AutoScalingGroup, sgs []ec2types.SecurityGroup) StatusSummary {
 	summary := StatusSummary{}
 	summary.Name = *asg.AutoScalingGroupName
 	summary.Capacity = schemas.Capacity{
-		Min:     *asg.MinSize,
-		Max:     *asg.MaxSize,
-		Desired: *asg.DesiredCapacity,
+		Min:     int64(*asg.MinSize),
+		Max:     int64(*asg.MaxSize),
+		Desired: int64(*asg.DesiredCapacity),
 	}
 	summary.CreatedTime = *asg.CreatedTime
 
@@ -299,7 +299,7 @@ func (i Inspector) Update() error {
 }
 
 // GenerateStack generates stack configuration for update
-func (i Inspector) GenerateStack(region string, group *autoscaling.Group) schemas.Stack {
+func (i Inspector) GenerateStack(region string, group *astypes.AutoScalingGroup) schemas.Stack {
 	s := schemas.Stack{
 		Stack:    "update-stack",
 		Capacity: i.UpdateFields.Capacity,
@@ -311,11 +311,11 @@ func (i Inspector) GenerateStack(region string, group *autoscaling.Group) schema
 	}
 
 	if len(group.TargetGroupARNs) > 0 {
-		s.Regions[0].HealthcheckTargetGroup = *(group.TargetGroupARNs[0])
+		s.Regions[0].HealthcheckTargetGroup = group.TargetGroupARNs[0]
 	}
 
 	if len(group.LoadBalancerNames) > 0 {
-		s.Regions[0].HealthcheckLB = *(group.LoadBalancerNames[0])
+		s.Regions[0].HealthcheckLB = group.LoadBalancerNames[0]
 	}
 
 	return s

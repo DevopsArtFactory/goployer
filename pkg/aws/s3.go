@@ -17,29 +17,21 @@ limitations under the license.
 package aws
 
 import (
+	"context"
 	"io"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type S3Client struct {
-	Client *s3.S3
+	Client *s3.Client
 }
 
-func NewS3Client(session client.ConfigProvider, region string, creds *credentials.Credentials) S3Client {
+func NewS3Client(cfg aws.Config) S3Client {
 	return S3Client{
-		Client: getS3ClientFn(session, region, creds),
+		Client: s3.NewFromConfig(cfg),
 	}
-}
-
-func getS3ClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *s3.S3 {
-	if creds == nil {
-		return s3.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return s3.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
 func (s S3Client) GetManifest(bucket, key string) ([]byte, error) {
@@ -48,15 +40,11 @@ func (s S3Client) GetManifest(bucket, key string) ([]byte, error) {
 		Key:    aws.String(key),
 	}
 
-	result, err := s.Client.GetObject(input)
+	result, err := s.Client.GetObject(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
+	defer result.Body.Close()
 
-	body, err := io.ReadAll(result.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
+	return io.ReadAll(result.Body)
 }

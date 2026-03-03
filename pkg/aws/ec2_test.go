@@ -19,9 +19,9 @@ package aws
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
@@ -31,7 +31,7 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 	tests := []struct {
 		name     string
 		blocks   []schemas.BlockDevice
-		expected []*ec2.LaunchTemplateBlockDeviceMappingRequest
+		expected []ec2types.LaunchTemplateBlockDeviceMappingRequest
 	}{
 		{
 			name: "Basic EBS volume",
@@ -42,12 +42,12 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					VolumeType: "gp2",
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 				{
 					DeviceName: stringPtr("/dev/xvda"),
-					Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
-						VolumeSize:          int64Ptr(30),
-						VolumeType:          stringPtr("gp2"),
+					Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
+						VolumeSize:          int32Ptr(30),
+						VolumeType:          ec2types.VolumeTypeGp2,
 						DeleteOnTermination: boolPtr(false),
 					},
 				},
@@ -63,12 +63,12 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					DeleteOnTermination: true,
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 				{
 					DeviceName: stringPtr("/dev/xvda"),
-					Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
-						VolumeSize:          int64Ptr(30),
-						VolumeType:          stringPtr("gp2"),
+					Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
+						VolumeSize:          int32Ptr(30),
+						VolumeType:          ec2types.VolumeTypeGp2,
 						DeleteOnTermination: boolPtr(true),
 					},
 				},
@@ -84,12 +84,12 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					SnapshotID: "snap-12345678",
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 				{
 					DeviceName: stringPtr("/dev/xvda"),
-					Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
-						VolumeSize:          int64Ptr(30),
-						VolumeType:          stringPtr("gp2"),
+					Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
+						VolumeSize:          int32Ptr(30),
+						VolumeType:          ec2types.VolumeTypeGp2,
 						SnapshotId:          stringPtr("snap-12345678"),
 						DeleteOnTermination: boolPtr(false),
 					},
@@ -106,7 +106,7 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					SnapshotID: "snap-invalid",
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{},
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{},
 		},
 		{
 			name: "EBS volume with long snapshot",
@@ -118,12 +118,12 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					SnapshotID: "snap-1234567890abcdef0",
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 				{
 					DeviceName: stringPtr("/dev/xvda"),
-					Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
-						VolumeSize:          int64Ptr(30),
-						VolumeType:          stringPtr("gp2"),
+					Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
+						VolumeSize:          int32Ptr(30),
+						VolumeType:          ec2types.VolumeTypeGp2,
 						SnapshotId:          stringPtr("snap-1234567890abcdef0"),
 						DeleteOnTermination: boolPtr(false),
 					},
@@ -140,13 +140,13 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 					Iops:       3000,
 				},
 			},
-			expected: []*ec2.LaunchTemplateBlockDeviceMappingRequest{
+			expected: []ec2types.LaunchTemplateBlockDeviceMappingRequest{
 				{
 					DeviceName: stringPtr("/dev/xvda"),
-					Ebs: &ec2.LaunchTemplateEbsBlockDeviceRequest{
-						VolumeSize:          int64Ptr(30),
-						VolumeType:          stringPtr("io1"),
-						Iops:                int64Ptr(3000),
+					Ebs: &ec2types.LaunchTemplateEbsBlockDeviceRequest{
+						VolumeSize:          int32Ptr(30),
+						VolumeType:          ec2types.VolumeTypeIo1,
+						Iops:                int32Ptr(3000),
 						DeleteOnTermination: boolPtr(false),
 					},
 				},
@@ -157,8 +157,8 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &EC2Client{
-				Client:   &ec2.EC2{},
-				AsClient: &autoscaling.AutoScaling{},
+				Client:   &ec2.Client{},
+				AsClient: &autoscaling.Client{},
 			}
 			result := client.MakeLaunchTemplateBlockDeviceMappings(tt.blocks)
 
@@ -166,7 +166,7 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 			for i, expected := range tt.expected {
 				assert.Equal(t, *expected.DeviceName, *result[i].DeviceName)
 				assert.Equal(t, *expected.Ebs.VolumeSize, *result[i].Ebs.VolumeSize)
-				assert.Equal(t, *expected.Ebs.VolumeType, *result[i].Ebs.VolumeType)
+				assert.Equal(t, expected.Ebs.VolumeType, result[i].Ebs.VolumeType)
 				assert.Equal(t, *expected.Ebs.DeleteOnTermination, *result[i].Ebs.DeleteOnTermination)
 
 				if expected.Ebs.SnapshotId != nil {
@@ -183,7 +183,7 @@ func TestMakeLaunchTemplateBlockDeviceMappings(t *testing.T) {
 func TestValidateSecurityGroupsConfig(t *testing.T) {
 	tests := []struct {
 		name           string
-		securityGroups []*string
+		securityGroups []string
 		primaryENI     *schemas.ENIConfig
 		secondaryENIs  []*schemas.ENIConfig
 		expectedError  bool
@@ -191,14 +191,14 @@ func TestValidateSecurityGroupsConfig(t *testing.T) {
 	}{
 		{
 			name:           "Valid security groups without ENI",
-			securityGroups: []*string{aws.String("sg-12345678")},
+			securityGroups: []string{"sg-12345678"},
 			primaryENI:     nil,
 			secondaryENIs:  nil,
 			expectedError:  false,
 		},
 		{
 			name:           "Invalid security group format",
-			securityGroups: []*string{aws.String("invalid-sg")},
+			securityGroups: []string{"invalid-sg"},
 			primaryENI:     nil,
 			secondaryENIs:  nil,
 			expectedError:  true,
@@ -206,7 +206,7 @@ func TestValidateSecurityGroupsConfig(t *testing.T) {
 		},
 		{
 			name:           "Empty security groups without ENI",
-			securityGroups: []*string{},
+			securityGroups: []string{},
 			primaryENI:     nil,
 			secondaryENIs:  nil,
 			expectedError:  true,
@@ -233,7 +233,7 @@ func TestValidateSecurityGroupsConfig(t *testing.T) {
 		},
 		{
 			name:           "Both security groups and ENI specified",
-			securityGroups: []*string{aws.String("sg-12345678")},
+			securityGroups: []string{"sg-12345678"},
 			primaryENI: &schemas.ENIConfig{
 				SecurityGroups: []string{"sg-87654321"},
 			},
@@ -258,8 +258,8 @@ func TestValidateSecurityGroupsConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &EC2Client{
-				Client:   &ec2.EC2{},
-				AsClient: &autoscaling.AutoScaling{},
+				Client:   &ec2.Client{},
+				AsClient: &autoscaling.Client{},
 			}
 
 			err := client.ValidateSecurityGroupsConfig(tt.securityGroups, tt.primaryENI, tt.secondaryENIs)
@@ -358,7 +358,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func int64Ptr(i int64) *int64 {
+func int32Ptr(i int32) *int32 {
 	return &i
 }
 

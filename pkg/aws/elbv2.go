@@ -17,19 +17,19 @@ limitations under the license.
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	elbv2 "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type ELBV2Client struct {
-	Client *elbv2.ELBV2
+	Client *elbv2.Client
 }
 
 type HealthcheckHost struct {
@@ -40,27 +40,19 @@ type HealthcheckHost struct {
 	Valid          bool
 }
 
-func NewELBV2Client(session client.ConfigProvider, region string, creds *credentials.Credentials) ELBV2Client {
+func NewELBV2Client(cfg aws.Config) ELBV2Client {
 	return ELBV2Client{
-		Client: getElbClientFn(session, region, creds),
+		Client: elbv2.NewFromConfig(cfg),
 	}
-}
-
-func getElbClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *elbv2.ELBV2 {
-	if creds == nil {
-		return elbv2.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return elbv2.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
 // GetTargetGroupARNs returns arn list of target groups
-func (e ELBV2Client) GetTargetGroupARNs(targetGroups []string) ([]*string, error) {
-	// Return nil if there is no target group.
+func (e ELBV2Client) GetTargetGroupARNs(targetGroups []string) ([]string, error) {
 	if len(targetGroups) == 0 {
 		return nil, nil
 	}
 
-	tgWithDetails, err := e.DescribeTargetGroups(aws.StringSlice(targetGroups))
+	tgWithDetails, err := e.DescribeTargetGroups(targetGroups)
 	if err != nil {
 		return nil, err
 	}
@@ -69,21 +61,21 @@ func (e ELBV2Client) GetTargetGroupARNs(targetGroups []string) ([]*string, error
 		return nil, nil
 	}
 
-	var tgs []*string
+	var tgs []string
 	for _, group := range tgWithDetails {
-		tgs = append(tgs, group.TargetGroupArn)
+		tgs = append(tgs, *group.TargetGroupArn)
 	}
 
 	return tgs, nil
 }
 
 // GetHostInTarget gets host instance
-func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, targetGroupArn *string, isUpdate, downSizingUpdate bool) ([]HealthcheckHost, error) {
+func (e ELBV2Client) GetHostInTarget(group *astypes.AutoScalingGroup, targetGroupArn *string, isUpdate, downSizingUpdate bool) ([]HealthcheckHost, error) {
 	input := &elbv2.DescribeTargetHealthInput{
-		TargetGroupArn: aws.String(*targetGroupArn),
+		TargetGroupArn: targetGroupArn,
 	}
 
-	result, err := e.Client.DescribeTargetHealth(input)
+	result, err := e.Client.DescribeTargetHealth(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
@@ -93,21 +85,21 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, targetGroupArn *s
 		targetState := constants.InitialStatus
 		for _, hd := range result.TargetHealthDescriptions {
 			if *hd.Target.Id == *instance.InstanceId {
-				targetState = *hd.TargetHealth.State
+				targetState = string(hd.TargetHealth.State)
 				break
 			}
 		}
 
 		var valid bool
 		if isUpdate && downSizingUpdate {
-			valid = *instance.LifecycleState == constants.InServiceStatus || targetState == "healthy" || *instance.HealthStatus == "Healthy"
+			valid = string(instance.LifecycleState) == constants.InServiceStatus || targetState == "healthy" || *instance.HealthStatus == "Healthy"
 		} else {
-			valid = *instance.LifecycleState == constants.InServiceStatus && targetState == "healthy" && *instance.HealthStatus == "Healthy"
+			valid = string(instance.LifecycleState) == constants.InServiceStatus && targetState == "healthy" && *instance.HealthStatus == "Healthy"
 		}
 
 		ret = append(ret, HealthcheckHost{
 			InstanceID:     *instance.InstanceId,
-			LifecycleState: *instance.LifecycleState,
+			LifecycleState: string(instance.LifecycleState),
 			TargetStatus:   targetState,
 			HealthStatus:   *instance.HealthStatus,
 			Valid:          valid,
@@ -117,30 +109,30 @@ func (e ELBV2Client) GetHostInTarget(group *autoscaling.Group, targetGroupArn *s
 }
 
 // GetLoadBalancerFromTG returns list of loadbalancer from target groups
-func (e ELBV2Client) GetLoadBalancerFromTG(targetGroups []*string) ([]*string, error) {
+func (e ELBV2Client) GetLoadBalancerFromTG(targetGroups []string) ([]string, error) {
 	input := &elbv2.DescribeTargetGroupsInput{
 		TargetGroupArns: targetGroups,
 	}
 
-	result, err := e.Client.DescribeTargetGroups(input)
+	result, err := e.Client.DescribeTargetGroups(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	lbs := []string{}
+	var lbs []string
 	for _, group := range result.TargetGroups {
 		for _, lb := range group.LoadBalancerArns {
-			if !tool.IsStringInArray(*lb, lbs) {
-				lbs = append(lbs, *lb)
+			if !tool.IsStringInArray(lb, lbs) {
+				lbs = append(lbs, lb)
 			}
 		}
 	}
 
-	return aws.StringSlice(lbs), nil
+	return lbs, nil
 }
 
 // CreateTargetGroup creates a new target group
-func (e ELBV2Client) CreateTargetGroup(tg *elbv2.TargetGroup, tgName string) (*elbv2.TargetGroup, error) {
+func (e ELBV2Client) CreateTargetGroup(tg *elbv2types.TargetGroup, tgName string) (*elbv2types.TargetGroup, error) {
 	input := &elbv2.CreateTargetGroupInput{
 		Name:     aws.String(tgName),
 		Port:     tg.Port,
@@ -148,21 +140,21 @@ func (e ELBV2Client) CreateTargetGroup(tg *elbv2.TargetGroup, tgName string) (*e
 		VpcId:    tg.VpcId,
 	}
 
-	result, err := e.Client.CreateTargetGroup(input)
+	result, err := e.Client.CreateTargetGroup(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return result.TargetGroups[0], nil
+	return &result.TargetGroups[0], nil
 }
 
 // DescribeTargetGroups returns arn list of target groups with detailed information
-func (e ELBV2Client) DescribeTargetGroups(targetGroups []*string) ([]*elbv2.TargetGroup, error) {
+func (e ELBV2Client) DescribeTargetGroups(targetGroups []string) ([]elbv2types.TargetGroup, error) {
 	input := &elbv2.DescribeTargetGroupsInput{
 		Names: targetGroups,
 	}
 
-	result, err := e.Client.DescribeTargetGroups(input)
+	result, err := e.Client.DescribeTargetGroups(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
@@ -172,146 +164,114 @@ func (e ELBV2Client) DescribeTargetGroups(targetGroups []*string) ([]*elbv2.Targ
 
 // DeleteTargetGroup deletes a target group
 func (e ELBV2Client) DeleteTargetGroup(targetGroup *string) error {
-	input := &elbv2.DeleteTargetGroupInput{
+	_, err := e.Client.DeleteTargetGroup(context.Background(), &elbv2.DeleteTargetGroupInput{
 		TargetGroupArn: targetGroup,
-	}
-
-	_, err := e.Client.DeleteTargetGroup(input)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	})
+	return err
 }
 
 // DeleteLoadBalancer deletes a load balancer
 func (e ELBV2Client) DeleteLoadBalancer(lb string) error {
-	input := &elbv2.DeleteLoadBalancerInput{
+	_, err := e.Client.DeleteLoadBalancer(context.Background(), &elbv2.DeleteLoadBalancerInput{
 		LoadBalancerArn: aws.String(lb),
-	}
-
-	_, err := e.Client.DeleteLoadBalancer(input)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	})
+	return err
 }
 
 // DescribeLoadBalancers retrieves all load balancers
-func (e ELBV2Client) DescribeLoadBalancers() ([]*elbv2.LoadBalancer, error) {
-	input := &elbv2.DescribeLoadBalancersInput{}
-
-	result, err := e.Client.DescribeLoadBalancers(input)
+func (e ELBV2Client) DescribeLoadBalancers() ([]elbv2types.LoadBalancer, error) {
+	result, err := e.Client.DescribeLoadBalancers(context.Background(), &elbv2.DescribeLoadBalancersInput{})
 	if err != nil {
 		return nil, err
 	}
-
 	return result.LoadBalancers, nil
 }
 
-// DescribeLoadBalancers retrieves matching load balancer
-func (e ELBV2Client) GetMatchingLoadBalancer(lb string) (*elbv2.LoadBalancer, error) {
+// GetMatchingLoadBalancer retrieves matching load balancer
+func (e ELBV2Client) GetMatchingLoadBalancer(lb string) (*elbv2types.LoadBalancer, error) {
 	input := &elbv2.DescribeLoadBalancersInput{
-		LoadBalancerArns: []*string{
-			aws.String(lb),
-		},
+		LoadBalancerArns: []string{lb},
 	}
 
-	result, err := e.Client.DescribeLoadBalancers(input)
+	result, err := e.Client.DescribeLoadBalancers(context.Background(), input)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == elbv2.ErrCodeLoadBalancerNotFoundException {
-				return nil, nil
-			}
-		}
-		return nil, err
+		// Check if load balancer not found
+		return nil, nil
 	}
 
 	if len(result.LoadBalancers) == 0 {
 		return nil, nil
 	}
 
-	return result.LoadBalancers[0], nil
+	return &result.LoadBalancers[0], nil
 }
 
-// CreateLoadBalancer retrieves all load balancers
-func (e ELBV2Client) CreateLoadBalancer(app string, subnets []string, groupID *string) (*elbv2.LoadBalancer, error) {
+// CreateLoadBalancer creates a new load balancer
+func (e ELBV2Client) CreateLoadBalancer(app string, subnets []string, groupID *string) (*elbv2types.LoadBalancer, error) {
 	input := &elbv2.CreateLoadBalancerInput{
 		Name: aws.String(app),
-		Tags: []*elbv2.Tag{
+		Tags: []elbv2types.Tag{
 			{
 				Key:   aws.String(constants.DeploymentTagKey),
 				Value: aws.String(constants.CanaryDeployment),
 			},
 		},
-		Subnets: aws.StringSlice(subnets),
+		Subnets: subnets,
 	}
 
 	if groupID != nil {
-		input.SecurityGroups = []*string{groupID}
+		input.SecurityGroups = []string{*groupID}
 	}
 
-	result, err := e.Client.CreateLoadBalancer(input)
+	result, err := e.Client.CreateLoadBalancer(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}
 
-	return result.LoadBalancers[0], nil
+	return &result.LoadBalancers[0], nil
 }
 
 // CreateNewListener creates a new listener and attach target group to load balancer
 func (e ELBV2Client) CreateNewListener(loadBalancerArn string, targetGroupArn string) error {
 	input := &elbv2.CreateListenerInput{
-		DefaultActions: []*elbv2.Action{
+		DefaultActions: []elbv2types.Action{
 			{
 				TargetGroupArn: aws.String(targetGroupArn),
-				Type:           aws.String("forward"),
+				Type:           elbv2types.ActionTypeEnumForward,
 			},
 		},
 		LoadBalancerArn: aws.String(loadBalancerArn),
-		Port:            aws.Int64(80),
-		Protocol:        aws.String("HTTP"),
+		Port:            aws.Int32(80),
+		Protocol:        elbv2types.ProtocolEnumHttp,
 	}
 
-	_, err := e.Client.CreateListener(input)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := e.Client.CreateListener(context.Background(), input)
+	return err
 }
 
 // DescribeListeners describes all listeners in the load balancer
-func (e ELBV2Client) DescribeListeners(loadBalancerArn string) ([]*elbv2.Listener, error) {
-	input := &elbv2.DescribeListenersInput{
+func (e ELBV2Client) DescribeListeners(loadBalancerArn string) ([]elbv2types.Listener, error) {
+	result, err := e.Client.DescribeListeners(context.Background(), &elbv2.DescribeListenersInput{
 		LoadBalancerArn: aws.String(loadBalancerArn),
-	}
-
-	result, err := e.Client.DescribeListeners(input)
+	})
 	if err != nil {
 		return nil, err
 	}
-
 	return result.Listeners, nil
 }
 
 // ModifyListener modifies the existing listener and change target to newly created target group
 func (e ELBV2Client) ModifyListener(listenerArn *string, targetGroupArn string) error {
 	input := &elbv2.ModifyListenerInput{
-		DefaultActions: []*elbv2.Action{
+		DefaultActions: []elbv2types.Action{
 			{
 				TargetGroupArn: aws.String(targetGroupArn),
-				Type:           aws.String("forward"),
+				Type:           elbv2types.ActionTypeEnumForward,
 			},
 		},
 		ListenerArn: listenerArn,
 	}
 
-	_, err := e.Client.ModifyListener(input)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err := e.Client.ModifyListener(context.Background(), input)
+	return err
 }

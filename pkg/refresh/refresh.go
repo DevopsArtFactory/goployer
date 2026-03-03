@@ -21,7 +21,7 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	"github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
@@ -32,9 +32,9 @@ import (
 
 type Refresher struct {
 	AWSClient   aws.Client
-	TargetGroup *autoscaling.Group
+	TargetGroup *astypes.AutoScalingGroup
 	RefreshID   *string
-	Info        *autoscaling.InstanceRefresh
+	Info        *astypes.InstanceRefresh
 }
 
 // New creates new Refresher
@@ -45,7 +45,7 @@ func New(region string) Refresher {
 }
 
 // SetTarget sets target autoscaling group
-func (r *Refresher) SetTarget(group *autoscaling.Group) {
+func (r *Refresher) SetTarget(group *astypes.AutoScalingGroup) {
 	r.TargetGroup = group
 }
 
@@ -74,7 +74,7 @@ func (r *Refresher) DescribeRefreshStatus() error {
 
 	r.Info = info
 	r.RefreshID = info.InstanceRefreshId
-	logrus.Debugf("Current status: %s / %s", *info.InstanceRefreshId, *info.Status)
+	logrus.Debugf("Current status: %s / %s", *info.InstanceRefreshId, string(info.Status))
 
 	return nil
 }
@@ -95,8 +95,8 @@ func (r *Refresher) StatusCheck(pollingInterval, timeout time.Duration) error {
 			return err
 		}
 
-		if tool.IsStringInArray(*r.Info.Status, []string{"Successful", "Cancelled", "Failed"}) {
-			logrus.Debugf("Instance refresh is finished because the status is %s", *r.Info.Status)
+		if tool.IsStringInArray(string(r.Info.Status), []string{"Successful", "Cancelled", "Failed"}) {
+			logrus.Debugf("Instance refresh is finished because the status is %s", string(r.Info.Status))
 			break
 		}
 
@@ -109,8 +109,8 @@ func (r *Refresher) StatusCheck(pollingInterval, timeout time.Duration) error {
 // PrintResult prints result of refresh work
 func (r *Refresher) PrintResult() error {
 	var data = struct {
-		Target  autoscaling.Group
-		Summary autoscaling.InstanceRefresh
+		Target  astypes.AutoScalingGroup
+		Summary astypes.InstanceRefresh
 	}{
 		Target:  *r.TargetGroup,
 		Summary: *r.Info,

@@ -21,7 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/autoscaling"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	dbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	Logger "github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
@@ -53,8 +54,8 @@ type HelperStruct struct {
 	StartDate        time.Time
 	AutoScalingGroup string
 	CurrentTime      time.Time
-	TargetGroups     []*string
-	LoadBalancers    []*string
+	TargetGroups     []string
+	LoadBalancers    []string
 	Storage          string
 }
 
@@ -117,7 +118,7 @@ func (c Collector) CheckStorage(logger *Logger.Logger) error {
 }
 
 // StampDeployment records deployment information to storage
-func (c Collector) StampDeployment(stack schemas.Stack, config schemas.Config, tags []*autoscaling.Tag, asg string, status string, additionalFields map[string]string) error {
+func (c Collector) StampDeployment(stack schemas.Stack, config schemas.Config, tags []astypes.Tag, asg string, status string, additionalFields map[string]string) error {
 	tagsMap := map[string]string{}
 
 	for _, tag := range tags {
@@ -169,7 +170,7 @@ func (c Collector) UpdateStatistics(asg string, updateFields map[string]interfac
 }
 
 // GetAdditionalMetric retrieves additional metrics to store
-func (c Collector) GetAdditionalMetric(asg string, tgs []*string, lbs []*string, logger *Logger.Logger) (map[string]interface{}, error) {
+func (c Collector) GetAdditionalMetric(asg string, tgs []string, lbs []string, logger *Logger.Logger) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	hs := HelperStruct{
 		BaseTimeDuration: constants.ZeroFloat64,
@@ -213,7 +214,11 @@ func GatherUptime(hs *HelperStruct, _ *Logger.Logger, client aws.MetricClient, n
 	ret := map[string]interface{}{}
 	for k, v := range item {
 		if k == "deployed_date" {
-			d, _ := time.Parse(time.RFC3339, *v.S)
+			sv, ok := v.(*dbtypes.AttributeValueMemberS)
+			if !ok {
+				continue
+			}
+			d, _ := time.Parse(time.RFC3339, sv.Value)
 			diff := hs.CurrentTime.Sub(d)
 			ret["uptime_second"] = fmt.Sprintf("%f", diff.Seconds())
 			ret["uptime_minute"] = fmt.Sprintf("%f", diff.Minutes())

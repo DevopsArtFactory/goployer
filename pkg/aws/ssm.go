@@ -17,42 +17,35 @@ limitations under the license.
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/ssm"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
 type SSMClient struct {
-	Client *ssm.SSM
+	Client *ssm.Client
 }
 
-func NewSSMClient(session client.ConfigProvider, region string, creds *credentials.Credentials) SSMClient {
+func NewSSMClient(cfg aws.Config) SSMClient {
 	return SSMClient{
-		Client: getSsmClientFn(session, region, creds),
+		Client: ssm.NewFromConfig(cfg),
 	}
 }
 
-func getSsmClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *ssm.SSM {
-	if creds == nil {
-		return ssm.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return ssm.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
-
-// SSM Send command
-func (s SSMClient) SendCommand(target []*string, commands []*string) bool {
+// SendCommand sends SSM command
+func (s SSMClient) SendCommand(target []string, commands []string) bool {
 	input := &ssm.SendCommandInput{
 		DocumentName:   aws.String("AWS-RunShellScript"),
-		TimeoutSeconds: aws.Int64(3600),
+		TimeoutSeconds: aws.Int32(3600),
 		InstanceIds:    target,
 		Comment:        aws.String("goployer lifecycle callbacks"),
-		Parameters: map[string][]*string{
+		Parameters: map[string][]string{
 			"commands": commands,
 		},
 	}
 
-	if _, err := s.Client.SendCommand(input); err != nil {
+	if _, err := s.Client.SendCommand(context.Background(), input); err != nil {
 		return false
 	}
 

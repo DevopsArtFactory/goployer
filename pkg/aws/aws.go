@@ -17,11 +17,12 @@ limitations under the license.
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spf13/viper"
 )
 
@@ -45,79 +46,77 @@ type ManifestClient struct {
 	S3Service S3Client
 }
 
-// GetAwsSession generates new aws session
-func GetAwsSession() *session.Session {
+// GetAwsConfig generates new aws config
+func GetAwsConfig(ctx context.Context, region string) (aws.Config, error) {
 	profile := viper.GetString("profile")
 
-	if len(profile) == 0 {
-		return session.Must(session.NewSession())
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+	if profile != "" {
+		opts = append(opts, config.WithSharedConfigProfile(profile))
 	}
 
-	mySession := session.Must(
-		session.NewSession(&aws.Config{
-			Credentials: credentials.NewCredentials(&credentials.SharedCredentialsProvider{
-				Filename: defaults.SharedCredentialsFilename(),
-				Profile:  profile,
-			}),
-		}),
-	)
-
-	return mySession
+	return config.LoadDefaultConfig(ctx, opts...)
 }
 
 // BootstrapServices creates AWS client list
 func BootstrapServices(region string, assumeRole string) Client {
-	awsSession := GetAwsSession()
-
-	var creds *credentials.Credentials
-	if len(assumeRole) != 0 {
-		creds = stscreds.NewCredentials(awsSession, assumeRole)
+	ctx := context.Background()
+	cfg, err := GetAwsConfig(ctx, region)
+	if err != nil {
+		panic(err)
 	}
 
-	// Get all clients
-	client := Client{
+	if assumeRole != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
+	}
+
+	return Client{
 		Region:            region,
-		EC2Service:        NewEC2Client(awsSession, region, creds),
-		ELBV2Service:      NewELBV2Client(awsSession, region, creds),
-		ELBService:        NewELBClient(awsSession, region, creds),
-		CloudWatchService: NewCloudWatchClient(awsSession, region, creds),
-		SSMService:        NewSSMClient(awsSession, region, creds),
+		EC2Service:        NewEC2Client(cfg),
+		ELBV2Service:      NewELBV2Client(cfg),
+		ELBService:        NewELBClient(cfg),
+		CloudWatchService: NewCloudWatchClient(cfg),
+		SSMService:        NewSSMClient(cfg),
 	}
-
-	return client
 }
 
 func BootstrapMetricService(region string, assumeRole string) MetricClient {
-	awsSession := GetAwsSession()
-
-	var creds *credentials.Credentials
-	if len(assumeRole) != 0 {
-		creds = stscreds.NewCredentials(awsSession, assumeRole)
+	ctx := context.Background()
+	cfg, err := GetAwsConfig(ctx, region)
+	if err != nil {
+		panic(err)
 	}
 
-	// Get all clients
-	client := MetricClient{
+	if assumeRole != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
+	}
+
+	return MetricClient{
 		Region:            region,
-		DynamoDBService:   NewDynamoDBClient(awsSession, region, nil),
-		CloudWatchService: NewCloudWatchClient(awsSession, region, creds),
+		DynamoDBService:   NewDynamoDBClient(cfg),
+		CloudWatchService: NewCloudWatchClient(cfg),
 	}
-
-	return client
 }
 
 func BootstrapManifestService(region string, assumeRole string) ManifestClient {
-	awsSession := GetAwsSession()
-
-	var creds *credentials.Credentials
-	if len(assumeRole) != 0 {
-		creds = stscreds.NewCredentials(awsSession, assumeRole)
+	ctx := context.Background()
+	cfg, err := GetAwsConfig(ctx, region)
+	if err != nil {
+		panic(err)
 	}
 
-	// Get all clients
-	client := ManifestClient{
+	if assumeRole != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
+	}
+
+	return ManifestClient{
 		Region:    region,
-		S3Service: NewS3Client(awsSession, region, creds),
+		S3Service: NewS3Client(cfg),
 	}
-
-	return client
 }

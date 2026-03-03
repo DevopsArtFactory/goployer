@@ -28,10 +28,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	eaws "github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	eaws "github.com/aws/aws-sdk-go-v2/aws"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 	"github.com/olekukonko/tablewriter"
 	Logger "github.com/sirupsen/logrus"
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -105,7 +105,7 @@ func InitDeploymentConfiguration(h *helper.DeployerHelper, awsClients []aws.Clie
 }
 
 // Polling retrieves health information from instances or target groups.
-func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, client aws.Client, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
+func (d *Deployer) Polling(region schemas.RegionConfig, asg *astypes.AutoScalingGroup, client aws.Client, forceManifestCapacity, isUpdate, downsizingUpdate bool) (bool, error) {
 	if asg.AutoScalingGroupName == nil {
 		return false, fmt.Errorf("no autoscaling found for %s", d.AsgNames[region.Region])
 	}
@@ -137,7 +137,7 @@ func (d *Deployer) Polling(region schemas.RegionConfig, asg *autoscaling.Group, 
 			if err != nil {
 				return false, err
 			}
-			healthCheckTargetGroupArn = tgARNs[0]
+			healthCheckTargetGroupArn = &tgARNs[0]
 		}
 		d.Logger.Debugf("[Checking healthy host count] Target Group : %s", *healthCheckTargetGroupArn)
 
@@ -261,8 +261,8 @@ func (d *Deployer) RunLifecycleCallbacks(client aws.Client, region string) bool 
 
 	d.Logger.Debugf("run lifecycle callbacks before termination : %s", targets)
 	return client.SSMService.SendCommand(
-		eaws.StringSlice(targets),
-		eaws.StringSlice(commands),
+		targets,
+		commands,
 	)
 }
 
@@ -487,16 +487,16 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 
 		// Get All Previous Autoscaling Groups and versions
 		var prevInstanceCount schemas.Capacity
-		var latestAsg *autoscaling.Group
+		var latestAsg *astypes.AutoScalingGroup
 		for _, asgGroup := range asgGroups {
 			prevVersions = append(prevVersions, tool.ParseAutoScalingVersion(*asgGroup.AutoScalingGroupName))
 			for _, instance := range asgGroup.Instances {
 				prevInstanceIds = append(prevInstanceIds, *instance.InstanceId)
 			}
 
-			prevInstanceCount.Desired = *asgGroup.DesiredCapacity
-			prevInstanceCount.Max = *asgGroup.MaxSize
-			prevInstanceCount.Min = *asgGroup.MinSize
+			prevInstanceCount.Desired = int64(*asgGroup.DesiredCapacity)
+			prevInstanceCount.Max = int64(*asgGroup.MaxSize)
+			prevInstanceCount.Min = int64(*asgGroup.MinSize)
 
 			isBeingCanaryDeployed := false
 			for _, tag := range asgGroup.Tags {
@@ -518,7 +518,7 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 			}
 
 			if latestAsg == nil || asgGroup.CreatedTime.Sub(*latestAsg.CreatedTime) > 0 {
-				latestAsg = asgGroup
+				latestAsg = &asgGroup
 			}
 		}
 
@@ -547,8 +547,8 @@ func (d *Deployer) CheckPrevious(config schemas.Config) error {
 
 // Deploy is a basic deployment process for any deployment method
 func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) error {
-	var terminationPolicies []*string
-	var lifecycleHooksSpecificationList []*autoscaling.LifecycleHookSpecification
+	var terminationPolicies []string
+	var lifecycleHooksSpecificationList []astypes.LifecycleHookSpecification
 
 	// Make Frigga
 	frigga := tool.Frigga{}
@@ -592,14 +592,14 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 		return err
 	}
 	if d.SecurityGroup[region.Region] != nil {
-		securityGroups = append(securityGroups, d.SecurityGroup[region.Region])
+		securityGroups = append(securityGroups, *d.SecurityGroup[region.Region])
 		d.Logger.Debugf("additional security group applied to %s: %s", newAsgName, *d.SecurityGroup[region.Region])
 	}
 	launchTemplateTags := d.GenerateLaunchTemplateTags(newAsgName, d.Stack.Stack, config.ExtraTags, region.Region)
 
 	blockDevices := client.EC2Service.MakeLaunchTemplateBlockDeviceMappings(d.Stack.BlockDevices)
 
-	d.Logger.Debugf("additional blokcDevice information %s", blockDevices)
+	d.Logger.Debugf("additional blokcDevice information %v", blockDevices)
 
 	ebsOptimized := d.Stack.EbsOptimized
 
@@ -695,7 +695,7 @@ func (d *Deployer) Deploy(config schemas.Config, region schemas.RegionConfig) er
 	}
 
 	if len(region.TerminationPolicies) > 0 {
-		terminationPolicies = eaws.StringSlice(region.TerminationPolicies)
+		terminationPolicies = region.TerminationPolicies
 	}
 
 	if d.Stack.MixedInstancesPolicy.Enabled {
@@ -834,8 +834,8 @@ func (d *Deployer) GenerateLaunchTemplateTags(asgName, stack string, extraTags, 
 }
 
 // GenerateTags creates tag list for autoscaling group
-func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVars, region string) []*autoscaling.Tag {
-	var ret []*autoscaling.Tag
+func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVars, region string) []astypes.Tag {
+	var ret []astypes.Tag
 	var keyList []string
 	for _, tagKV := range d.AwsConfig.Tags {
 		arr := strings.Split(tagKV, "=")
@@ -843,26 +843,26 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 		v := arr[1]
 
 		keyList = append(keyList, k)
-		ret = append(ret, &autoscaling.Tag{
+		ret = append(ret, astypes.Tag{
 			Key:   eaws.String(k),
 			Value: eaws.String(v),
 		})
 	}
 
 	// Add Name
-	ret = append(ret, &autoscaling.Tag{
+	ret = append(ret, astypes.Tag{
 		Key:   eaws.String("Name"),
 		Value: eaws.String(asgName),
 	})
 
 	// Add stack name
-	ret = append(ret, &autoscaling.Tag{
+	ret = append(ret, astypes.Tag{
 		Key:   eaws.String("stack"),
 		Value: eaws.String(fmt.Sprintf("%s_%s", stack, strings.ReplaceAll(region, "-", ""))),
 	})
 
 	// Add pkg name
-	ret = append(ret, &autoscaling.Tag{
+	ret = append(ret, astypes.Tag{
 		Key:   eaws.String("app"),
 		Value: eaws.String(d.AwsConfig.Name),
 	})
@@ -870,7 +870,7 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 	// Add ansibleTags
 	// This will be deprecated
 	if len(d.Stack.AnsibleTags) > 0 {
-		ret = append(ret, &autoscaling.Tag{
+		ret = append(ret, astypes.Tag{
 			Key:   eaws.String("ansible-tags"),
 			Value: eaws.String(d.Stack.AnsibleTags),
 		})
@@ -882,7 +882,7 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 		v := arr[1]
 
 		if !tool.IsStringInArray(k, keyList) {
-			ret = append(ret, &autoscaling.Tag{
+			ret = append(ret, astypes.Tag{
 				Key:   eaws.String(k),
 				Value: eaws.String(v),
 			})
@@ -907,7 +907,7 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 				}
 
 				kv := strings.Split(strings.TrimSpace(s), "=")
-				ret = append(ret, &autoscaling.Tag{
+				ret = append(ret, astypes.Tag{
 					Key:   eaws.String(kv[0]),
 					Value: eaws.String(kv[1]),
 				})
@@ -917,7 +917,7 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 
 	// Add ansibleExtraVars
 	if len(ansibleExtraVars) > 0 {
-		ret = append(ret, &autoscaling.Tag{
+		ret = append(ret, astypes.Tag{
 			Key:   eaws.String("ansible-extra-vars"),
 			Value: eaws.String(ansibleExtraVars),
 		})
@@ -925,7 +925,7 @@ func (d *Deployer) GenerateTags(asgName, stack string, extraTags, ansibleExtraVa
 
 	// DeploymentTag Tags
 	if d.Mode == constants.CanaryDeployment {
-		ret = append(ret, &autoscaling.Tag{
+		ret = append(ret, astypes.Tag{
 			Key:   eaws.String(constants.DeploymentTagKey),
 			Value: eaws.String(d.Mode),
 		})
@@ -947,13 +947,13 @@ func (d *Deployer) GetTargetGroupNames(region schemas.RegionConfig) []string {
 }
 
 // DescribeTargetGroups retrieves target group details
-func (d *Deployer) DescribeTargetGroup(targetGroup string, region string) (*elbv2.TargetGroup, error) {
+func (d *Deployer) DescribeTargetGroup(targetGroup string, region string) (*elbv2types.TargetGroup, error) {
 	client, err := selectClientFromList(d.AWSClients, region)
 	if err != nil {
 		return nil, err
 	}
 
-	ret, err := client.ELBV2Service.DescribeTargetGroups(eaws.StringSlice([]string{targetGroup}))
+	ret, err := client.ELBV2Service.DescribeTargetGroups([]string{targetGroup})
 	if err != nil {
 		return nil, err
 	}
@@ -963,7 +963,7 @@ func (d *Deployer) DescribeTargetGroup(targetGroup string, region string) (*elbv
 	}
 	d.Logger.Debugf("Successfully retrieved target group details: %s", *ret[0].TargetGroupName)
 
-	return ret[0], nil
+	return &ret[0], nil
 }
 
 // HealthChecking does health check
@@ -1233,9 +1233,9 @@ func (d *Deployer) ReducePreviousAutoScalingGroupCapacity(region string, decreas
 				return false, err
 			}
 
-			if !IfEmptyAutoscalingGroup(*asgDetail.DesiredCapacity, asgDetail.Instances) {
+			if !IfEmptyAutoscalingGroup(int64(*asgDetail.DesiredCapacity), asgDetail.Instances) {
 				isDone = false
-				nextCapacity, err := MakeCapacity(*asgDetail.MinSize-decreaseCnt, *asgDetail.MaxSize-decreaseCnt, *asgDetail.DesiredCapacity-decreaseCnt)
+				nextCapacity, err := MakeCapacity(int64(*asgDetail.MinSize)-decreaseCnt, int64(*asgDetail.MaxSize)-decreaseCnt, int64(*asgDetail.DesiredCapacity)-decreaseCnt)
 				if err != nil {
 					return false, err
 				}
@@ -1414,7 +1414,7 @@ func (d *Deployer) RunAPITest(config schemas.Config) error {
 }
 
 // DescribeAutoScalingGroup describes autoscaling group
-func (d *Deployer) DescribeAutoScalingGroup(asg, region string) (*autoscaling.Group, error) {
+func (d *Deployer) DescribeAutoScalingGroup(asg, region string) (*astypes.AutoScalingGroup, error) {
 	client, err := selectClientFromList(d.AWSClients, region)
 	if err != nil {
 		return nil, err
@@ -1429,7 +1429,7 @@ func (d *Deployer) DescribeAutoScalingGroup(asg, region string) (*autoscaling.Gr
 }
 
 // DescribeInstances describes instances
-func (d *Deployer) DescribeInstances(instanceIds []*string, region schemas.RegionConfig) ([]*ec2.Instance, error) {
+func (d *Deployer) DescribeInstances(instanceIds []string, region schemas.RegionConfig) ([]ec2types.Instance, error) {
 	client, err := selectClientFromList(d.AWSClients, region.Region)
 	if err != nil {
 		return nil, err
@@ -1488,7 +1488,7 @@ func (d *Deployer) ResizingAutoScalingGroup(asg, region string, capacity schemas
 }
 
 // IfEmptyAutoscalingGroup
-func IfEmptyAutoscalingGroup(desired int64, instances []*autoscaling.Instance) bool {
+func IfEmptyAutoscalingGroup(desired int64, instances []astypes.Instance) bool {
 	return desired == 0 || len(instances) == 0
 }
 

@@ -22,10 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elbv2"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
 	"github.com/DevopsArtFactory/goployer/pkg/builder"
@@ -37,7 +36,7 @@ import (
 
 type Canary struct {
 	PrevTargetGroups            map[string][]string
-	TargetGroups                map[string][]*string
+	TargetGroups                map[string][]string
 	PrevHealthCheckTargetGroups map[string]string
 	LoadBalancer                map[string]string
 	LBSecurityGroup             map[string]*string
@@ -60,7 +59,7 @@ func NewCanary(h *helper.DeployerHelper) *Canary {
 	return &Canary{
 		PrevHealthCheckTargetGroups: map[string]string{},
 		PrevTargetGroups:            map[string][]string{},
-		TargetGroups:                map[string][]*string{},
+		TargetGroups:                map[string][]string{},
 		LoadBalancer:                map[string]string{},
 		LBSecurityGroup:             map[string]*string{},
 		Deployer:                    &d,
@@ -319,7 +318,7 @@ func (c *Canary) ValidateCanaryDeployment(config schemas.Config, region string) 
 }
 
 // CopyTargetGroups creates copy existing target group for canary
-func (c *Canary) CopyTargetGroups(tg *elbv2.TargetGroup, canaryTgName, region string) (*elbv2.TargetGroup, error) {
+func (c *Canary) CopyTargetGroups(tg *elbv2types.TargetGroup, canaryTgName, region string) (*elbv2types.TargetGroup, error) {
 	client, err := selectClientFromList(c.AWSClients, region)
 	if err != nil {
 		return nil, err
@@ -354,7 +353,7 @@ func (c *Canary) GenerateCanaryLBSecurityGroupName(region string) string {
 }
 
 // GetAsgTargetGroups retrieves target group list of autoscaling group
-func (c *Canary) GetAsgTargetGroups(asg, region string) ([]*string, error) {
+func (c *Canary) GetAsgTargetGroups(asg, region string) ([]string, error) {
 	client, err := selectClientFromList(c.AWSClients, region)
 	if err != nil {
 		return nil, err
@@ -365,10 +364,10 @@ func (c *Canary) GetAsgTargetGroups(asg, region string) ([]*string, error) {
 		return nil, err
 	}
 
-	var tgARNs []*string
+	var tgARNs []string
 	for _, asg := range asgList {
 		for _, tg := range asg.TargetGroupARNs {
-			if !tool.IsStringInPointerArray(*tg, tgARNs) {
+			if !tool.IsStringInArray(tg, tgARNs) {
 				tgARNs = append(tgARNs, tg)
 			}
 		}
@@ -479,7 +478,7 @@ func (c *Canary) CleanChecking(config schemas.Config) error {
 }
 
 // FindCanaryLoadBalancer finds if there is canary-related load balancer
-func (c *Canary) FindCanaryLoadBalancer(region schemas.RegionConfig) (*elbv2.LoadBalancer, error) {
+func (c *Canary) FindCanaryLoadBalancer(region schemas.RegionConfig) (*elbv2types.LoadBalancer, error) {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return nil, err
@@ -492,7 +491,7 @@ func (c *Canary) FindCanaryLoadBalancer(region schemas.RegionConfig) (*elbv2.Loa
 
 	for _, lb := range loadBalancers {
 		if c.CheckValidCanaryLB(c.AwsConfig.Name, *lb.LoadBalancerName) {
-			return lb, nil
+			return &lb, nil
 		}
 	}
 
@@ -505,11 +504,11 @@ func (c *Canary) CheckValidCanaryLB(app, lb string) bool {
 }
 
 // CheckCanaryVersion checks latest version of canary target group
-func CheckCanaryVersion(tgs []*string, region string) int {
+func CheckCanaryVersion(tgs []string, region string) int {
 	latestVersion := 0
 	for _, tg := range tgs {
-		if tool.IsCanaryTargetGroupArn(*tg, region) {
-			name := tool.ParseTargetGroupName(*tg)
+		if tool.IsCanaryTargetGroupArn(tg, region) {
+			name := tool.ParseTargetGroupName(tg)
 			v := tool.ParseTargetGroupVersion(name)
 			if v > 0 && v > latestVersion {
 				latestVersion = v
@@ -521,7 +520,7 @@ func CheckCanaryVersion(tgs []*string, region string) int {
 }
 
 // CreateCanaryLoadBalancer creates a new load balancer for canary
-func (c *Canary) CreateCanaryLoadBalancer(region schemas.RegionConfig, groupID *string) (*elbv2.LoadBalancer, error) {
+func (c *Canary) CreateCanaryLoadBalancer(region schemas.RegionConfig, groupID *string) (*elbv2types.LoadBalancer, error) {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return nil, err
@@ -574,7 +573,7 @@ func (c *Canary) AttachCanaryTargetGroup(lbArn, tgArn string, region schemas.Reg
 }
 
 // GetEC2CanarySecurityGroup creates a new security group for canary
-func (c *Canary) GetEC2CanarySecurityGroup(tg *elbv2.TargetGroup, region schemas.RegionConfig, lbSg *string, completeCanary bool) error {
+func (c *Canary) GetEC2CanarySecurityGroup(tg *elbv2types.TargetGroup, region schemas.RegionConfig, lbSg *string, completeCanary bool) error {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return err
@@ -596,7 +595,7 @@ func (c *Canary) GetEC2CanarySecurityGroup(tg *elbv2.TargetGroup, region schemas
 	duplicated := false
 	groupID, err := client.EC2Service.CreateSecurityGroup(newSGName, tg.VpcId)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "InvalidGroup.Duplicate" {
+		if strings.Contains(err.Error(), "InvalidGroup.Duplicate") {
 			c.Logger.Debugf("Security group is already created: %s", newSGName)
 			duplicated = true
 		}
@@ -617,7 +616,7 @@ func (c *Canary) GetEC2CanarySecurityGroup(tg *elbv2.TargetGroup, region schemas
 	}
 
 	// inbound
-	if err := client.EC2Service.UpdateInboundRulesWithGroup(*groupID, "tcp", "Allow access from canary load balancer", lbSg, *tg.Port, *tg.Port); err != nil {
+	if err := client.EC2Service.UpdateInboundRulesWithGroup(*groupID, "tcp", "Allow access from canary load balancer", lbSg, int64(*tg.Port), int64(*tg.Port)); err != nil {
 		c.Logger.Warn(err.Error())
 	}
 
@@ -648,7 +647,7 @@ func (c *Canary) GetCanaryLoadBalancerSecurityGroup(region schemas.RegionConfig)
 }
 
 // CreateCanaryLBSecurityGroup creates a new security group for canary
-func (c *Canary) CreateCanaryLBSecurityGroup(tg *elbv2.TargetGroup, region schemas.RegionConfig) (*string, error) {
+func (c *Canary) CreateCanaryLBSecurityGroup(tg *elbv2types.TargetGroup, region schemas.RegionConfig) (*string, error) {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return nil, err
@@ -659,7 +658,7 @@ func (c *Canary) CreateCanaryLBSecurityGroup(tg *elbv2.TargetGroup, region schem
 	duplicated := false
 	groupID, err := client.EC2Service.CreateSecurityGroup(lbSGName, tg.VpcId)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "InvalidGroup.Duplicate" {
+		if strings.Contains(err.Error(), "InvalidGroup.Duplicate") {
 			c.Logger.Debugf("Security group is already created: %s", lbSGName)
 			duplicated = true
 		}
@@ -759,12 +758,12 @@ func (c *Canary) CleanPreviousCanaryResources(region schemas.RegionConfig, compl
 		c.Logger.Debugf("Resizing autoscaling group finished: %s", *asg.AutoScalingGroupName)
 
 		for _, tg := range asg.TargetGroupARNs {
-			if tool.IsCanaryTargetGroupArn(*tg, region.Region) {
-				c.Logger.Debugf("Try to delete target group: %s", *tg)
-				if err := client.ELBV2Service.DeleteTargetGroup(tg); err != nil {
+			if tool.IsCanaryTargetGroupArn(tg, region.Region) {
+				c.Logger.Debugf("Try to delete target group: %s", tg)
+				if err := client.ELBV2Service.DeleteTargetGroup(&tg); err != nil {
 					return err
 				}
-				c.Logger.Debugf("Deleted target group: %s", *tg)
+				c.Logger.Debugf("Deleted target group: %s", tg)
 			}
 		}
 	}
@@ -889,7 +888,7 @@ func (c *Canary) DeleteEC2IngressRules(region schemas.RegionConfig) error {
 	}
 
 	// inbound
-	sgDetails, err := client.EC2Service.GetSecurityGroupDetails([]*string{c.SecurityGroup[region.Region]})
+	sgDetails, err := client.EC2Service.GetSecurityGroupDetails([]string{*c.SecurityGroup[region.Region]})
 	if err != nil {
 		return err
 	}
@@ -902,7 +901,7 @@ func (c *Canary) DeleteEC2IngressRules(region schemas.RegionConfig) error {
 	for _, in := range sgDetails[0].IpPermissions {
 		if len(in.UserIdGroupPairs) > 0 {
 			for _, uip := range in.UserIdGroupPairs {
-				if err := client.EC2Service.RevokeInboundRulesWithGroup(*sgID, *in.IpProtocol, uip.GroupId, *in.FromPort, *in.ToPort); err != nil {
+				if err := client.EC2Service.RevokeInboundRulesWithGroup(*sgID, *in.IpProtocol, uip.GroupId, int64(*in.FromPort), int64(*in.ToPort)); err != nil {
 					c.Logger.Warn(err.Error())
 				}
 			}
@@ -932,15 +931,15 @@ func (c *Canary) RemoveCanaryTag(asg string, region schemas.RegionConfig) error 
 }
 
 // DetachCanaryTargetGroup detaches canary target group from auto scaling group
-func (c *Canary) DetachCanaryTargetGroup(asg string, region schemas.RegionConfig, tgs []*string) error {
+func (c *Canary) DetachCanaryTargetGroup(asg string, region schemas.RegionConfig, tgs []string) error {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return err
 	}
 
-	var targets []*string
+	var targets []string
 	for _, tg := range tgs {
-		if tool.IsCanaryTargetGroupArn(*tg, region.Region) {
+		if tool.IsCanaryTargetGroupArn(tg, region.Region) {
 			targets = append(targets, tg)
 		}
 	}
@@ -955,17 +954,17 @@ func (c *Canary) DetachCanaryTargetGroup(asg string, region schemas.RegionConfig
 }
 
 // DetachSecurityGroup deletes lb security groups from instances
-func (c *Canary) DetachSecurityGroup(nis []*ec2.InstanceNetworkInterface, region schemas.RegionConfig, excludeSg string) error {
+func (c *Canary) DetachSecurityGroup(nis []ec2types.InstanceNetworkInterface, region schemas.RegionConfig, excludeSg string) error {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return err
 	}
 
 	for _, ni := range nis {
-		var sgs []*string
+		var sgs []string
 		for _, group := range ni.Groups {
 			if *group.GroupId != excludeSg {
-				sgs = append(sgs, group.GroupId)
+				sgs = append(sgs, *group.GroupId)
 			}
 		}
 		if len(sgs) > 0 {
@@ -982,7 +981,7 @@ func (c *Canary) DetachSecurityGroup(nis []*ec2.InstanceNetworkInterface, region
 }
 
 // ChangeLaunchTemplateVersion changes launch template to the new version
-func (c *Canary) ChangeLaunchTemplateVersion(asg string, lt *autoscaling.LaunchTemplateSpecification, region schemas.RegionConfig, excludeSg string) error {
+func (c *Canary) ChangeLaunchTemplateVersion(asg string, lt *astypes.LaunchTemplateSpecification, region schemas.RegionConfig, excludeSg string) error {
 	client, err := selectClientFromList(c.AWSClients, region.Region)
 	if err != nil {
 		return err
@@ -994,9 +993,9 @@ func (c *Canary) ChangeLaunchTemplateVersion(asg string, lt *autoscaling.LaunchT
 	}
 	c.Logger.Debugf("Retrieved previous version of launch template of launch template: %s", *lt.LaunchTemplateId)
 
-	var sgs []*string
+	var sgs []string
 	for _, sg := range ltDetail.LaunchTemplateData.SecurityGroupIds {
-		if *sg != excludeSg {
+		if sg != excludeSg {
 			sgs = append(sgs, sg)
 		}
 	}
@@ -1015,7 +1014,7 @@ func (c *Canary) ChangeLaunchTemplateVersion(asg string, lt *autoscaling.LaunchT
 }
 
 // RunCanaryDeployment runs canary deployment
-func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.RegionConfig, tgDetail *elbv2.TargetGroup, canaryLoadBalancer *elbv2.LoadBalancer, canaryVersion int) (schemas.RegionConfig, error) {
+func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.RegionConfig, tgDetail *elbv2types.TargetGroup, canaryLoadBalancer *elbv2types.LoadBalancer, canaryVersion int) (schemas.RegionConfig, error) {
 	newTgName := c.GenerateCanaryTargetGroupName(canaryVersion)
 	c.Logger.Debugf("New target group will be created for canary deployment: %s", newTgName)
 
@@ -1094,7 +1093,7 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 }
 
 // GetLoadBalancerAndSecurityGroupForCanary gets load balancer and security group for canary deployment
-func (c *Canary) GetLoadBalancerAndSecurityGroupForCanary(region schemas.RegionConfig, tgDetail *elbv2.TargetGroup, completeCanary bool) (*string, *elbv2.LoadBalancer, error) {
+func (c *Canary) GetLoadBalancerAndSecurityGroupForCanary(region schemas.RegionConfig, tgDetail *elbv2types.TargetGroup, completeCanary bool) (*string, *elbv2types.LoadBalancer, error) {
 	canaryLoadBalancer, err := c.FindCanaryLoadBalancer(region)
 	if err != nil {
 		return nil, nil, err
@@ -1171,18 +1170,18 @@ func (c *Canary) LoadBalancerDeletionChecking(region schemas.RegionConfig) error
 }
 
 // extractInstanceIds gathers pointer of instance's id and make slice with them
-func extractInstanceIds(asgDetail *autoscaling.Group) []*string {
-	var instanceIds []*string
+func extractInstanceIds(asgDetail *astypes.AutoScalingGroup) []string {
+	var instanceIds []string
 	for _, ins := range asgDetail.Instances {
-		instanceIds = append(instanceIds, ins.InstanceId)
+		instanceIds = append(instanceIds, *ins.InstanceId)
 	}
 
 	return instanceIds
 }
 
 // getNetworkInterfaces gathers all network interfaces from EC2 instances
-func getNetworkInterfaces(instances []*ec2.Instance) []*ec2.InstanceNetworkInterface {
-	var nis []*ec2.InstanceNetworkInterface
+func getNetworkInterfaces(instances []ec2types.Instance) []ec2types.InstanceNetworkInterface {
+	var nis []ec2types.InstanceNetworkInterface
 	for _, instance := range instances {
 		if instance.NetworkInterfaces != nil {
 			nis = append(nis, instance.NetworkInterfaces...)

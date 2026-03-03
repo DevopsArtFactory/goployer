@@ -21,8 +21,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 )
 
@@ -57,7 +55,7 @@ func TestCheckCanaryVersion(t *testing.T) {
 	}
 
 	for _, td := range testData {
-		if output := CheckCanaryVersion(aws.StringSlice(td.Input), region); output != td.Expected {
+		if output := CheckCanaryVersion(td.Input, region); output != td.Expected {
 			t.Errorf("expected: %d, output: %d", td.Expected, output)
 		}
 	}

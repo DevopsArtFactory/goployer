@@ -17,40 +17,33 @@ limitations under the license.
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/autoscaling"
-	"github.com/aws/aws-sdk-go/service/elb"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
+	elb "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
 	"github.com/DevopsArtFactory/goployer/pkg/tool"
 )
 
 type ELBClient struct {
-	Client *elb.ELB
+	Client *elb.Client
 }
 
-func NewELBClient(session client.ConfigProvider, region string, creds *credentials.Credentials) ELBClient {
+func NewELBClient(cfg aws.Config) ELBClient {
 	return ELBClient{
-		Client: getELBClientFn(session, region, creds),
+		Client: elb.NewFromConfig(cfg),
 	}
 }
 
-func getELBClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *elb.ELB {
-	if creds == nil {
-		return elb.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return elb.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
-}
-
-// GetHostInELB returns instances in ELB
-func (e ELBClient) GetHealthyHostInELB(group *autoscaling.Group, elbName string) ([]HealthcheckHost, error) {
+// GetHealthyHostInELB returns instances in ELB
+func (e ELBClient) GetHealthyHostInELB(group *astypes.AutoScalingGroup, elbName string) ([]HealthcheckHost, error) {
 	input := &elb.DescribeInstanceHealthInput{
 		LoadBalancerName: aws.String(elbName),
 	}
 
-	result, err := e.Client.DescribeInstanceHealth(input)
+	result, err := e.Client.DescribeInstanceHealth(context.Background(), input)
 	if err != nil {
 		return nil, err
 	}

@@ -17,14 +17,14 @@ limitations under the license.
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	cwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	Logger "github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
@@ -33,22 +33,13 @@ import (
 )
 
 type CloudWatchClient struct {
-	Client *cloudwatch.CloudWatch
+	Client *cloudwatch.Client
 }
 
-// NewCloudWatchClient creates Cloudwatch client
-func NewCloudWatchClient(session client.ConfigProvider, region string, creds *credentials.Credentials) CloudWatchClient {
+func NewCloudWatchClient(cfg aws.Config) CloudWatchClient {
 	return CloudWatchClient{
-		Client: getCloudWatchClientFn(session, region, creds),
+		Client: cloudwatch.NewFromConfig(cfg),
 	}
-}
-
-// getCloudWatchClientFn creates new cloudwatch client
-func getCloudWatchClientFn(session client.ConfigProvider, region string, creds *credentials.Credentials) *cloudwatch.CloudWatch {
-	if creds == nil {
-		return cloudwatch.New(session, &aws.Config{Region: aws.String(region)})
-	}
-	return cloudwatch.New(session, &aws.Config{Region: aws.String(region), Credentials: creds})
 }
 
 // CreateScalingAlarms creates scaling alarms
@@ -57,7 +48,6 @@ func (c CloudWatchClient) CreateScalingAlarms(asgName string, alarms []schemas.A
 		return nil
 	}
 
-	// Create cloudwatch alarms
 	for _, alarm := range alarms {
 		arns := []string{}
 		for _, action := range alarm.AlarmActions {
@@ -76,15 +66,15 @@ func (c CloudWatchClient) CreateScalingAlarms(asgName string, alarms []schemas.A
 func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.AlarmConfigs) error {
 	input := &cloudwatch.PutMetricAlarmInput{
 		AlarmName:          aws.String(createAlarmName(asgName, alarm.Name)),
-		AlarmActions:       aws.StringSlice(alarm.AlarmActions),
+		AlarmActions:       alarm.AlarmActions,
 		MetricName:         aws.String(alarm.Metric),
 		Namespace:          aws.String(alarm.Namespace),
-		Statistic:          aws.String(alarm.Statistic),
-		ComparisonOperator: aws.String(alarm.Comparison),
+		Statistic:          cwtypes.Statistic(alarm.Statistic),
+		ComparisonOperator: cwtypes.ComparisonOperator(alarm.Comparison),
 		Threshold:          aws.Float64(alarm.Threshold),
-		Period:             aws.Int64(alarm.Period),
-		EvaluationPeriods:  aws.Int64(alarm.EvaluationPeriods),
-		Dimensions: []*cloudwatch.Dimension{
+		Period:             aws.Int32(int32(alarm.Period)),
+		EvaluationPeriods:  aws.Int32(int32(alarm.EvaluationPeriods)),
+		Dimensions: []cwtypes.Dimension{
 			{
 				Name:  aws.String("AutoScalingGroupName"),
 				Value: aws.String(asgName),
@@ -92,7 +82,7 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.Al
 		},
 	}
 
-	_, err := c.Client.PutMetricAlarm(input)
+	_, err := c.Client.PutMetricAlarm(context.Background(), input)
 	if err != nil {
 		return err
 	}
@@ -103,130 +93,115 @@ func (c CloudWatchClient) CreateCloudWatchAlarm(asgName string, alarm schemas.Al
 }
 
 // GetTargetGroupRequestStatistics returns statistics for terminating autoscaling group
-func (c CloudWatchClient) GetTargetGroupRequestStatistics(tgs []*string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
+func (c CloudWatchClient) GetTargetGroupRequestStatistics(tgs []string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
 	ret := map[string]map[string]float64{}
 
 	resetStartTime := startTime
-	if len(tgs) > 0 {
-		for _, tg := range tgs {
-			tgName := (*tg)[strings.LastIndex(*tg, ":")+1:]
-			logger.Debugf("GetTargetGroupRequestStatistics: %s", tgName)
+	for _, tg := range tgs {
+		tgName := tg[strings.LastIndex(tg, ":")+1:]
+		logger.Debugf("GetTargetGroupRequestStatistics: %s", tgName)
 
-			appliedPeriod := constants.HourToSec
-			vSum := float64(0)
+		appliedPeriod := constants.HourToSec
+		vSum := float64(0)
 
-			startTime = resetStartTime
-			isFinished := false
-			for !isFinished {
-				id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
-				logger.Debugf("Metric id : %s", id)
+		startTime = resetStartTime
+		isFinished := false
+		for !isFinished {
+			id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
+			logger.Debugf("Metric id : %s", id)
 
-				endTime := tool.GetBaseTime(startTime.Add(time.Duration(constants.DayToSec) * time.Second)).Add(-1 * time.Second)
-				if CheckMetricTimeValidation(terminatedDate, endTime) {
-					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
-					endTime = terminatedDate
-				}
-				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
-
-				if !CheckMetricTimeValidation(startTime, endTime) {
-					logger.Debugf("Finish gathering metrics")
-					break
-				}
-
-				v, s, err := c.GetOneDayStatisticsOfTargetGroup(tgName, startTime, endTime, appliedPeriod, id)
-				if err != nil {
-					return nil, err
-				}
-
-				if v != nil {
-					if _, ok := ret[tgName]; !ok {
-						ret[tgName] = map[string]float64{}
-					}
-					for k, vv := range v {
-						ret[tgName][k] = vv
-					}
-					vSum += s
-				}
-
-				startTime = endTime.Add(1 * time.Second)
-				logger.Debugf("Next Start Time : %s", startTime)
-
-				if !CheckMetricTimeValidation(startTime, terminatedDate) {
-					logger.Debugf("Finish gathering metrics")
-					isFinished = true
-				}
+			endTime := tool.GetBaseTime(startTime.Add(time.Duration(constants.DayToSec) * time.Second)).Add(-1 * time.Second)
+			if CheckMetricTimeValidation(terminatedDate, endTime) {
+				endTime = terminatedDate
 			}
 
-			if ret[tgName] == nil {
-				ret[tgName] = map[string]float64{}
+			if !CheckMetricTimeValidation(startTime, endTime) {
+				break
 			}
-			ret[tgName]["total"] = vSum
+
+			v, s, err := c.GetOneDayStatisticsOfTargetGroup(tgName, startTime, endTime, appliedPeriod, id)
+			if err != nil {
+				return nil, err
+			}
+
+			if v != nil {
+				if _, ok := ret[tgName]; !ok {
+					ret[tgName] = map[string]float64{}
+				}
+				for k, vv := range v {
+					ret[tgName][k] = vv
+				}
+				vSum += s
+			}
+
+			startTime = endTime.Add(1 * time.Second)
+
+			if !CheckMetricTimeValidation(startTime, terminatedDate) {
+				isFinished = true
+			}
 		}
+
+		if ret[tgName] == nil {
+			ret[tgName] = map[string]float64{}
+		}
+		ret[tgName]["total"] = vSum
 	}
 
 	return ret, nil
 }
 
 // GetLoadBalancerRequestStatistics returns statistics for terminating autoscaling group
-func (c CloudWatchClient) GetLoadBalancerRequestStatistics(loadbalancers []*string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
+func (c CloudWatchClient) GetLoadBalancerRequestStatistics(loadbalancers []string, startTime, terminatedDate time.Time, logger *Logger.Logger) (map[string]map[string]float64, error) {
 	ret := map[string]map[string]float64{}
 
 	resetStartTime := startTime
-	if len(loadbalancers) > 0 {
-		for _, lb := range loadbalancers {
-			lbName := (*lb)[strings.Index(*lb, "/")+1:]
-			logger.Debugf("GetLoadBalancerRequestStatistics: %s", lbName)
+	for _, lb := range loadbalancers {
+		lbName := lb[strings.Index(lb, "/")+1:]
+		logger.Debugf("GetLoadBalancerRequestStatistics: %s", lbName)
 
-			appliedPeriod := constants.HourToSec
-			vSum := constants.ZeroFloat64
+		appliedPeriod := constants.HourToSec
+		vSum := constants.ZeroFloat64
 
-			startTime = resetStartTime
-			isFinished := false
-			for !isFinished {
-				id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
-				logger.Debugf("Metric id : %s", id)
+		startTime = resetStartTime
+		isFinished := false
+		for !isFinished {
+			id := fmt.Sprintf("m%s", tool.GetTimePrefix(startTime))
 
-				endTime := tool.GetBaseTime(startTime.Add(time.Duration(constants.DayToSec) * time.Second)).Add(-1 * time.Second)
-				if CheckMetricTimeValidation(terminatedDate, endTime) {
-					logger.Debugf("Terminated Date is earlier than End Date: %s/%s", terminatedDate, endTime)
-					endTime = terminatedDate
-				}
-				logger.Debugf("Start Time : %s, End Time : %s, Applied period: %d", startTime, endTime, appliedPeriod)
-
-				if !CheckMetricTimeValidation(startTime, endTime) {
-					logger.Debugf("Finish gathering metrics")
-					break
-				}
-
-				v, s, err := c.GetOneDayStatisticsOfLoadBalancer(lbName, startTime, endTime, appliedPeriod, id)
-				if err != nil {
-					return nil, err
-				}
-
-				if v != nil {
-					if _, ok := ret[lbName]; !ok {
-						ret[lbName] = map[string]float64{}
-					}
-					for k, vv := range v {
-						ret[lbName][k] = vv
-					}
-					vSum += s
-				}
-
-				startTime = endTime.Add(1 * time.Second)
-				logger.Debugf("Next Start Time : %s", startTime)
-
-				if !CheckMetricTimeValidation(startTime, terminatedDate) {
-					logger.Debugf("Finish gathering metrics")
-					isFinished = true
-				}
+			endTime := tool.GetBaseTime(startTime.Add(time.Duration(constants.DayToSec) * time.Second)).Add(-1 * time.Second)
+			if CheckMetricTimeValidation(terminatedDate, endTime) {
+				endTime = terminatedDate
 			}
 
-			if ret[lbName] == nil {
-				ret[lbName] = map[string]float64{}
+			if !CheckMetricTimeValidation(startTime, endTime) {
+				break
 			}
-			ret[lbName]["total"] = vSum
+
+			v, s, err := c.GetOneDayStatisticsOfLoadBalancer(lbName, startTime, endTime, appliedPeriod, id)
+			if err != nil {
+				return nil, err
+			}
+
+			if v != nil {
+				if _, ok := ret[lbName]; !ok {
+					ret[lbName] = map[string]float64{}
+				}
+				for k, vv := range v {
+					ret[lbName][k] = vv
+				}
+				vSum += s
+			}
+
+			startTime = endTime.Add(1 * time.Second)
+
+			if !CheckMetricTimeValidation(startTime, terminatedDate) {
+				isFinished = true
+			}
 		}
+
+		if ret[lbName] == nil {
+			ret[lbName] = map[string]float64{}
+		}
+		ret[lbName]["total"] = vSum
 	}
 
 	return ret, nil
@@ -237,42 +212,35 @@ func (c CloudWatchClient) GetOneDayStatisticsOfTargetGroup(tg string, startTime,
 	input := &cloudwatch.GetMetricDataInput{
 		StartTime: aws.Time(startTime),
 		EndTime:   aws.Time(endTime),
+		MetricDataQueries: []cwtypes.MetricDataQuery{
+			{
+				Id:         aws.String(id),
+				ReturnData: aws.Bool(false),
+				MetricStat: &cwtypes.MetricStat{
+					Metric: &cwtypes.Metric{
+						Dimensions: []cwtypes.Dimension{
+							{Name: aws.String("TargetGroup"), Value: aws.String(tg)},
+						},
+						MetricName: aws.String("RequestCountPerTarget"),
+						Namespace:  aws.String("AWS/ApplicationELB"),
+					},
+					Period: aws.Int32(int32(period)),
+					Stat:   aws.String("Sum"),
+				},
+			},
+			{
+				Expression: aws.String(id),
+				Id:         aws.String(fmt.Sprintf("t%s", id)),
+				Label:      aws.String("RequestSum"),
+			},
+		},
 	}
 
-	var mdq []*cloudwatch.MetricDataQuery
-	mdq = append(mdq, &cloudwatch.MetricDataQuery{
-		Id:         aws.String(id),
-		ReturnData: aws.Bool(false),
-		MetricStat: &cloudwatch.MetricStat{
-			Metric: &cloudwatch.Metric{
-				Dimensions: []*cloudwatch.Dimension{
-					{
-						Name:  aws.String("TargetGroup"),
-						Value: aws.String(tg),
-					},
-				},
-				MetricName: aws.String("RequestCountPerTarget"),
-				Namespace:  aws.String("AWS/ApplicationELB"),
-			},
-			Period: aws.Int64(period),
-			Stat:   aws.String("Sum"),
-		},
-	})
-
-	mdq = append(mdq, &cloudwatch.MetricDataQuery{
-		Expression: aws.String(id),
-		Id:         aws.String(fmt.Sprintf("%s%s", "t", id)),
-		Label:      aws.String("RequestSum"),
-	})
-
-	input.MetricDataQueries = mdq
-
-	result, err := c.Client.GetMetricData(input)
+	result, err := c.Client.GetMetricData(context.Background(), input)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// If no result exists, then set it to zero
 	if len(result.MetricDataResults) == 0 {
 		return nil, 0, nil
 	}
@@ -280,7 +248,7 @@ func (c CloudWatchClient) GetOneDayStatisticsOfTargetGroup(tg string, startTime,
 	ret := map[string]float64{}
 	sum := float64(0)
 	for i, t := range result.MetricDataResults[0].Timestamps {
-		val := *result.MetricDataResults[0].Values[i]
+		val := result.MetricDataResults[0].Values[i]
 		ret[t.Format(time.RFC3339)] = val
 		sum += val
 	}
@@ -293,42 +261,35 @@ func (c CloudWatchClient) GetOneDayStatisticsOfLoadBalancer(lb string, startTime
 	input := &cloudwatch.GetMetricDataInput{
 		StartTime: aws.Time(startTime),
 		EndTime:   aws.Time(endTime),
+		MetricDataQueries: []cwtypes.MetricDataQuery{
+			{
+				Id:         aws.String(id),
+				ReturnData: aws.Bool(false),
+				MetricStat: &cwtypes.MetricStat{
+					Metric: &cwtypes.Metric{
+						Dimensions: []cwtypes.Dimension{
+							{Name: aws.String("LoadBalancer"), Value: aws.String(lb)},
+						},
+						MetricName: aws.String("RequestCount"),
+						Namespace:  aws.String("AWS/ApplicationELB"),
+					},
+					Period: aws.Int32(int32(period)),
+					Stat:   aws.String("Sum"),
+				},
+			},
+			{
+				Expression: aws.String(id),
+				Id:         aws.String(fmt.Sprintf("t%s", id)),
+				Label:      aws.String("RequestSum"),
+			},
+		},
 	}
 
-	var mdq []*cloudwatch.MetricDataQuery
-	mdq = append(mdq, &cloudwatch.MetricDataQuery{
-		Id:         aws.String(id),
-		ReturnData: aws.Bool(false),
-		MetricStat: &cloudwatch.MetricStat{
-			Metric: &cloudwatch.Metric{
-				Dimensions: []*cloudwatch.Dimension{
-					{
-						Name:  aws.String("LoadBalancer"),
-						Value: aws.String(lb),
-					},
-				},
-				MetricName: aws.String("RequestCount"),
-				Namespace:  aws.String("AWS/ApplicationELB"),
-			},
-			Period: aws.Int64(period),
-			Stat:   aws.String("Sum"),
-		},
-	})
-
-	mdq = append(mdq, &cloudwatch.MetricDataQuery{
-		Expression: aws.String(id),
-		Id:         aws.String(fmt.Sprintf("%s%s", "t", id)),
-		Label:      aws.String("RequestSum"),
-	})
-
-	input.MetricDataQueries = mdq
-
-	result, err := c.Client.GetMetricData(input)
+	result, err := c.Client.GetMetricData(context.Background(), input)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// If no result exists, then set it to zero
 	if len(result.MetricDataResults) == 0 {
 		return nil, 0, nil
 	}
@@ -336,7 +297,7 @@ func (c CloudWatchClient) GetOneDayStatisticsOfLoadBalancer(lb string, startTime
 	ret := map[string]float64{}
 	sum := float64(0)
 	for i, t := range result.MetricDataResults[0].Timestamps {
-		val := *result.MetricDataResults[0].Values[i]
+		val := result.MetricDataResults[0].Values[i]
 		ret[t.Format(time.RFC3339)] = val
 		sum += val
 	}
