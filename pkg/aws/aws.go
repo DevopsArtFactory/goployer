@@ -51,10 +51,10 @@ func GetAwsConfig(ctx context.Context, region string) (aws.Config, error) {
 	profile := viper.GetString("profile")
 
 	var opts []func(*config.LoadOptions) error
-	if len(region) > 0 {
+	if region != "" {
 		opts = append(opts, config.WithRegion(region))
 	}
-	if len(profile) > 0 {
+	if profile != "" {
 		opts = append(opts, config.WithSharedConfigProfile(profile))
 	}
 
@@ -69,7 +69,7 @@ func BootstrapServices(region string, assumeRole string) Client {
 		panic(err)
 	}
 
-	if len(assumeRole) != 0 {
+	if assumeRole != "" {
 		stsClient := sts.NewFromConfig(cfg)
 		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
 	}
@@ -91,7 +91,7 @@ func BootstrapMetricService(region string, assumeRole string) MetricClient {
 		panic(err)
 	}
 
-	if len(assumeRole) != 0 {
+	if assumeRole != "" {
 		stsClient := sts.NewFromConfig(cfg)
 		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
 	}
@@ -110,7 +110,7 @@ func BootstrapManifestService(region string, assumeRole string) ManifestClient {
 		panic(err)
 	}
 
-	if len(assumeRole) != 0 {
+	if assumeRole != "" {
 		stsClient := sts.NewFromConfig(cfg)
 		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClient, assumeRole)
 	}

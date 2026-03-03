@@ -52,6 +52,7 @@ func (d DynamoDBClient) CheckTableExists(tableName string) (bool, error) {
 		if errors.As(err, &notFound) {
 			return false, nil
 		}
+		fmt.Println(err.Error())
 		return false, err
 	}
 
@@ -109,6 +110,7 @@ func (d DynamoDBClient) MakeRecord(stack, config, tags string, asg string, table
 
 	_, err := d.Client.PutItem(context.Background(), input)
 	if err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
 
@@ -172,6 +174,7 @@ func (d DynamoDBClient) GetSingleItem(asg, tableName string) (map[string]dbtypes
 
 	result, err := d.Client.GetItem(context.Background(), input)
 	if err != nil {
+		fmt.Println(err.Error())
 		return nil, err
 	}
 
@@ -220,5 +223,8 @@ func (d DynamoDBClient) UpdateStatistics(asg string, tableName, timezone string,
 	}
 
 	_, err := d.Client.UpdateItem(context.Background(), input)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 	return err
 }
