@@ -21,17 +21,17 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7
 	github.com/fatih/color v1.9.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-test/deep v1.0.4
+	github.com/go-test/deep v1.1.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/pkg/errors v0.9.1
 	github.com/russross/blackfriday/v2 v2.0.1
 	github.com/sirupsen/logrus v1.8.3
-	github.com/slack-go/slack v0.6.4
+	github.com/slack-go/slack v0.23.1
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.11.1
 	github.com/tsenart/vegeta v12.7.0+incompatible
 	gopkg.in/ini.v1 v1.57.0
 	gopkg.in/yaml.v2 v2.3.0
@@ -57,7 +57,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-gk v0.0.0-20200319235926-a69029f61654 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/influxdata/tdigest v0.0.1 // indirect
