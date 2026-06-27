@@ -18,6 +18,18 @@ This mode reuses the existing load balancer listener default action instead of c
 
 This implementation supports listener default actions. Listener rule based canary routing is not supported yet.
 
+## Health check rollback
+
+If the canary Auto Scaling group fails health checks or the health check step times out after the deploy step, Goployer automatically rolls the canary back before returning the error:
+
+1. Restore the listener default action to the original target group.
+2. Detach and delete the canary target group.
+3. Scale the failed canary Auto Scaling group to `0`.
+4. Wait until the failed canary Auto Scaling group has no instances.
+5. Delete the failed canary Auto Scaling group and its launch template.
+
+When rollback succeeds, Goployer clears the canary deploy step status so later finish/cleanup phases do not promote the failed canary.
+
 ## Manifest
 
 ```yaml
@@ -48,6 +60,7 @@ regions:
 - NLB weight changes apply to new flows, not existing connections.
 - Goployer treats `canary.weight` as a percentage, so valid values are `0` through `90`.
 - `canary.bake_time` only waits. CloudWatch alarm or API test based promotion gates should be added separately.
+- Automatic rollback is tied to Goployer health check failures. It does not monitor CloudWatch alarms after the deploy command exits.
 
 ## Commands
 

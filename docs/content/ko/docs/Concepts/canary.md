@@ -18,6 +18,18 @@ Goployer의 canary 배포는 ALB/NLB weighted target groups를 사용합니다.
 
 현재 구현은 listener default action만 지원합니다. host/path 기반 listener rule canary는 아직 지원하지 않습니다.
 
+## Health check rollback
+
+Canary Auto Scaling group이 health check에 실패하거나 health check 단계에서 timeout되면, Goployer는 에러를 반환하기 전에 canary를 자동 rollback합니다.
+
+1. Listener default action을 original target group으로 복구합니다.
+2. Canary target group을 Auto Scaling group에서 분리하고 삭제합니다.
+3. 실패한 canary Auto Scaling group 크기를 `0`으로 줄입니다.
+4. 실패한 canary Auto Scaling group의 instance가 모두 없어질 때까지 기다립니다.
+5. 실패한 canary Auto Scaling group과 launch template을 삭제합니다.
+
+Rollback이 성공하면 이후 finish/cleanup 단계에서 실패한 canary가 승격되지 않도록 canary deploy step 상태를 해제합니다.
+
 ## Manifest
 
 ```yaml
@@ -48,6 +60,7 @@ regions:
 - NLB weight 변경은 기존 연결이 아니라 새 flow부터 반영됩니다.
 - Goployer의 `canary.weight`는 percentage 값이라 `0`부터 `90`까지만 허용합니다.
 - `canary.bake_time`은 시간 대기만 수행합니다. CloudWatch alarm이나 API test 기반 자동 승격 판단은 별도 승격 조건으로 구성해야 합니다.
+- 자동 rollback은 Goployer health check 실패에만 연결됩니다. 배포 명령이 종료된 뒤 CloudWatch alarm을 계속 감시하지는 않습니다.
 
 ## Commands
 

@@ -346,16 +346,25 @@ func (r Runner) Deploy() error {
 	}
 
 	// Health checking step
+	errs = make(chan error)
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
 			defer wg.Done()
 			if err := deployer.HealthChecking(r.Builder.Config); err != nil {
 				r.Logger.Errorf("[StepHealthCheck] check new deployment error occurred: %s", err.Error())
+				errs <- err
 			}
 		}(d)
 	}
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+	errFlag = checkError(errs)
+	if errFlag != nil {
+		return errFlag
+	}
 
 	for _, d := range deployers {
 		wg.Add(1)

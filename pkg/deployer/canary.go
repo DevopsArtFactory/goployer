@@ -148,12 +148,19 @@ func (c *Canary) HealthChecking(config schemas.Config) error {
 		c.Logger.Debugf("Start Timestamp: %d, timeout: %s", config.StartTimestamp, config.Timeout)
 		isTimeout, _ := tool.CheckTimeout(config.StartTimestamp, config.Timeout)
 		if isTimeout {
-			return fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
+			err := fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes())
+			if rollbackErr := c.RollbackCanaryDeployment(config); rollbackErr != nil {
+				return fmt.Errorf("%w; rollback failed: %s", err, rollbackErr)
+			}
+			return err
 		}
 
 		isDone, err := c.Deployer.HealthChecking(config)
 		if err != nil {
-			return errors.New("error happened while health checking")
+			if rollbackErr := c.RollbackCanaryDeployment(config); rollbackErr != nil {
+				return fmt.Errorf("error happened while health checking: %w; rollback failed: %s", err, rollbackErr)
+			}
+			return fmt.Errorf("error happened while health checking: %w", err)
 		}
 
 		if isDone {
@@ -164,6 +171,89 @@ func (c *Canary) HealthChecking(config schemas.Config) error {
 	}
 
 	return nil
+}
+
+// ShouldRollbackCanary returns whether a failed health check owns canary resources to clean up.
+func (c *Canary) ShouldRollbackCanary(config schemas.Config) bool {
+	return c.StepStatus[constants.StepDeploy] && !config.CompleteCanary
+}
+
+// RollbackCanaryDeployment restores listener traffic and removes failed canary resources.
+func (c *Canary) RollbackCanaryDeployment(config schemas.Config) error {
+	if !c.ShouldRollbackCanary(config) {
+		return nil
+	}
+
+	var retErr error
+	recordErr := func(err error) {
+		if err != nil && retErr == nil {
+			retErr = err
+		}
+	}
+	rollbackStartTimestamp := time.Now().Unix()
+
+	for _, region := range c.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			c.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		if c.OriginalTargetGroupArn[region.Region] != "" {
+			if err := c.ModifyListenerToStableTargetGroup(region, 100, 0); err != nil {
+				recordErr(err)
+			}
+		}
+
+		canaryASG := c.CanaryAutoScalingGroupName(region.Region)
+		if err := c.DetachLatestCanaryResources(schemas.Config{Region: region.Region}); err != nil {
+			recordErr(err)
+		}
+
+		if canaryASG != "" {
+			client, err := selectClientFromList(c.AWSClients, region.Region)
+			if err != nil {
+				recordErr(err)
+			} else if err := c.ResizingAutoScalingGroupCount(client, canaryASG, 0); err != nil {
+				recordErr(err)
+			} else {
+				for {
+					isTimeout, _ := tool.CheckTimeout(rollbackStartTimestamp, config.Timeout)
+					if isTimeout {
+						recordErr(fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes()))
+						break
+					}
+
+					done, err := c.CheckAutoscalingInstanceCount(client, canaryASG, 0)
+					if err != nil {
+						recordErr(err)
+						break
+					}
+					if done {
+						if ok := c.ClearResources(client, canaryASG, config.DisableMetrics); !ok {
+							recordErr(fmt.Errorf("error happened while cleaning rollback resources: %s", canaryASG))
+						}
+						break
+					}
+
+					c.Logger.Info("Rollback autoscaling group is not empty yet... Please waiting...")
+					time.Sleep(config.PollingInterval)
+				}
+			}
+		}
+	}
+
+	if retErr == nil {
+		c.StepStatus[constants.StepDeploy] = false
+	}
+	return retErr
+}
+
+// CanaryAutoScalingGroupName returns the ASG owned by the active canary deployment.
+func (c *Canary) CanaryAutoScalingGroupName(region string) string {
+	if c.AsgNames != nil && c.AsgNames[region] != "" {
+		return c.AsgNames[region]
+	}
+	return c.LatestAsg[region]
 }
 
 // FinishAdditionalWork processes additional work for the new deployment
@@ -778,9 +868,9 @@ func (c *Canary) DetachLatestCanaryResources(config schemas.Config) error {
 			continue
 		}
 
-		latestASG := c.LatestAsg[region.Region]
-		if latestASG != "" {
-			if err := c.DetachCanaryTargetGroup(latestASG, region, []string{canaryTargetGroupArn}); err != nil {
+		canaryASG := c.CanaryAutoScalingGroupName(region.Region)
+		if canaryASG != "" {
+			if err := c.DetachCanaryTargetGroup(canaryASG, region, []string{canaryTargetGroupArn}); err != nil {
 				return err
 			}
 		}
@@ -794,8 +884,8 @@ func (c *Canary) DetachLatestCanaryResources(config schemas.Config) error {
 		}
 		c.Logger.Debugf("Deleted canary target group: %s", canaryTargetGroupArn)
 
-		if latestASG != "" {
-			if err := c.RemoveCanaryTag(latestASG, region); err != nil {
+		if canaryASG != "" {
+			if err := c.RemoveCanaryTag(canaryASG, region); err != nil {
 				return err
 			}
 		}
