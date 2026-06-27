@@ -46,7 +46,7 @@ regions:
 - NLB는 같은 listener 안에서 TCP/TLS/UDP target group을 섞을 수 없습니다.
 - weighted target groups는 같은 IP address type의 target group끼리 사용해야 합니다.
 - NLB weight 변경은 기존 연결이 아니라 새 flow부터 반영됩니다.
-- Goployer의 `canary.weight`는 percentage 값이라 `0`부터 `99`까지만 허용합니다.
+- Goployer의 `canary.weight`는 percentage 값이라 `0`부터 `90`까지만 허용합니다.
 - `canary.bake_time`은 시간 대기만 수행합니다. CloudWatch alarm이나 API test 기반 자동 승격 판단은 별도 승격 조건으로 구성해야 합니다.
 
 ## Commands

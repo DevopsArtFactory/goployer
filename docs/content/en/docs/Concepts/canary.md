@@ -46,7 +46,7 @@ regions:
 - NLB weighted listeners cannot mix TCP, TLS, and UDP target groups on the same listener.
 - Weighted target groups must use the same IP address type.
 - NLB weight changes apply to new flows, not existing connections.
-- Goployer treats `canary.weight` as a percentage, so valid values are `0` through `99`.
+- Goployer treats `canary.weight` as a percentage, so valid values are `0` through `90`.
 - `canary.bake_time` only waits. CloudWatch alarm or API test based promotion gates should be added separately.
 
 ## Commands

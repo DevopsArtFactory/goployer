@@ -141,6 +141,30 @@ func TestValidateCanaryDeploymentRequiresListenerConfig(t *testing.T) {
 	}
 }
 
+func TestValidateCanaryDeploymentRejectsUnsafeWeight(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			DeploymentFlag: map[string]string{},
+			Stack: schemas.Stack{
+				Regions: []schemas.RegionConfig{
+					{
+						Region: constants.DefaultRegion,
+						Canary: schemas.CanaryConfig{
+							LoadBalancer: "demoapp-xyzdapne2-ext",
+							ListenerPort: 443,
+							Weight:       91,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := c.ValidateCanaryDeployment(schemas.Config{}, constants.DefaultRegion); err == nil {
+		t.Fatal("expected canary weight validation error")
+	}
+}
+
 func TestCanaryRunAPITestDelegatesToDeployer(t *testing.T) {
 	logger := Logger.New()
 	logger.SetOutput(io.Discard)

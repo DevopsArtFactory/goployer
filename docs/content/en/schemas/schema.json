@@ -220,7 +220,7 @@
           "type": "integer",
           "description": "Percentage of traffic to send to the canary target group.",
           "x-intellij-html-description": "Percentage of traffic to send to the canary target group.",
-          "default": "10"
+          "default": "10`; maximum is `90"
         }
       },
       "additionalProperties": false,

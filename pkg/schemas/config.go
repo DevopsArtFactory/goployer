@@ -392,7 +392,7 @@ type CanaryConfig struct {
 	// Time to keep canary traffic before finishing the canary deployment step
 	BakeTime time.Duration `yaml:"bake_time,omitempty"`
 
-	// Percentage of traffic to send to the canary target group. Defaults to `10`
+	// Percentage of traffic to send to the canary target group. Defaults to `10`; maximum is `90`
 	Weight int64 `yaml:"weight,omitempty"`
 }
 

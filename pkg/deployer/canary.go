@@ -41,7 +41,10 @@ type Canary struct {
 	*Deployer
 }
 
-const defaultCanaryWeight = int64(10)
+const (
+	defaultCanaryWeight = int64(10)
+	maxCanaryWeight     = int64(90)
+)
 
 // NewCanary creates new canary deployment deployer
 func NewCanary(h *helper.DeployerHelper) *Canary {
@@ -308,8 +311,8 @@ func (c *Canary) ValidateCanaryDeployment(config schemas.Config, region string) 
 		if regionConfig.Canary.ListenerARN == "" && (regionConfig.Canary.LoadBalancer == "" || regionConfig.Canary.ListenerPort == 0) {
 			return errors.New("canary.listener_arn or canary.load_balancer with canary.listener_port is required for canary deployment")
 		}
-		if regionConfig.Canary.Weight < 0 || regionConfig.Canary.Weight > 99 {
-			return errors.New("canary.weight must be between 0 and 99")
+		if regionConfig.Canary.Weight < 0 || regionConfig.Canary.Weight > maxCanaryWeight {
+			return errors.New("canary.weight must be between 0 and 90")
 		}
 	}
 
