@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 
 	"github.com/DevopsArtFactory/goployer/pkg/aws"
@@ -37,11 +35,13 @@ import (
 type Canary struct {
 	PrevTargetGroups            map[string][]string
 	TargetGroups                map[string][]string
+	OriginalTargetGroupArn      map[string]string
+	CanaryTargetGroupArn        map[string]string
 	PrevHealthCheckTargetGroups map[string]string
-	LoadBalancer                map[string]string
-	LBSecurityGroup             map[string]*string
 	*Deployer
 }
+
+const defaultCanaryWeight = int64(10)
 
 // NewCanary creates new canary deployment deployer
 func NewCanary(h *helper.DeployerHelper) *Canary {
@@ -60,8 +60,8 @@ func NewCanary(h *helper.DeployerHelper) *Canary {
 		PrevHealthCheckTargetGroups: map[string]string{},
 		PrevTargetGroups:            map[string][]string{},
 		TargetGroups:                map[string][]string{},
-		LoadBalancer:                map[string]string{},
-		LBSecurityGroup:             map[string]*string{},
+		OriginalTargetGroupArn:      map[string]string{},
+		CanaryTargetGroupArn:        map[string]string{},
 		Deployer:                    &d,
 	}
 }
@@ -119,25 +119,13 @@ func (c *Canary) Deploy(config schemas.Config) error {
 			return err
 		}
 
-		// Check canary load balancer
-		lbSg, canaryLoadBalancer, err := c.GetLoadBalancerAndSecurityGroupForCanary(region, tgDetail, config.CompleteCanary)
-		if err != nil {
-			return err
-		}
-
-		// Create canary security group
-		err = c.GetEC2CanarySecurityGroup(tgDetail, region, lbSg, config.CompleteCanary)
-		if err != nil {
-			return err
-		}
-
 		switch config.CompleteCanary {
 		case true:
-			if err := c.CompleteCanaryDeployment(config, region, latestASG); err != nil {
+			if err := c.CompleteCanaryDeployment(config, region, latestASG, tgDetail); err != nil {
 				return err
 			}
 		case false:
-			changedRegionConfig, err := c.RunCanaryDeployment(config, region, tgDetail, canaryLoadBalancer, canaryVersion)
+			changedRegionConfig, err := c.RunCanaryDeployment(config, region, tgDetail, canaryVersion)
 			if err != nil {
 				return err
 			}
@@ -182,6 +170,12 @@ func (c *Canary) FinishAdditionalWork(config schemas.Config) error {
 	}
 
 	if config.CompleteCanary {
+		if err := c.ApplyCompleteCanaryWeights(config); err != nil {
+			return err
+		}
+		if err := c.DetachLatestCanaryResources(config); err != nil {
+			return err
+		}
 		c.StepStatus[constants.StepAdditionalWork] = true
 		return nil
 	}
@@ -189,16 +183,10 @@ func (c *Canary) FinishAdditionalWork(config schemas.Config) error {
 	skipped := len(config.Region) > 0 && !CheckRegionExist(config.Region, c.Stack.Regions)
 
 	if !skipped {
-		// attach to the previous target group
-		if len(c.PrevTargetGroups) > 0 {
-			if err := c.AttachToOriginalTargetGroups(config); err != nil {
-				return err
-			}
-
-			if err := c.HealthChecking(config); err != nil {
-				return err
-			}
+		if err := c.ApplyCanaryWeights(config); err != nil {
+			return err
 		}
+		c.WaitCanaryBakeTime(config)
 
 		if err := c.DoCommonAdditionalWork(config); err != nil {
 			return err
@@ -299,7 +287,7 @@ func (c *Canary) RunAPITest(config schemas.Config) error {
 		return nil
 	}
 
-	err := c.RunAPITest(config)
+	err := c.Deployer.RunAPITest(config)
 	if err != nil {
 		return err
 	}
@@ -312,6 +300,17 @@ func (c *Canary) RunAPITest(config schemas.Config) error {
 func (c *Canary) ValidateCanaryDeployment(config schemas.Config, region string) error {
 	if c.DeploymentFlag[region] != constants.CanaryDeployment && config.CompleteCanary {
 		return errors.New("you cannot complete canary deployment before start canary before")
+	}
+	for _, regionConfig := range c.Stack.Regions {
+		if regionConfig.Region != region {
+			continue
+		}
+		if regionConfig.Canary.ListenerARN == "" && (regionConfig.Canary.LoadBalancer == "" || regionConfig.Canary.ListenerPort == 0) {
+			return errors.New("canary.listener_arn or canary.load_balancer with canary.listener_port is required for canary deployment")
+		}
+		if regionConfig.Canary.Weight < 0 || regionConfig.Canary.Weight > 99 {
+			return errors.New("canary.weight must be between 0 and 99")
+		}
 	}
 
 	return nil
@@ -335,21 +334,6 @@ func (c *Canary) CopyTargetGroups(tg *elbv2types.TargetGroup, canaryTgName, regi
 // GenerateCanaryTargetGroupName generates name of canary target group for canary
 func (c *Canary) GenerateCanaryTargetGroupName(canaryVersion int) string {
 	return fmt.Sprintf("%s-%s-canary-v%03d", c.AwsConfig.Name, c.Stack.Env, canaryVersion+1)
-}
-
-// GenerateCanaryLoadBalancerName generates name of canary load balancer for canary
-func (c *Canary) GenerateCanaryLoadBalancerName(region string) string {
-	return fmt.Sprintf("%s-%s-%s-%s", c.AwsConfig.Name, c.Stack.Env, strings.ReplaceAll(region, "-", ""), constants.CanaryMark)
-}
-
-// GenerateCanarySecurityGroupName generates name of canary load balancer for canary
-func (c *Canary) GenerateCanarySecurityGroupName(region string) string {
-	return fmt.Sprintf("%s-%s-%s-%s", c.AwsConfig.Name, c.Stack.Env, strings.ReplaceAll(region, "-", ""), constants.CanaryMark)
-}
-
-// GenerateCanaryLBSecurityGroupName generates name of canary load balancer for canary
-func (c *Canary) GenerateCanaryLBSecurityGroupName(region string) string {
-	return fmt.Sprintf("%s-%s-%s-lb-%s", c.AwsConfig.Name, c.Stack.Env, strings.ReplaceAll(region, "-", ""), constants.CanaryMark)
 }
 
 // GetAsgTargetGroups retrieves target group list of autoscaling group
@@ -431,6 +415,29 @@ func (c *Canary) AttachToOriginalTargetGroups(config schemas.Config) error {
 	return nil
 }
 
+// TargetGroupARNsForRegion returns original target groups from manifest for a region.
+func (c *Canary) TargetGroupARNsForRegion(region schemas.RegionConfig) ([]string, error) {
+	targetGroups := c.GetTargetGroupNames(region)
+	if len(targetGroups) == 0 {
+		return nil, fmt.Errorf("there is no target group specified")
+	}
+
+	client, err := selectClientFromList(c.AWSClients, region.Region)
+	if err != nil {
+		return nil, err
+	}
+
+	targetGroupARNs, err := client.ELBV2Service.GetTargetGroupARNs(targetGroups)
+	if err != nil {
+		return nil, err
+	}
+	if targetGroupARNs == nil {
+		return nil, fmt.Errorf("there is no target group specified")
+	}
+
+	return targetGroupARNs, nil
+}
+
 // ChangeTargetGroupInfo changes existing target group to the new one for canary deployment
 func (c *Canary) ChangeTargetGroupInfo(newTgName string, region schemas.RegionConfig) schemas.RegionConfig {
 	if len(region.HealthcheckTargetGroup) > 0 {
@@ -443,6 +450,146 @@ func (c *Canary) ChangeTargetGroupInfo(newTgName string, region schemas.RegionCo
 	}
 	region.TargetGroups = []string{newTgName}
 	return region
+}
+
+// CanaryWeights returns stable/canary weights for listener default actions.
+func CanaryWeights(region schemas.RegionConfig, completeCanary bool) (int32, int32) {
+	if completeCanary {
+		return 100, 0
+	}
+
+	weight := region.Canary.Weight
+	if weight == 0 {
+		weight = defaultCanaryWeight
+	}
+
+	return int32(100 - weight), int32(weight)
+}
+
+// ResolveCanaryListenerARN resolves the listener from either ARN or load balancer name plus port.
+func (c *Canary) ResolveCanaryListenerARN(region schemas.RegionConfig, client aws.Client) (string, error) {
+	if region.Canary.ListenerARN != "" {
+		return region.Canary.ListenerARN, nil
+	}
+
+	lb, err := client.ELBV2Service.GetLoadBalancerByName(region.Canary.LoadBalancer)
+	if err != nil {
+		return "", err
+	}
+	if lb == nil {
+		return "", fmt.Errorf("canary load balancer not found: %s", region.Canary.LoadBalancer)
+	}
+
+	listeners, err := client.ELBV2Service.DescribeListeners(*lb.LoadBalancerArn)
+	if err != nil {
+		return "", err
+	}
+	for _, listener := range listeners {
+		if listener.Port == nil || *listener.Port != region.Canary.ListenerPort {
+			continue
+		}
+		if region.Canary.ListenerProtocol != "" && !strings.EqualFold(string(listener.Protocol), region.Canary.ListenerProtocol) {
+			continue
+		}
+		if listener.ListenerArn == nil {
+			break
+		}
+		return *listener.ListenerArn, nil
+	}
+
+	return "", fmt.Errorf("canary listener not found: %s:%d", region.Canary.LoadBalancer, region.Canary.ListenerPort)
+}
+
+// ApplyCanaryWeights sends the configured percentage of listener traffic to canary target groups.
+func (c *Canary) ApplyCanaryWeights(config schemas.Config) error {
+	for _, region := range c.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			c.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		stableWeight, canaryWeight := CanaryWeights(region, false)
+		if err := c.ModifyWeightedListener(region, stableWeight, canaryWeight); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// WaitCanaryBakeTime keeps the canary weight active before the deploy command exits.
+func (c *Canary) WaitCanaryBakeTime(config schemas.Config) {
+	for _, region := range c.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			continue
+		}
+		if region.Canary.BakeTime <= 0 {
+			continue
+		}
+
+		c.Logger.Infof("Waiting canary bake time in %s: %s", region.Region, region.Canary.BakeTime)
+		time.Sleep(region.Canary.BakeTime)
+	}
+}
+
+// ApplyCompleteCanaryWeights restores all listener traffic to the original target group.
+func (c *Canary) ApplyCompleteCanaryWeights(config schemas.Config) error {
+	for _, region := range c.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			c.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
+		}
+
+		stableWeight, canaryWeight := CanaryWeights(region, true)
+		if err := c.ModifyListenerToStableTargetGroup(region, stableWeight, canaryWeight); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ModifyWeightedListener updates the existing ALB listener's default action.
+func (c *Canary) ModifyWeightedListener(region schemas.RegionConfig, stableWeight, canaryWeight int32) error {
+	stableTargetGroupArn := c.OriginalTargetGroupArn[region.Region]
+	canaryTargetGroupArn := c.CanaryTargetGroupArn[region.Region]
+	if stableTargetGroupArn == "" || canaryTargetGroupArn == "" {
+		return fmt.Errorf("canary target group information is missing for %s", region.Region)
+	}
+
+	client, err := selectClientFromList(c.AWSClients, region.Region)
+	if err != nil {
+		return err
+	}
+
+	listenerArn, err := c.ResolveCanaryListenerARN(region, client)
+	if err != nil {
+		return err
+	}
+
+	c.Logger.Infof("Changing canary listener weights in %s: stable=%d, canary=%d", region.Region, stableWeight, canaryWeight)
+	return client.ELBV2Service.ModifyListenerWeightedForward(listenerArn, stableTargetGroupArn, canaryTargetGroupArn, stableWeight, canaryWeight)
+}
+
+// ModifyListenerToStableTargetGroup restores the listener default action to the original target group.
+func (c *Canary) ModifyListenerToStableTargetGroup(region schemas.RegionConfig, stableWeight, canaryWeight int32) error {
+	stableTargetGroupArn := c.OriginalTargetGroupArn[region.Region]
+	if stableTargetGroupArn == "" {
+		return fmt.Errorf("stable target group information is missing for %s", region.Region)
+	}
+
+	client, err := selectClientFromList(c.AWSClients, region.Region)
+	if err != nil {
+		return err
+	}
+
+	listenerArn, err := c.ResolveCanaryListenerARN(region, client)
+	if err != nil {
+		return err
+	}
+
+	c.Logger.Infof("Restoring canary listener weights in %s: stable=%d, canary=%d", region.Region, stableWeight, canaryWeight)
+	return client.ELBV2Service.ModifyListener(&listenerArn, stableTargetGroupArn)
 }
 
 // CleanChecking checks Termination status
@@ -477,32 +624,6 @@ func (c *Canary) CleanChecking(config schemas.Config) error {
 	return nil
 }
 
-// FindCanaryLoadBalancer finds if there is canary-related load balancer
-func (c *Canary) FindCanaryLoadBalancer(region schemas.RegionConfig) (*elbv2types.LoadBalancer, error) {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	loadBalancers, err := client.ELBV2Service.DescribeLoadBalancers()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, lb := range loadBalancers {
-		if c.CheckValidCanaryLB(c.AwsConfig.Name, *lb.LoadBalancerName) {
-			return &lb, nil
-		}
-	}
-
-	return nil, nil
-}
-
-// CheckValidCanaryLB checks if load balancer is canary-related or not
-func (c *Canary) CheckValidCanaryLB(app, lb string) bool {
-	return strings.HasPrefix(lb, app) && strings.Contains(lb, constants.CanaryMark)
-}
-
 // CheckCanaryVersion checks latest version of canary target group
 func CheckCanaryVersion(tgs []string, region string) int {
 	latestVersion := 0
@@ -517,176 +638,6 @@ func CheckCanaryVersion(tgs []string, region string) int {
 	}
 
 	return latestVersion
-}
-
-// CreateCanaryLoadBalancer creates a new load balancer for canary
-func (c *Canary) CreateCanaryLoadBalancer(region schemas.RegionConfig, groupID *string) (*elbv2types.LoadBalancer, error) {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	newLBName := c.GenerateCanaryLoadBalancerName(region.Region)
-
-	availabilityZones, err := client.EC2Service.GetAvailabilityZones(region.VPC, region.AvailabilityZones)
-	if err != nil {
-		return nil, err
-	}
-
-	subnets := region.SubnetIDs
-	if len(subnets) == 0 {
-		c.Logger.Info("Not Subnet ID Specific")
-		subnets, err = client.EC2Service.GetSubnets(region.VPC, region.UsePublicSubnets, availabilityZones)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		subnetIds := strings.Join(subnets, " ")
-		c.Logger.Infof("Subnet ID are Specific : %s", subnetIds)
-	}
-
-	lb, err := client.ELBV2Service.CreateLoadBalancer(newLBName, subnets, groupID)
-	if err != nil {
-		return nil, err
-	}
-
-	return lb, nil
-}
-
-// AttachCanaryTargetGroup attaches target group to load balancer
-func (c *Canary) AttachCanaryTargetGroup(lbArn, tgArn string, region schemas.RegionConfig) error {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	existingListeners, err := client.ELBV2Service.DescribeListeners(lbArn)
-	if err != nil {
-		return err
-	}
-
-	if len(existingListeners) == 0 {
-		return client.ELBV2Service.CreateNewListener(lbArn, tgArn)
-	}
-
-	return client.ELBV2Service.ModifyListener(existingListeners[0].ListenerArn, tgArn)
-}
-
-// GetEC2CanarySecurityGroup creates a new security group for canary
-func (c *Canary) GetEC2CanarySecurityGroup(tg *elbv2types.TargetGroup, region schemas.RegionConfig, lbSg *string, completeCanary bool) error {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	newSGName := c.GenerateCanarySecurityGroupName(region.Region)
-
-	if completeCanary {
-		groupID, err := client.EC2Service.GetSecurityGroup(newSGName)
-		if err != nil {
-			return err
-		}
-		c.SecurityGroup[region.Region] = groupID
-		c.Logger.Debugf("Found existing security group id: %s", *groupID)
-
-		return nil
-	}
-
-	duplicated := false
-	groupID, err := client.EC2Service.CreateSecurityGroup(newSGName, tg.VpcId)
-	if err != nil {
-		if strings.Contains(err.Error(), "InvalidGroup.Duplicate") {
-			c.Logger.Debugf("Security group is already created: %s", newSGName)
-			duplicated = true
-		}
-
-		if !duplicated {
-			return err
-		}
-	}
-
-	if duplicated {
-		groupID, err = client.EC2Service.GetSecurityGroup(newSGName)
-		if err != nil {
-			return err
-		}
-		c.Logger.Debugf("Found existing security group id: %s", *groupID)
-	} else if err := client.EC2Service.UpdateOutboundRules(*groupID, "-1", "0.0.0.0/0", "outbound to internet", -1, -1); err != nil {
-		c.Logger.Warn(err.Error())
-	}
-
-	// inbound
-	if err := client.EC2Service.UpdateInboundRulesWithGroup(*groupID, "tcp", "Allow access from canary load balancer", lbSg, int64(*tg.Port), int64(*tg.Port)); err != nil {
-		c.Logger.Warn(err.Error())
-	}
-
-	c.SecurityGroup[region.Region] = groupID
-	c.Logger.Debugf("Security group for this canary deployment: %s", *groupID)
-
-	return nil
-}
-
-// GetCanaryLoadBalancerSecurityGroup retrieves existing load balancer security group for canary
-func (c *Canary) GetCanaryLoadBalancerSecurityGroup(region schemas.RegionConfig) (*string, error) {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	newLBName := c.GenerateCanaryLBSecurityGroupName(region.Region)
-
-	groupID, err := client.EC2Service.GetSecurityGroup(newLBName)
-	if err != nil {
-		c.Logger.Warn(err.Error())
-		return nil, nil
-	}
-
-	c.Logger.Debugf("Found existing lb security group id: %s", *groupID)
-
-	return groupID, nil
-}
-
-// CreateCanaryLBSecurityGroup creates a new security group for canary
-func (c *Canary) CreateCanaryLBSecurityGroup(tg *elbv2types.TargetGroup, region schemas.RegionConfig) (*string, error) {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	lbSGName := c.GenerateCanaryLBSecurityGroupName(region.Region)
-
-	duplicated := false
-	groupID, err := client.EC2Service.CreateSecurityGroup(lbSGName, tg.VpcId)
-	if err != nil {
-		if strings.Contains(err.Error(), "InvalidGroup.Duplicate") {
-			c.Logger.Debugf("Security group is already created: %s", lbSGName)
-			duplicated = true
-		}
-		if !duplicated {
-			return nil, err
-		}
-	}
-
-	if duplicated {
-		groupID, err = client.EC2Service.GetSecurityGroup(lbSGName)
-		if err != nil {
-			return nil, err
-		}
-
-		c.Logger.Debugf("Found existing security group id: %s", *groupID)
-	}
-
-	// inbound
-	if err := client.EC2Service.UpdateInboundRules(*groupID, "tcp", "0.0.0.0/0", "inbound from internet", 80, 80); err != nil {
-		c.Logger.Warn(err.Error())
-	}
-
-	// outbound
-	if err := client.EC2Service.UpdateOutboundRules(*groupID, "-1", "0.0.0.0/0", "outbound to internet", -1, -1); err != nil {
-		c.Logger.Warn(err.Error())
-	}
-
-	return groupID, nil
 }
 
 // ReduceOriginalAutoscalingGroupCount set existing autoscaling group count to -1
@@ -768,148 +719,6 @@ func (c *Canary) CleanPreviousCanaryResources(region schemas.RegionConfig, compl
 		}
 	}
 
-	c.Logger.Debugf("Start to delete load balancer and security group for canary")
-	if completeCanary {
-		if err := c.DeleteLoadBalancer(region); err != nil {
-			return err
-		}
-
-		if err := c.LoadBalancerDeletionChecking(region); err != nil {
-			return err
-		}
-
-		if err := c.DeleteEC2IngressRules(region); err != nil {
-			return err
-		}
-
-		if err := c.DeleteEC2SecurityGroup(region); err != nil {
-			return err
-		}
-
-		if err := c.DeleteLBSecurityGroup(region); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// DeleteLoadBalancer deletes load balancer
-func (c *Canary) DeleteLoadBalancer(region schemas.RegionConfig) error {
-	if len(c.LoadBalancer[region.Region]) == 0 {
-		c.Logger.Debugf("No load balancer to delete")
-		return nil
-	}
-
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	err = client.ELBV2Service.DeleteLoadBalancer(c.LoadBalancer[region.Region])
-	if err != nil {
-		return err
-	}
-
-	c.Logger.Debugf("Delete load balancer: %s", c.LoadBalancer[region.Region])
-
-	return nil
-}
-
-// DeleteLBSecurityGroup deletes load balancer security group
-func (c *Canary) DeleteLBSecurityGroup(region schemas.RegionConfig) error {
-	if c.LBSecurityGroup[region.Region] == nil {
-		c.Logger.Debugf("No lb security group to delete")
-		return nil
-	}
-
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	c.Logger.Debug("Wait 30 seconds until load balancer is successfully terminated")
-	time.Sleep(30 * time.Second)
-
-	retry := int64(4)
-	for {
-		err = client.EC2Service.DeleteSecurityGroup(*c.LBSecurityGroup[region.Region])
-		if err != nil {
-			if retry > 0 {
-				retry--
-				c.Logger.Debugf("error occurred on lb deletion and remained retry count is %d", retry)
-				time.Sleep(time.Duration(1+5*(3-retry)) * time.Second)
-			} else {
-				return err
-			}
-		}
-
-		if err == nil {
-			break
-		}
-	}
-	c.Logger.Debugf("Delete load balancer security group: %s", *c.LBSecurityGroup[region.Region])
-
-	return nil
-}
-
-// DeleteEC2SecurityGroup deletes EC2 security group for canary
-func (c *Canary) DeleteEC2SecurityGroup(region schemas.RegionConfig) error {
-	if c.SecurityGroup[region.Region] == nil {
-		c.Logger.Debugf("No EC2 security group to delete")
-		return nil
-	}
-
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	err = client.EC2Service.DeleteSecurityGroup(*c.SecurityGroup[region.Region])
-	if err != nil {
-		return err
-	}
-
-	c.Logger.Debugf("Delete canary EC2 security group: %s", *c.SecurityGroup[region.Region])
-
-	return nil
-}
-
-// DeleteEC2IngressRules deletes ingress rules for EC2
-func (c *Canary) DeleteEC2IngressRules(region schemas.RegionConfig) error {
-	if c.SecurityGroup[region.Region] == nil {
-		c.Logger.Debugf("No EC2 security group to delete")
-		return nil
-	}
-
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	// inbound
-	sgDetails, err := client.EC2Service.GetSecurityGroupDetails([]string{*c.SecurityGroup[region.Region]})
-	if err != nil {
-		return err
-	}
-
-	if len(sgDetails) != 1 {
-		return fmt.Errorf("delete ec2 ingress error because more than one or no security group detected: %d", len(sgDetails))
-	}
-
-	sgID := sgDetails[0].GroupId
-	for _, in := range sgDetails[0].IpPermissions {
-		if len(in.UserIdGroupPairs) > 0 {
-			for _, uip := range in.UserIdGroupPairs {
-				if err := client.EC2Service.RevokeInboundRulesWithGroup(*sgID, *in.IpProtocol, uip.GroupId, int64(*in.FromPort), int64(*in.ToPort)); err != nil {
-					c.Logger.Warn(err.Error())
-				}
-			}
-		}
-	}
-
-	c.Logger.Debugf("Detach lb security group from EC2 security group: %s", *c.SecurityGroup[region.Region])
-
 	return nil
 }
 
@@ -953,68 +762,47 @@ func (c *Canary) DetachCanaryTargetGroup(asg string, region schemas.RegionConfig
 	return nil
 }
 
-// DetachSecurityGroup deletes lb security groups from instances
-func (c *Canary) DetachSecurityGroup(nis []ec2types.InstanceNetworkInterface, region schemas.RegionConfig, excludeSg string) error {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	for _, ni := range nis {
-		var sgs []string
-		for _, group := range ni.Groups {
-			if *group.GroupId != excludeSg {
-				sgs = append(sgs, *group.GroupId)
-			}
+// DetachLatestCanaryResources detaches and deletes the canary target group after listener restore.
+func (c *Canary) DetachLatestCanaryResources(config schemas.Config) error {
+	for _, region := range c.Stack.Regions {
+		if config.Region != "" && config.Region != region.Region {
+			c.Logger.Debug("This region is skipped by user : " + region.Region)
+			continue
 		}
-		if len(sgs) > 0 {
-			err = client.EC2Service.ModifyNetworkInterfaces(ni.NetworkInterfaceId, sgs)
-			if err != nil {
+
+		canaryTargetGroupArn := c.CanaryTargetGroupArn[region.Region]
+		if canaryTargetGroupArn == "" {
+			continue
+		}
+
+		latestASG := c.LatestAsg[region.Region]
+		if latestASG != "" {
+			if err := c.DetachCanaryTargetGroup(latestASG, region, []string{canaryTargetGroupArn}); err != nil {
 				return err
 			}
-
-			c.Logger.Debugf("Remove security group from eni: %s", *ni.NetworkInterfaceId)
 		}
-	}
 
-	return nil
-}
-
-// ChangeLaunchTemplateVersion changes launch template to the new version
-func (c *Canary) ChangeLaunchTemplateVersion(asg string, lt *astypes.LaunchTemplateSpecification, region schemas.RegionConfig, excludeSg string) error {
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	ltDetail, err := client.EC2Service.GetMatchingLaunchTemplate(*lt.LaunchTemplateId)
-	if err != nil {
-		return err
-	}
-	c.Logger.Debugf("Retrieved previous version of launch template of launch template: %s", *lt.LaunchTemplateId)
-
-	var sgs []string
-	for _, sg := range ltDetail.LaunchTemplateData.SecurityGroupIds {
-		if sg != excludeSg {
-			sgs = append(sgs, sg)
+		client, err := selectClientFromList(c.AWSClients, region.Region)
+		if err != nil {
+			return err
 		}
-	}
+		if err := client.ELBV2Service.DeleteTargetGroup(&canaryTargetGroupArn); err != nil {
+			return err
+		}
+		c.Logger.Debugf("Deleted canary target group: %s", canaryTargetGroupArn)
 
-	ret, err := client.EC2Service.CreateNewLaunchTemplateVersion(ltDetail, sgs)
-	if err != nil {
-		return err
-	}
-	c.Logger.Debugf("Created new version of launch template: %s - version%d", *ret.LaunchTemplateId, *ret.VersionNumber)
-
-	if err := client.EC2Service.UpdateAutoScalingLaunchTemplate(asg, ret); err != nil {
-		return err
+		if latestASG != "" {
+			if err := c.RemoveCanaryTag(latestASG, region); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
 }
 
 // RunCanaryDeployment runs canary deployment
-func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.RegionConfig, tgDetail *elbv2types.TargetGroup, canaryLoadBalancer *elbv2types.LoadBalancer, canaryVersion int) (schemas.RegionConfig, error) {
+func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.RegionConfig, tgDetail *elbv2types.TargetGroup, canaryVersion int) (schemas.RegionConfig, error) {
 	newTgName := c.GenerateCanaryTargetGroupName(canaryVersion)
 	c.Logger.Debugf("New target group will be created for canary deployment: %s", newTgName)
 
@@ -1023,11 +811,8 @@ func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.Regio
 		return region, err
 	}
 	c.Logger.Debugf("New target group is created: %s", *tg.TargetGroupName)
-
-	if err := c.AttachCanaryTargetGroup(*canaryLoadBalancer.LoadBalancerArn, *tg.TargetGroupArn, region); err != nil {
-		return region, err
-	}
-	c.Logger.Debugf("Attached target group to load balancer: %s", *canaryLoadBalancer.LoadBalancerName)
+	c.OriginalTargetGroupArn[region.Region] = *tgDetail.TargetGroupArn
+	c.CanaryTargetGroupArn[region.Region] = *tg.TargetGroupArn
 
 	c.Logger.Debugf("Change target group information with new target group: %s", newTgName)
 	region = c.ChangeTargetGroupInfo(newTgName, region)
@@ -1037,11 +822,15 @@ func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.Regio
 		return region, err
 	}
 
+	if err := c.ModifyWeightedListener(region, 100, 0); err != nil {
+		return region, err
+	}
+
 	return region, nil
 }
 
 // CompleteCanaryDeployment completes canary deployment
-func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.RegionConfig, latestASG string) error {
+func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.RegionConfig, latestASG string, canaryTGDetail *elbv2types.TargetGroup) error {
 	asgDetail, err := c.DescribeAutoScalingGroup(latestASG, region.Region)
 	if err != nil {
 		return err
@@ -1051,27 +840,22 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 		return fmt.Errorf("no autoscaling group information retrieved. Please check autoscaling group resource: %s", latestASG)
 	}
 
-	instanceIds := extractInstanceIds(asgDetail)
-	instancesDetail, err := c.DescribeInstances(instanceIds, region)
+	originalTGDetail, err := c.DescribeTargetGroup(region.HealthcheckTargetGroup, region.Region)
 	if err != nil {
 		return err
 	}
+	c.OriginalTargetGroupArn[region.Region] = *originalTGDetail.TargetGroupArn
+	c.CanaryTargetGroupArn[region.Region] = *canaryTGDetail.TargetGroupArn
 
-	nis := getNetworkInterfaces(instancesDetail)
-
-	if err := c.DetachSecurityGroup(nis, region, *c.SecurityGroup[region.Region]); err != nil {
+	targetGroupARNs, err := c.TargetGroupARNsForRegion(region)
+	if err != nil {
 		return err
 	}
-
-	if err := c.RemoveCanaryTag(latestASG, region); err != nil {
+	client, err := selectClientFromList(c.AWSClients, region.Region)
+	if err != nil {
 		return err
 	}
-
-	if err := c.DetachCanaryTargetGroup(latestASG, region, asgDetail.TargetGroupARNs); err != nil {
-		return err
-	}
-
-	if err := c.ChangeLaunchTemplateVersion(latestASG, asgDetail.LaunchTemplate, region, *c.SecurityGroup[region.Region]); err != nil {
+	if err := client.EC2Service.AttachAsgToTargetGroups(latestASG, targetGroupARNs); err != nil {
 		return err
 	}
 
@@ -1087,106 +871,19 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 
 	// settings for health checking
 	c.Stack.Capacity.Desired = appliedCapacity.Desired
+	c.AppliedCapacity = &appliedCapacity
 	c.AsgNames[region.Region] = latestASG
+	c.PrevAsgs[region.Region] = withoutString(c.PrevAsgs[region.Region], latestASG)
 
 	return nil
 }
 
-// GetLoadBalancerAndSecurityGroupForCanary gets load balancer and security group for canary deployment
-func (c *Canary) GetLoadBalancerAndSecurityGroupForCanary(region schemas.RegionConfig, tgDetail *elbv2types.TargetGroup, completeCanary bool) (*string, *elbv2types.LoadBalancer, error) {
-	canaryLoadBalancer, err := c.FindCanaryLoadBalancer(region)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var lbSg *string
-	if len(region.HealthcheckLB) > 0 || len(region.TargetGroups) > 0 {
-		if canaryLoadBalancer == nil {
-			if !completeCanary {
-				lbSg, err := c.CreateCanaryLBSecurityGroup(tgDetail, region)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				canaryLoadBalancer, err = c.CreateCanaryLoadBalancer(region, lbSg)
-				if err != nil {
-					return nil, nil, err
-				}
-				c.Logger.Debugf("Created a new load balancer for canary: %s", *canaryLoadBalancer.LoadBalancerName)
-			}
-		} else {
-			c.Logger.Debugf("Found existing load balancer for canary: %s", *canaryLoadBalancer.LoadBalancerName)
-			lbSg, err = c.GetCanaryLoadBalancerSecurityGroup(region)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		if lbSg == nil && !completeCanary {
-			lbSg, err = c.CreateCanaryLBSecurityGroup(tgDetail, region)
-			if err != nil {
-				return nil, nil, err
-			}
-			c.Logger.Debugf("New lb security group is created: %s", *lbSg)
+func withoutString(values []string, target string) []string {
+	ret := values[:0]
+	for _, value := range values {
+		if value != target {
+			ret = append(ret, value)
 		}
 	}
-
-	c.LBSecurityGroup[region.Region] = lbSg
-	if canaryLoadBalancer != nil {
-		c.LoadBalancer[region.Region] = *canaryLoadBalancer.LoadBalancerArn
-	}
-
-	return lbSg, canaryLoadBalancer, nil
-}
-
-// LoadBalancerDeletionChecking checks if load balancer is deleted well or not
-func (c *Canary) LoadBalancerDeletionChecking(region schemas.RegionConfig) error {
-	if len(c.LoadBalancer[region.Region]) == 0 {
-		c.Logger.Debugf("No load balancer to delete")
-		return nil
-	}
-
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-
-	done := false
-	for !done {
-		lb, err := client.ELBV2Service.GetMatchingLoadBalancer(c.LoadBalancer[region.Region])
-		if err != nil {
-			return err
-		}
-
-		if lb == nil {
-			c.Logger.Debugf("Canary load balancer is deleted: %s", c.LoadBalancer[region.Region])
-			done = true
-		} else {
-			time.Sleep(10 * time.Second)
-		}
-	}
-
-	return nil
-}
-
-// extractInstanceIds gathers pointer of instance's id and make slice with them
-func extractInstanceIds(asgDetail *astypes.AutoScalingGroup) []string {
-	var instanceIds []string
-	for _, ins := range asgDetail.Instances {
-		instanceIds = append(instanceIds, *ins.InstanceId)
-	}
-
-	return instanceIds
-}
-
-// getNetworkInterfaces gathers all network interfaces from EC2 instances
-func getNetworkInterfaces(instances []ec2types.Instance) []ec2types.InstanceNetworkInterface {
-	var nis []ec2types.InstanceNetworkInterface
-	for _, instance := range instances {
-		if instance.NetworkInterfaces != nil {
-			nis = append(nis, instance.NetworkInterfaces...)
-		}
-	}
-
-	return nis
+	return ret
 }

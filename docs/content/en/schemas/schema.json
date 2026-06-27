@@ -119,17 +119,45 @@
     },
     "BlockDevice": {
       "properties": {
+        "delete_on_termination": {
+          "type": "boolean",
+          "description": "Whether to delete the volume on instance termination",
+          "x-intellij-html-description": "Whether to delete the volume on instance termination",
+          "default": "false"
+        },
         "device_name": {
           "type": "string",
           "description": "Name of block device",
           "x-intellij-html-description": "Name of block device",
           "default": "\"\""
         },
+        "encrypted": {
+          "type": "boolean",
+          "description": "Enable Encrypted",
+          "x-intellij-html-description": "Enable Encrypted",
+          "default": "false"
+        },
         "iops": {
           "type": "integer",
           "description": "IOPS for io1, io2 volume",
           "x-intellij-html-description": "IOPS for io1, io2 volume",
           "default": "0"
+        },
+        "kmsAlias": {
+          "type": "string",
+          "description": "KMS key alias",
+          "x-intellij-html-description": "KMS key alias",
+          "default": "\"\""
+        },
+        "kmsKeyId": {
+          "type": "string",
+          "description": "KMS key ID (ARN or key ID)",
+          "x-intellij-html-description": "KMS key ID (ARN or key ID)",
+          "default": "\"\""
+        },
+        "snapshot_id": {
+          "type": "string",
+          "default": "\"\""
         },
         "volume_size": {
           "type": "integer",
@@ -147,12 +175,65 @@
       "additionalProperties": false,
       "preferredOrder": [
         "device_name",
+        "snapshot_id",
         "volume_size",
         "volume_type",
-        "iops"
+        "iops",
+        "encrypted",
+        "kmsAlias",
+        "kmsKeyId",
+        "delete_on_termination"
       ],
       "description": "EBS Block device configuration",
       "x-intellij-html-description": "EBS Block device configuration"
+    },
+    "CanaryConfig": {
+      "properties": {
+        "bake_time": {
+          "description": "Time to keep canary traffic before finishing the canary deployment step",
+          "x-intellij-html-description": "Time to keep canary traffic before finishing the canary deployment step"
+        },
+        "listener_arn": {
+          "type": "string",
+          "description": "Existing listener ARN whose default action forwards to the production target group",
+          "x-intellij-html-description": "Existing listener ARN whose default action forwards to the production target group",
+          "default": "\"\""
+        },
+        "listener_port": {
+          "type": "integer",
+          "description": "Existing listener port whose default action forwards to the production target group",
+          "x-intellij-html-description": "Existing listener port whose default action forwards to the production target group"
+        },
+        "listener_protocol": {
+          "type": "string",
+          "description": "Existing listener protocol. Optional when listener_port is unique",
+          "x-intellij-html-description": "Existing listener protocol. Optional when listener_port is unique",
+          "default": "\"\""
+        },
+        "load_balancer": {
+          "type": "string",
+          "description": "Existing load balancer name that owns the canary listener",
+          "x-intellij-html-description": "Existing load balancer name that owns the canary listener",
+          "default": "\"\""
+        },
+        "weight": {
+          "type": "integer",
+          "description": "Percentage of traffic to send to the canary target group.",
+          "x-intellij-html-description": "Percentage of traffic to send to the canary target group.",
+          "default": "10"
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "listener_arn",
+        "load_balancer",
+        "listener_port",
+        "listener_protocol",
+        "bake_time",
+        "weight"
+      ],
+      "description": "configures weighted target group canary deployment",
+      "x-intellij-html-description": "configures weighted target group canary deployment"
     },
     "Capacity": {
       "properties": {
@@ -183,6 +264,54 @@
       ],
       "description": "Instance capacity of autoscaling group",
       "x-intellij-html-description": "Instance capacity of autoscaling group"
+    },
+    "ENIConfig": {
+      "properties": {
+        "delete_on_termination": {
+          "type": "boolean",
+          "description": "Delete on termination flag",
+          "x-intellij-html-description": "Delete on termination flag",
+          "default": "false"
+        },
+        "device_index": {
+          "type": "integer",
+          "description": "Device index for ENI",
+          "x-intellij-html-description": "Device index for ENI",
+          "default": "0"
+        },
+        "private_ip_address": {
+          "type": "string",
+          "description": "Private IP address for ENI",
+          "x-intellij-html-description": "Private IP address for ENI",
+          "default": "\"\""
+        },
+        "security_groups": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "Security groups for ENI",
+          "x-intellij-html-description": "Security groups for ENI",
+          "default": "[]"
+        },
+        "subnet_id": {
+          "type": "string",
+          "description": "Subnet ID for ENI",
+          "x-intellij-html-description": "Subnet ID for ENI",
+          "default": "\"\""
+        }
+      },
+      "additionalProperties": false,
+      "preferredOrder": [
+        "device_index",
+        "subnet_id",
+        "security_groups",
+        "private_ip_address",
+        "delete_on_termination"
+      ],
+      "description": "ENI Configuration",
+      "x-intellij-html-description": "ENI Configuration"
     },
     "InstanceMarketOptions": {
       "properties": {
@@ -384,6 +513,11 @@
           "x-intellij-html-description": "Availability zones for autoscaling group",
           "default": "[]"
         },
+        "canary": {
+          "$ref": "#/definitions/CanaryConfig",
+          "description": "deployment configuration",
+          "x-intellij-html-description": "deployment configuration"
+        },
         "detailed_monitoring_enabled": {
           "type": "boolean",
           "description": "Detailed Monitoring Enabled",
@@ -402,6 +536,12 @@
           "x-intellij-html-description": "Target group name for healthcheck",
           "default": "\"\""
         },
+        "http_put_response_hop_limit": {
+          "type": "integer",
+          "description": "HTTP PUT response hop limit for IMDSv2 (default: 1)",
+          "x-intellij-html-description": "HTTP PUT response hop limit for IMDSv2 (default: 1)",
+          "default": "0"
+        },
         "instance_type": {
           "type": "string",
           "description": "Type of EC2 instance",
@@ -417,6 +557,11 @@
           "description": "List of  load balancers",
           "x-intellij-html-description": "List of  load balancers",
           "default": "[]"
+        },
+        "primary_eni": {
+          "$ref": "#/definitions/ENIConfig",
+          "description": "Primary ENI configuration",
+          "x-intellij-html-description": "Primary ENI configuration"
         },
         "region": {
           "type": "string",
@@ -434,6 +579,14 @@
           "x-intellij-html-description": "List of scheduled actions",
           "default": "[]"
         },
+        "secondary_enis": {
+          "items": {
+            "$ref": "#/definitions/ENIConfig"
+          },
+          "type": "array",
+          "description": "Secondary ENI configurations",
+          "x-intellij-html-description": "Secondary ENI configurations"
+        },
         "security_groups": {
           "items": {
             "type": "string",
@@ -449,6 +602,16 @@
           "description": "Key name of SSH access",
           "x-intellij-html-description": "Key name of SSH access",
           "default": "\"\""
+        },
+        "subnet_ids": {
+          "items": {
+            "type": "string",
+            "default": "\"\""
+          },
+          "type": "array",
+          "description": "Ids of subnets",
+          "x-intellij-html-description": "Ids of subnets",
+          "default": "[]"
         },
         "target_groups": {
           "items": {
@@ -490,16 +653,21 @@
         "ssh_key",
         "ami_id",
         "vpc",
+        "subnet_ids",
+        "primary_eni",
+        "secondary_enis",
         "healthcheck_load_balancer",
         "healthcheck_target_group",
         "security_groups",
         "scheduled_actions",
         "target_groups",
+        "canary",
         "loadbalancers",
         "availability_zones",
         "termination_policies",
         "use_public_subnets",
-        "detailed_monitoring_enabled"
+        "detailed_monitoring_enabled",
+        "http_put_response_hop_limit"
       ],
       "description": "Region configuration",
       "x-intellij-html-description": "Region configuration"

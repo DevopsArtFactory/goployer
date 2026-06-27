@@ -353,6 +353,9 @@ type RegionConfig struct {
 	// Target group list of load balancer
 	TargetGroups []string `yaml:"target_groups"`
 
+	// Canary deployment configuration
+	Canary CanaryConfig `yaml:"canary,omitempty"`
+
 	// List of  load balancers
 	LoadBalancers []string `yaml:"loadbalancers"`
 
@@ -370,6 +373,27 @@ type RegionConfig struct {
 
 	// HTTP PUT response hop limit for IMDSv2 (default: 1)
 	HttpPutResponseHopLimit int64 `yaml:"http_put_response_hop_limit,omitempty"`
+}
+
+// CanaryConfig configures weighted target group canary deployment
+type CanaryConfig struct {
+	// Existing listener ARN whose default action forwards to the production target group
+	ListenerARN string `yaml:"listener_arn"`
+
+	// Existing load balancer name that owns the canary listener
+	LoadBalancer string `yaml:"load_balancer,omitempty"`
+
+	// Existing listener port whose default action forwards to the production target group
+	ListenerPort int32 `yaml:"listener_port,omitempty"`
+
+	// Existing listener protocol. Optional when listener_port is unique
+	ListenerProtocol string `yaml:"listener_protocol,omitempty"`
+
+	// Time to keep canary traffic before finishing the canary deployment step
+	BakeTime time.Duration `yaml:"bake_time,omitempty"`
+
+	// Percentage of traffic to send to the canary target group. Defaults to `10`
+	Weight int64 `yaml:"weight,omitempty"`
 }
 
 // ENI Configuration

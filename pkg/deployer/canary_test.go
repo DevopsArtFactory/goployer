@@ -18,10 +18,15 @@ package deployer
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"testing"
+	"time"
+
+	Logger "github.com/sirupsen/logrus"
 
 	"github.com/DevopsArtFactory/goployer/pkg/constants"
+	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
 func TestCheckCanaryVersion(t *testing.T) {
@@ -58,5 +63,97 @@ func TestCheckCanaryVersion(t *testing.T) {
 		if output := CheckCanaryVersion(td.Input, region); output != td.Expected {
 			t.Errorf("expected: %d, output: %d", td.Expected, output)
 		}
+	}
+}
+
+func TestCanaryWeights(t *testing.T) {
+	region := schemas.RegionConfig{
+		Canary: schemas.CanaryConfig{
+			Weight: 25,
+		},
+	}
+
+	stable, canary := CanaryWeights(region, false)
+	if stable != 75 || canary != 25 {
+		t.Fatalf("expected 75/25 canary weights, got %d/%d", stable, canary)
+	}
+
+	stable, canary = CanaryWeights(region, true)
+	if stable != 100 || canary != 0 {
+		t.Fatalf("expected 100/0 complete weights, got %d/%d", stable, canary)
+	}
+}
+
+func TestCanaryWeightsDefault(t *testing.T) {
+	stable, canary := CanaryWeights(schemas.RegionConfig{}, false)
+	if stable != 90 || canary != 10 {
+		t.Fatalf("expected default 90/10 canary weights, got %d/%d", stable, canary)
+	}
+}
+
+func TestCanaryBakeTimeConfig(t *testing.T) {
+	region := schemas.RegionConfig{
+		Canary: schemas.CanaryConfig{
+			BakeTime: 10 * time.Minute,
+		},
+	}
+
+	if region.Canary.BakeTime != 10*time.Minute {
+		t.Fatalf("expected 10m bake time, got %s", region.Canary.BakeTime)
+	}
+}
+
+func TestValidateCanaryDeploymentAllowsListenerLookup(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			DeploymentFlag: map[string]string{},
+			Stack: schemas.Stack{
+				Regions: []schemas.RegionConfig{
+					{
+						Region: constants.DefaultRegion,
+						Canary: schemas.CanaryConfig{
+							LoadBalancer: "demoapp-xyzdapne2-ext",
+							ListenerPort: 443,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := c.ValidateCanaryDeployment(schemas.Config{}, constants.DefaultRegion); err != nil {
+		t.Fatalf("unexpected validation error: %s", err)
+	}
+}
+
+func TestValidateCanaryDeploymentRequiresListenerConfig(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			DeploymentFlag: map[string]string{},
+			Stack: schemas.Stack{
+				Regions: []schemas.RegionConfig{{Region: constants.DefaultRegion}},
+			},
+		},
+	}
+
+	if err := c.ValidateCanaryDeployment(schemas.Config{}, constants.DefaultRegion); err == nil {
+		t.Fatal("expected listener validation error")
+	}
+}
+
+func TestCanaryRunAPITestDelegatesToDeployer(t *testing.T) {
+	logger := Logger.New()
+	logger.SetOutput(io.Discard)
+
+	c := Canary{
+		Deployer: &Deployer{
+			Stack:      schemas.Stack{APITestEnabled: false},
+			Logger:     logger,
+			StepStatus: map[int64]bool{constants.StepGatherMetrics: true, constants.StepCleanChecking: true},
+		},
+	}
+
+	if err := c.RunAPITest(schemas.Config{CompleteCanary: true}); err != nil {
+		t.Fatalf("unexpected API test error: %s", err)
 	}
 }

@@ -187,6 +187,21 @@ func (e ELBV2Client) DescribeLoadBalancers() ([]elbv2types.LoadBalancer, error) 
 	return result.LoadBalancers, nil
 }
 
+// GetLoadBalancerByName retrieves one load balancer by name.
+func (e ELBV2Client) GetLoadBalancerByName(name string) (*elbv2types.LoadBalancer, error) {
+	result, err := e.Client.DescribeLoadBalancers(context.Background(), &elbv2.DescribeLoadBalancersInput{
+		Names: []string{name},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.LoadBalancers) == 0 {
+		return nil, nil
+	}
+
+	return &result.LoadBalancers[0], nil
+}
+
 // GetMatchingLoadBalancer retrieves matching load balancer
 func (e ELBV2Client) GetMatchingLoadBalancer(lb string) (*elbv2types.LoadBalancer, error) {
 	input := &elbv2.DescribeLoadBalancersInput{
@@ -270,6 +285,38 @@ func (e ELBV2Client) ModifyListener(listenerArn *string, targetGroupArn string) 
 			},
 		},
 		ListenerArn: listenerArn,
+	}
+
+	_, err := e.Client.ModifyListener(context.Background(), input)
+	return err
+}
+
+// BuildWeightedForwardAction creates a forward action that splits traffic by target group weight.
+func BuildWeightedForwardAction(stableTargetGroupArn, canaryTargetGroupArn string, stableWeight, canaryWeight int32) elbv2types.Action {
+	return elbv2types.Action{
+		Type: elbv2types.ActionTypeEnumForward,
+		ForwardConfig: &elbv2types.ForwardActionConfig{
+			TargetGroups: []elbv2types.TargetGroupTuple{
+				{
+					TargetGroupArn: aws.String(stableTargetGroupArn),
+					Weight:         aws.Int32(stableWeight),
+				},
+				{
+					TargetGroupArn: aws.String(canaryTargetGroupArn),
+					Weight:         aws.Int32(canaryWeight),
+				},
+			},
+		},
+	}
+}
+
+// ModifyListenerWeightedForward modifies the default listener action to split traffic between target groups.
+func (e ELBV2Client) ModifyListenerWeightedForward(listenerArn, stableTargetGroupArn, canaryTargetGroupArn string, stableWeight, canaryWeight int32) error {
+	input := &elbv2.ModifyListenerInput{
+		DefaultActions: []elbv2types.Action{
+			BuildWeightedForwardAction(stableTargetGroupArn, canaryTargetGroupArn, stableWeight, canaryWeight),
+		},
+		ListenerArn: aws.String(listenerArn),
 	}
 
 	_, err := e.Client.ModifyListener(context.Background(), input)
