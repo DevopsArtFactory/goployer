@@ -1,0 +1,45 @@
+---
+name: hello
+userdata:
+  type: local
+  path: examples/scripts/userdata.sh
+
+tags:
+  - project=test
+  - repo=hello-deploy
+
+stacks:
+  - stack: artd
+    polling_interval: 30s
+    account: dev
+    env: dev
+    replacement_type: Canary
+    iam_instance_profile: app-hello-profile
+    ebs_optimized: true
+    capacity:
+      min: 4
+      max: 4
+      desired: 4
+    regions:
+      - region: ap-northeast-2
+        instance_type: t3.medium
+        ssh_key: test-master-key
+        ami_id: ami-01288945bd24ed49a
+        use_public_subnets: true
+        vpc: vpc-artd_apnortheast2
+        detailed_monitoring_enabled: false
+        security_groups:
+          - default-artd_apnortheast2
+        healthcheck_target_group: hello-artdapne2-ext
+        target_groups:
+          - hello-artdapne2-ext
+        canary:
+          load_balancer: hello-artdapne2-ext
+          listener_port: 443
+          listener_protocol: HTTPS
+          weight: 10
+          bake_time: 10m
+        availability_zones:
+          - ap-northeast-2a
+          - ap-northeast-2b
+          - ap-northeast-2c

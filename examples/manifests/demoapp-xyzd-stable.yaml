@@ -1,0 +1,40 @@
+---
+name: demoapp
+userdata:
+  type: local
+  path: examples/scripts/demoapp-userdata.sh
+
+tags:
+  - project=demo
+  - repo=goployer
+
+stacks:
+  - stack: xyzd
+    polling_interval: 15s
+    account: dev
+    env: xyzd
+    replacement_type: BlueGreen
+    iam_instance_profile: demoapp-profile
+    ebs_optimized: true
+    capacity:
+      min: 1
+      max: 1
+      desired: 1
+    regions:
+      - region: ap-northeast-2
+        instance_type: t3.micro
+        ami_id: ami-0276b9fe2b0768ef7
+        use_public_subnets: true
+        vpc: vpc-021c0886b3de5a28b
+        subnet_ids:
+          - subnet-0c0c3eea684e1df7b
+          - subnet-092c61b86a4d66ac8
+        detailed_monitoring_enabled: false
+        security_groups:
+          - demoapp-xyzd_apnortheast2-app
+        healthcheck_target_group: demoapp-xyzdapne2-ext
+        target_groups:
+          - demoapp-xyzdapne2-ext
+        availability_zones:
+          - ap-northeast-2a
+          - ap-northeast-2c
