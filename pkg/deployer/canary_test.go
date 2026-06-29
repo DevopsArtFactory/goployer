@@ -29,6 +29,8 @@ import (
 	"github.com/DevopsArtFactory/goployer/pkg/schemas"
 )
 
+const testCanaryASGName = "demo-canary-v002"
+
 func TestCheckCanaryVersion(t *testing.T) {
 	region := constants.DefaultRegion
 	regionShard := strings.ReplaceAll(region, "-", "")
@@ -127,12 +129,12 @@ func TestShouldRollbackCanary(t *testing.T) {
 func TestCanaryAutoScalingGroupNamePrefersActiveDeployment(t *testing.T) {
 	c := Canary{
 		Deployer: &Deployer{
-			AsgNames:  map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+			AsgNames:  map[string]string{constants.DefaultRegion: testCanaryASGName},
 			LatestAsg: map[string]string{constants.DefaultRegion: "demo-stable-v001"},
 		},
 	}
 
-	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != testCanaryASGName {
 		t.Fatalf("expected active canary ASG, got %s", got)
 	}
 }
@@ -141,11 +143,11 @@ func TestCanaryAutoScalingGroupNameFallsBackToLatestWithEmptyActiveMap(t *testin
 	c := Canary{
 		Deployer: &Deployer{
 			AsgNames:  map[string]string{},
-			LatestAsg: map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+			LatestAsg: map[string]string{constants.DefaultRegion: testCanaryASGName},
 		},
 	}
 
-	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != testCanaryASGName {
 		t.Fatalf("expected latest ASG fallback, got %s", got)
 	}
 }
@@ -153,11 +155,11 @@ func TestCanaryAutoScalingGroupNameFallsBackToLatestWithEmptyActiveMap(t *testin
 func TestCanaryAutoScalingGroupNameFallsBackToLatestWithNilActiveMap(t *testing.T) {
 	c := Canary{
 		Deployer: &Deployer{
-			LatestAsg: map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+			LatestAsg: map[string]string{constants.DefaultRegion: testCanaryASGName},
 		},
 	}
 
-	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != testCanaryASGName {
 		t.Fatalf("expected latest ASG fallback, got %s", got)
 	}
 }
