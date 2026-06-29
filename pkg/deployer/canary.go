@@ -201,43 +201,50 @@ func (c *Canary) RollbackCanaryDeployment(config schemas.Config) error {
 		if c.OriginalTargetGroupArn[region.Region] != "" {
 			if err := c.ModifyListenerToStableTargetGroup(region, 100, 0); err != nil {
 				recordErr(err)
+				continue
 			}
+		} else {
+			recordErr(fmt.Errorf("original target group is missing for rollback region: %s", region.Region))
+			continue
 		}
 
-		canaryASG := c.CanaryAutoScalingGroupName(region.Region)
+		canaryASG := c.ActiveCanaryAutoScalingGroupName(region.Region)
+		if canaryASG == "" {
+			recordErr(fmt.Errorf("active canary autoscaling group is missing for rollback region: %s", region.Region))
+			continue
+		}
+
 		if err := c.DetachLatestCanaryResources(schemas.Config{Region: region.Region}); err != nil {
 			recordErr(err)
 		}
 
-		if canaryASG != "" {
-			client, err := selectClientFromList(c.AWSClients, region.Region)
-			if err != nil {
-				recordErr(err)
-			} else if err := c.ResizingAutoScalingGroupCount(client, canaryASG, 0); err != nil {
-				recordErr(err)
-			} else {
-				for {
-					isTimeout, _ := tool.CheckTimeout(rollbackStartTimestamp, config.Timeout)
-					if isTimeout {
-						recordErr(fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes()))
-						break
-					}
-
-					done, err := c.CheckAutoscalingInstanceCount(client, canaryASG, 0)
-					if err != nil {
-						recordErr(err)
-						break
-					}
-					if done {
-						if ok := c.ClearResources(client, canaryASG, config.DisableMetrics); !ok {
-							recordErr(fmt.Errorf("error happened while cleaning rollback resources: %s", canaryASG))
-						}
-						break
-					}
-
-					c.Logger.Info("Rollback autoscaling group is not empty yet... Please waiting...")
-					time.Sleep(config.PollingInterval)
+		client, err := selectClientFromList(c.AWSClients, region.Region)
+		if err != nil {
+			recordErr(err)
+		} else if err := c.ResizingAutoScalingGroupCount(client, canaryASG, 0); err != nil {
+			recordErr(err)
+		} else {
+			for {
+				isTimeout, _ := tool.CheckTimeout(rollbackStartTimestamp, config.Timeout)
+				if isTimeout {
+					recordErr(fmt.Errorf("timeout has been exceeded : %.0f minutes", config.Timeout.Minutes()))
+					break
 				}
+
+				done, err := c.CheckAutoscalingInstanceCount(client, canaryASG, 0)
+				if err != nil {
+					recordErr(err)
+					break
+				}
+				if done {
+					if ok := c.ClearResources(client, canaryASG, config.DisableMetrics); !ok {
+						recordErr(fmt.Errorf("error happened while cleaning rollback resources: %s", canaryASG))
+					}
+					break
+				}
+
+				c.Logger.Info("Rollback autoscaling group is not empty yet... Please waiting...")
+				time.Sleep(config.PollingInterval)
 			}
 		}
 	}
@@ -246,6 +253,14 @@ func (c *Canary) RollbackCanaryDeployment(config schemas.Config) error {
 		c.StepStatus[constants.StepDeploy] = false
 	}
 	return retErr
+}
+
+// ActiveCanaryAutoScalingGroupName returns only the ASG created for the active canary deployment.
+func (c *Canary) ActiveCanaryAutoScalingGroupName(region string) string {
+	if c.AsgNames == nil {
+		return ""
+	}
+	return c.AsgNames[region]
 }
 
 // CanaryAutoScalingGroupName returns the ASG owned by the active canary deployment.

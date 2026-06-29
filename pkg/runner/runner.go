@@ -346,7 +346,7 @@ func (r Runner) Deploy() error {
 	}
 
 	// Health checking step
-	errs = make(chan error)
+	errs = make(chan error, len(deployers))
 	for _, d := range deployers {
 		wg.Add(1)
 		go func(deployer deployer.DeployManager) {
@@ -361,7 +361,12 @@ func (r Runner) Deploy() error {
 		wg.Wait()
 		close(errs)
 	}()
-	errFlag = checkError(errs)
+	errFlag = nil
+	for err := range errs {
+		if errFlag == nil {
+			errFlag = err
+		}
+	}
 	if errFlag != nil {
 		return errFlag
 	}

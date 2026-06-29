@@ -137,7 +137,7 @@ func TestCanaryAutoScalingGroupNamePrefersActiveDeployment(t *testing.T) {
 	}
 }
 
-func TestCanaryAutoScalingGroupNameFallsBackToLatest(t *testing.T) {
+func TestCanaryAutoScalingGroupNameFallsBackToLatestWithEmptyActiveMap(t *testing.T) {
 	c := Canary{
 		Deployer: &Deployer{
 			AsgNames:  map[string]string{},
@@ -147,6 +147,30 @@ func TestCanaryAutoScalingGroupNameFallsBackToLatest(t *testing.T) {
 
 	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
 		t.Fatalf("expected latest ASG fallback, got %s", got)
+	}
+}
+
+func TestCanaryAutoScalingGroupNameFallsBackToLatestWithNilActiveMap(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+		},
+	}
+
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+		t.Fatalf("expected latest ASG fallback, got %s", got)
+	}
+}
+
+func TestActiveCanaryAutoScalingGroupNameDoesNotFallbackToLatest(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-stable-v001"},
+		},
+	}
+
+	if got := c.ActiveCanaryAutoScalingGroupName(constants.DefaultRegion); got != "" {
+		t.Fatalf("expected no active canary ASG fallback, got %s", got)
 	}
 }
 
