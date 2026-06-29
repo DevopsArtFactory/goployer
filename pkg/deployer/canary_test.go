@@ -103,6 +103,77 @@ func TestCanaryBakeTimeConfig(t *testing.T) {
 	}
 }
 
+func TestShouldRollbackCanary(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			StepStatus: map[int64]bool{constants.StepDeploy: true},
+		},
+	}
+
+	if !c.ShouldRollbackCanary(schemas.Config{}) {
+		t.Fatal("expected rollback after canary deploy step")
+	}
+
+	if c.ShouldRollbackCanary(schemas.Config{CompleteCanary: true}) {
+		t.Fatal("did not expect rollback during complete canary")
+	}
+
+	c.StepStatus[constants.StepDeploy] = false
+	if c.ShouldRollbackCanary(schemas.Config{}) {
+		t.Fatal("did not expect rollback before canary deploy step")
+	}
+}
+
+func TestCanaryAutoScalingGroupNamePrefersActiveDeployment(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			AsgNames:  map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-stable-v001"},
+		},
+	}
+
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+		t.Fatalf("expected active canary ASG, got %s", got)
+	}
+}
+
+func TestCanaryAutoScalingGroupNameFallsBackToLatestWithEmptyActiveMap(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			AsgNames:  map[string]string{},
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+		},
+	}
+
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+		t.Fatalf("expected latest ASG fallback, got %s", got)
+	}
+}
+
+func TestCanaryAutoScalingGroupNameFallsBackToLatestWithNilActiveMap(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-canary-v002"},
+		},
+	}
+
+	if got := c.CanaryAutoScalingGroupName(constants.DefaultRegion); got != "demo-canary-v002" {
+		t.Fatalf("expected latest ASG fallback, got %s", got)
+	}
+}
+
+func TestActiveCanaryAutoScalingGroupNameDoesNotFallbackToLatest(t *testing.T) {
+	c := Canary{
+		Deployer: &Deployer{
+			LatestAsg: map[string]string{constants.DefaultRegion: "demo-stable-v001"},
+		},
+	}
+
+	if got := c.ActiveCanaryAutoScalingGroupName(constants.DefaultRegion); got != "" {
+		t.Fatalf("expected no active canary ASG fallback, got %s", got)
+	}
+}
+
 func TestValidateCanaryDeploymentAllowsListenerLookup(t *testing.T) {
 	c := Canary{
 		Deployer: &Deployer{
