@@ -325,12 +325,6 @@ func (c *Canary) CleanPreviousVersion(config schemas.Config) error {
 	if !c.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil
 	}
-	if config.CompleteCanary {
-		c.Logger.Debug("Skip cleaning resources because complete canary only shifts listener traffic")
-		c.StepStatus[constants.StepCleanPreviousVersion] = true
-		return nil
-	}
-
 	c.Logger.Debug("Delete Mode is " + c.Mode)
 
 	skipped := false
@@ -713,12 +707,6 @@ func (c *Canary) CleanChecking(config schemas.Config) error {
 	if !c.StepStatus[constants.StepCleanPreviousVersion] {
 		return nil
 	}
-	if config.CompleteCanary {
-		c.Logger.Debug("Skip clean checking because complete canary only shifts listener traffic")
-		c.StepStatus[constants.StepCleanChecking] = true
-		return nil
-	}
-
 	done := false
 	isDone := false
 	var err error
