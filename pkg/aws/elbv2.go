@@ -138,6 +138,9 @@ func (e ELBV2Client) CreateTargetGroup(tg *elbv2types.TargetGroup, tgName string
 		return nil, err
 	}
 
+	if len(result.TargetGroups) == 0 {
+		return nil, fmt.Errorf("create target group %q returned no target groups", tgName)
+	}
 	newTargetGroup := &result.TargetGroups[0]
 	if tg.TargetGroupArn == nil || newTargetGroup.TargetGroupArn == nil {
 		return newTargetGroup, nil
