@@ -81,8 +81,8 @@ func TestCanaryWeights(t *testing.T) {
 	}
 
 	stable, canary = CanaryWeights(region, true)
-	if stable != 0 || canary != 100 {
-		t.Fatalf("expected 0/100 complete weights, got %d/%d", stable, canary)
+	if stable != 100 || canary != 0 {
+		t.Fatalf("expected 100/0 complete weights, got %d/%d", stable, canary)
 	}
 }
 

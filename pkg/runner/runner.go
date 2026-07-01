@@ -275,8 +275,10 @@ func (r Runner) Deploy() error {
 	// Send Beginning Message
 	r.Logger.Infof("Beginning deployment: %s", r.Builder.AwsConfig.Name)
 
-	if err := r.Builder.PrintSummary(out, r.Builder.Config.Stack, r.Builder.Config.Region); err != nil {
-		return err
+	if !r.Builder.Config.CompleteCanary {
+		if err := r.Builder.PrintSummary(out, r.Builder.Config.Stack, r.Builder.Config.Region); err != nil {
+			return err
+		}
 	}
 
 	if r.Slacker.ValidClient() {
