@@ -18,6 +18,7 @@ package aws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
@@ -133,19 +134,77 @@ func (e ELBV2Client) GetLoadBalancerFromTG(targetGroups []string) ([]string, err
 
 // CreateTargetGroup creates a new target group
 func (e ELBV2Client) CreateTargetGroup(tg *elbv2types.TargetGroup, tgName string) (*elbv2types.TargetGroup, error) {
-	input := &elbv2.CreateTargetGroupInput{
-		Name:     aws.String(tgName),
-		Port:     tg.Port,
-		Protocol: tg.Protocol,
-		VpcId:    tg.VpcId,
-	}
-
-	result, err := e.Client.CreateTargetGroup(context.Background(), input)
+	result, err := e.Client.CreateTargetGroup(context.Background(), BuildCreateTargetGroupInput(tg, tgName))
 	if err != nil {
 		return nil, err
 	}
 
-	return &result.TargetGroups[0], nil
+	if len(result.TargetGroups) == 0 {
+		return nil, fmt.Errorf("create target group %q returned no target groups", tgName)
+	}
+	newTargetGroup := &result.TargetGroups[0]
+	if tg.TargetGroupArn == nil || newTargetGroup.TargetGroupArn == nil {
+		return newTargetGroup, nil
+	}
+
+	attributes, err := e.DescribeTargetGroupAttributes(tg.TargetGroupArn)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(attributes) == 0 {
+		return newTargetGroup, nil
+	}
+
+	if err := e.ModifyTargetGroupAttributes(newTargetGroup.TargetGroupArn, attributes); err != nil {
+		return nil, err
+	}
+
+	return newTargetGroup, nil
+}
+
+// BuildCreateTargetGroupInput copies target group settings for a canary target group.
+func BuildCreateTargetGroupInput(tg *elbv2types.TargetGroup, tgName string) *elbv2.CreateTargetGroupInput {
+	return &elbv2.CreateTargetGroupInput{
+		Name:                       aws.String(tgName),
+		HealthCheckEnabled:         tg.HealthCheckEnabled,
+		HealthCheckIntervalSeconds: tg.HealthCheckIntervalSeconds,
+		HealthCheckPath:            tg.HealthCheckPath,
+		HealthCheckPort:            tg.HealthCheckPort,
+		HealthCheckProtocol:        tg.HealthCheckProtocol,
+		HealthCheckTimeoutSeconds:  tg.HealthCheckTimeoutSeconds,
+		HealthyThresholdCount:      tg.HealthyThresholdCount,
+		IpAddressType:              tg.IpAddressType,
+		Matcher:                    tg.Matcher,
+		Port:                       tg.Port,
+		Protocol:                   tg.Protocol,
+		ProtocolVersion:            tg.ProtocolVersion,
+		TargetControlPort:          tg.TargetControlPort,
+		TargetType:                 tg.TargetType,
+		UnhealthyThresholdCount:    tg.UnhealthyThresholdCount,
+		VpcId:                      tg.VpcId,
+	}
+}
+
+// DescribeTargetGroupAttributes returns target group attributes.
+func (e ELBV2Client) DescribeTargetGroupAttributes(targetGroupArn *string) ([]elbv2types.TargetGroupAttribute, error) {
+	result, err := e.Client.DescribeTargetGroupAttributes(context.Background(), &elbv2.DescribeTargetGroupAttributesInput{
+		TargetGroupArn: targetGroupArn,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Attributes, nil
+}
+
+// ModifyTargetGroupAttributes updates target group attributes.
+func (e ELBV2Client) ModifyTargetGroupAttributes(targetGroupArn *string, attributes []elbv2types.TargetGroupAttribute) error {
+	_, err := e.Client.ModifyTargetGroupAttributes(context.Background(), &elbv2.ModifyTargetGroupAttributesInput{
+		TargetGroupArn: targetGroupArn,
+		Attributes:     attributes,
+	})
+	return err
 }
 
 // DescribeTargetGroups returns arn list of target groups with detailed information

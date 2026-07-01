@@ -24,7 +24,7 @@ S3_RELEASE_PATH ?= s3://$(RELEASE_BUCKET)/releases/$(VERSION)
 S3_RELEASE_LATEST ?= s3://$(RELEASE_BUCKET)/releases/latest
 S3_BLEEDING_EDGE_LATEST ?= s3://$(RELEASE_BUCKET)/edge/latest
 S3_EXPERIMENTAL_LATEST ?= s3://$(RELEASE_BUCKET)/experimental/latest
-VERSION = 3.0.0
+VERSION = 2.2.1
 
 GCP_ONLY ?= false
 GCP_PROJECT ?= goployer
