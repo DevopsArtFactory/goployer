@@ -142,6 +142,11 @@ func (c *Canary) Deploy(config schemas.Config) error {
 
 // HealthChecking does health checking for canary deployment
 func (c *Canary) HealthChecking(config schemas.Config) error {
+	if config.CompleteCanary {
+		c.Logger.Debug("Skip health checking because complete canary only shifts listener traffic")
+		return nil
+	}
+
 	healthy := false
 
 	for !healthy {
@@ -281,9 +286,6 @@ func (c *Canary) FinishAdditionalWork(config schemas.Config) error {
 		if err := c.ApplyCompleteCanaryWeights(config); err != nil {
 			return err
 		}
-		if err := c.DetachLatestCanaryResources(config); err != nil {
-			return err
-		}
 		c.StepStatus[constants.StepAdditionalWork] = true
 		return nil
 	}
@@ -323,6 +325,12 @@ func (c *Canary) CleanPreviousVersion(config schemas.Config) error {
 	if !c.StepStatus[constants.StepTriggerLifecycleCallback] {
 		return nil
 	}
+	if config.CompleteCanary {
+		c.Logger.Debug("Skip cleaning resources because complete canary only shifts listener traffic")
+		c.StepStatus[constants.StepCleanPreviousVersion] = true
+		return nil
+	}
+
 	c.Logger.Debug("Delete Mode is " + c.Mode)
 
 	skipped := false
@@ -563,7 +571,7 @@ func (c *Canary) ChangeTargetGroupInfo(newTgName string, region schemas.RegionCo
 // CanaryWeights returns stable/canary weights for listener default actions.
 func CanaryWeights(region schemas.RegionConfig, completeCanary bool) (int32, int32) {
 	if completeCanary {
-		return 100, 0
+		return 0, 100
 	}
 
 	weight := region.Canary.Weight
@@ -640,7 +648,7 @@ func (c *Canary) WaitCanaryBakeTime(config schemas.Config) {
 	}
 }
 
-// ApplyCompleteCanaryWeights restores all listener traffic to the original target group.
+// ApplyCompleteCanaryWeights shifts all listener traffic to the canary target group.
 func (c *Canary) ApplyCompleteCanaryWeights(config schemas.Config) error {
 	for _, region := range c.Stack.Regions {
 		if config.Region != "" && config.Region != region.Region {
@@ -649,7 +657,7 @@ func (c *Canary) ApplyCompleteCanaryWeights(config schemas.Config) error {
 		}
 
 		stableWeight, canaryWeight := CanaryWeights(region, true)
-		if err := c.ModifyListenerToStableTargetGroup(region, stableWeight, canaryWeight); err != nil {
+		if err := c.ModifyWeightedListener(region, stableWeight, canaryWeight); err != nil {
 			return err
 		}
 	}
@@ -705,6 +713,12 @@ func (c *Canary) CleanChecking(config schemas.Config) error {
 	if !c.StepStatus[constants.StepCleanPreviousVersion] {
 		return nil
 	}
+	if config.CompleteCanary {
+		c.Logger.Debug("Skip clean checking because complete canary only shifts listener traffic")
+		c.StepStatus[constants.StepCleanChecking] = true
+		return nil
+	}
+
 	done := false
 	isDone := false
 	var err error
@@ -938,16 +952,7 @@ func (c *Canary) RunCanaryDeployment(config schemas.Config, region schemas.Regio
 }
 
 // CompleteCanaryDeployment completes canary deployment
-func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.RegionConfig, latestASG string, canaryTGDetail *elbv2types.TargetGroup) error {
-	asgDetail, err := c.DescribeAutoScalingGroup(latestASG, region.Region)
-	if err != nil {
-		return err
-	}
-
-	if asgDetail == nil {
-		return fmt.Errorf("no autoscaling group information retrieved. Please check autoscaling group resource: %s", latestASG)
-	}
-
+func (c *Canary) CompleteCanaryDeployment(_ schemas.Config, region schemas.RegionConfig, _ string, canaryTGDetail *elbv2types.TargetGroup) error {
 	originalTGDetail, err := c.DescribeTargetGroup(region.HealthcheckTargetGroup, region.Region)
 	if err != nil {
 		return err
@@ -955,43 +960,5 @@ func (c *Canary) CompleteCanaryDeployment(config schemas.Config, region schemas.
 	c.OriginalTargetGroupArn[region.Region] = *originalTGDetail.TargetGroupArn
 	c.CanaryTargetGroupArn[region.Region] = *canaryTGDetail.TargetGroupArn
 
-	targetGroupARNs, err := c.TargetGroupARNsForRegion(region)
-	if err != nil {
-		return err
-	}
-	client, err := selectClientFromList(c.AWSClients, region.Region)
-	if err != nil {
-		return err
-	}
-	if err := client.EC2Service.AttachAsgToTargetGroups(latestASG, targetGroupARNs); err != nil {
-		return err
-	}
-
-	appliedCapacity, err := c.DecideCapacity(config.ForceManifestCapacity, config.CompleteCanary, region.Region, len(c.PrevAsgs[region.Region]), c.Stack.RollingUpdateInstanceCount)
-	if err != nil {
-		return err
-	}
-
-	c.Logger.Debugf("Resizing latest autoscaling group: min - %d, desired - %d, max - %d", appliedCapacity.Min, appliedCapacity.Desired, appliedCapacity.Max)
-	if err := c.ResizingAutoScalingGroup(latestASG, region.Region, appliedCapacity); err != nil {
-		return err
-	}
-
-	// settings for health checking
-	c.Stack.Capacity.Desired = appliedCapacity.Desired
-	c.AppliedCapacity = &appliedCapacity
-	c.AsgNames[region.Region] = latestASG
-	c.PrevAsgs[region.Region] = withoutString(c.PrevAsgs[region.Region], latestASG)
-
 	return nil
-}
-
-func withoutString(values []string, target string) []string {
-	ret := values[:0]
-	for _, value := range values {
-		if value != target {
-			ret = append(ret, value)
-		}
-	}
-	return ret
 }
